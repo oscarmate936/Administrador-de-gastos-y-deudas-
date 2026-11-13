@@ -3,14 +3,17 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import paquete from './package.json' with { type: 'json' };
 
-export default defineConfig({
+// `--mode android` genera la versión que va dentro del APK: sin service worker,
+// porque ahí los archivos ya vienen empaquetados y un caché extra dejaría
+// versiones viejas tras actualizar.
+export default defineConfig(({ mode }) => ({
   // Rutas relativas: la app funciona igual en la raíz de un dominio
   // o en una subcarpeta (por ejemplo GitHub Pages).
   base: './',
   define: { __VERSION__: JSON.stringify(paquete.version) },
   plugins: [
     react(),
-    VitePWA({
+    mode !== 'android' && VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icono.svg', 'apple-touch-icon.png'],
       manifest: {
@@ -36,4 +39,4 @@ export default defineConfig({
     environment: 'node',
     setupFiles: ['fake-indexeddb/auto'],
   },
-});
+}));

@@ -1,0 +1,5 @@
+package sv.misfinanzas.app;
+
+import com.getcapacitor.BridgeActivity;
+
+public class MainActivity extends BridgeActivity {}

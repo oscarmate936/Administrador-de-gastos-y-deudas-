@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { db, type Categoria } from '../db';
 import { FormularioCategoria } from '../componentes/FormularioCategoria';
 import { hoy } from '../lib/fechas';
+import { entregarArchivo } from '../lib/nativo';
 import { crearRespaldo, leerRespaldo, nombreArchivoRespaldo, restaurarRespaldo } from '../lib/respaldo';
 
 interface Props {
@@ -10,26 +11,6 @@ interface Props {
 }
 
 type Aviso = { tipo: 'ok' | 'error'; texto: string };
-
-async function entregarArchivo(nombre: string, contenido: string) {
-  const archivo = new File([contenido], nombre, { type: 'application/json' });
-  // En el celular abre el menú de compartir (Drive, WhatsApp, Archivos...).
-  if (navigator.canShare?.({ files: [archivo] })) {
-    try {
-      await navigator.share({ files: [archivo], title: nombre });
-      return;
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') throw e;
-      // Si compartir falla por otra razón, se descarga el archivo.
-    }
-  }
-  const url = URL.createObjectURL(archivo);
-  const enlace = document.createElement('a');
-  enlace.href = url;
-  enlace.download = nombre;
-  enlace.click();
-  URL.revokeObjectURL(url);
-}
 
 export function Ajustes({ categorias, totalMovimientos }: Props) {
   const [editando, setEditando] = useState<Categoria | 'nueva' | null>(null);
@@ -40,7 +21,7 @@ export function Ajustes({ categorias, totalMovimientos }: Props) {
     setAviso(null);
     try {
       const respaldo = await crearRespaldo(db);
-      await entregarArchivo(nombreArchivoRespaldo(hoy()), JSON.stringify(respaldo, null, 2));
+      await entregarArchivo(nombreArchivoRespaldo(hoy()), JSON.stringify(respaldo, null, 2), 'application/json');
       setAviso({ tipo: 'ok', texto: 'Respaldo creado. Guárdalo fuera de este celular.' });
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;

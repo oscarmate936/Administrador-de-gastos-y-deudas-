@@ -3,9 +3,14 @@
 App para llevar el control de ingresos, gastos, tarjetas de crédito y préstamos.
 Pensada para El Salvador (dólares, Banco Agrícola y Davivienda).
 
-Es una app web instalable (PWA): se abre en el navegador del celular y se puede
-agregar a la pantalla de inicio. Funciona sin conexión y **los datos se guardan
-solo en el dispositivo**; no hay servidor ni cuentas.
+El mismo código sale en dos formas:
+
+- **APK para Android**, empaquetado con Capacitor.
+- **App web instalable (PWA)**, que se abre en el navegador y se puede agregar a
+  la pantalla de inicio.
+
+En ambas funciona sin conexión y **los datos se guardan solo en el dispositivo**;
+no hay servidor ni cuentas.
 
 ## Qué hace hoy
 
@@ -41,12 +46,32 @@ npm run build    # revisa tipos y genera dist/
 npm run preview  # sirve dist/ para probar la app instalable
 ```
 
+## Compilar el APK
+
+Requiere JDK 21 y el SDK de Android (plataforma 36 y build-tools 36.0.0), con
+`ANDROID_HOME` apuntando al SDK.
+
+```bash
+npm run apk
+# resultado: android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+`npm run build:android` solo actualiza el proyecto de `android/` con la versión
+web más reciente, sin compilar.
+
+El APK de depuración se firma con una llave que cada computadora genera por su
+cuenta. Android no deja instalar una actualización firmada con otra llave: hay
+que desinstalar, y eso borra los datos. Antes de usar la app con datos reales
+conviene firmar siempre con una misma llave propia.
+
 ## Estructura
 
 - `src/db.ts`: base de datos local (IndexedDB con Dexie) y tipos.
 - `src/lib/`: lógica sin interfaz (dinero en centavos, fechas, resúmenes, respaldo), con pruebas.
 - `src/pantallas/`: Inicio, Movimientos y Ajustes.
 - `src/componentes/`: formularios y piezas compartidas.
+- `src/lib/nativo.ts`: lo que cambia dentro del APK (botón Atrás, compartir el respaldo).
+- `android/`: proyecto de Android generado por Capacitor.
 
 ## Publicación
 

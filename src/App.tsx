@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Movimiento, type TipoMovimiento } from './db';
 import { FormularioMovimiento } from './componentes/FormularioMovimiento';
 import { IconoAjustes, IconoInicio, IconoLista, IconoMas } from './componentes/Iconos';
+import { escucharBotonAtras } from './lib/nativo';
 import { Ajustes } from './pantallas/Ajustes';
 import { Inicio } from './pantallas/Inicio';
 import { Movimientos } from './pantallas/Movimientos';
@@ -23,6 +24,27 @@ export function App() {
   const movimientos = useLiveQuery(() => db.movimientos.toArray(), []);
   const categorias = useLiveQuery(() => db.categorias.orderBy('orden').toArray(), []);
   const mapaCategorias = useMemo(() => new Map((categorias ?? []).map((c) => [c.id, c])), [categorias]);
+
+  // Botón Atrás de Android: cierra el formulario abierto, luego vuelve a Inicio
+  // y solo entonces deja que la app se minimice.
+  const pestanaActual = useRef(pestana);
+  pestanaActual.current = pestana;
+  useEffect(
+    () =>
+      escucharBotonAtras(() => {
+        const hoja = document.querySelector('dialog[open]');
+        if (hoja) {
+          hoja.dispatchEvent(new Event('cancel', { cancelable: true }));
+          return true;
+        }
+        if (pestanaActual.current !== 'inicio') {
+          setPestana('inicio');
+          return true;
+        }
+        return false;
+      }),
+    [],
+  );
 
   const cargando = movimientos === undefined || categorias === undefined;
   const editar = (movimiento: Movimiento) => setFormulario({ movimiento, tipo: movimiento.tipo });
