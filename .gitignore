@@ -3,3 +3,8 @@ dist
 dev-dist
 *.local
 .DS_Store
+
+# Llaves de firma: nunca en el repositorio
+*.jks
+*.keystore
+*.p12

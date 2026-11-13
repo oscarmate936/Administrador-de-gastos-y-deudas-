@@ -1,5 +1,13 @@
 apply plugin: 'com.android.application'
 
+// Firma de la versión final. La llave nunca está en el repositorio: GitHub Actions
+// la escribe en un archivo temporal a partir de los secretos del repositorio
+// (ver .github/workflows/android.yml). Sin esas variables, la versión final
+// queda sin firmar y solo sirve la de depuración.
+def archivoFirma = System.getenv("ANDROID_KEYSTORE_FILE")
+def claveFirma = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+def hayFirma = archivoFirma && claveFirma
+
 android {
     namespace = "sv.misfinanzas.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,8 +24,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (hayFirma) {
+                storeFile file(archivoFirma)
+                storePassword claveFirma
+                keyAlias "misfinanzas"
+                keyPassword claveFirma
+            }
+        }
+    }
     buildTypes {
         release {
+            if (hayFirma) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
