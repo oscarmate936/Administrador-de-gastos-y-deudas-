@@ -41,15 +41,10 @@ disponible; el disponible baja cuando se registra el pago de la tarjeta.
 
 ## Plan
 
-| Fase | Contenido | Estado |
-|---|---|---|
-| 1 | Base del proyecto, diseño para celular, app instalable | Hecho |
-| 2 | Ingresos, gastos, categorías, disponible, respaldo | Hecho |
-| 3 | Tarjetas de crédito: corte, fecha límite, periodos, pagos, compras en cuotas | Hecho |
-| 4 | Préstamos: cuotas, abonos extra, tiempo restante, simulador | Hecho |
-| 5 | Recordatorios de fechas de corte y de pago | Pendiente |
-| 6 | Lectura de estados de cuenta en PDF (hecho para tarjetas de Davivienda y Banco Agrícola) y de fotos | En curso |
-| 7 | Reportes, simulador de pago de deudas | Pendiente |
+Hecho: base, ingresos y gastos, tarjetas, préstamos e importación de estados de
+cuenta de tarjetas en PDF. Lo que sigue (proteger los datos, recordatorios, más
+estados de cuenta, costo de las deudas y plan de pago, comodidad y fotos) está
+en [docs/PLAN.md](docs/PLAN.md).
 
 ## Desarrollo
 
