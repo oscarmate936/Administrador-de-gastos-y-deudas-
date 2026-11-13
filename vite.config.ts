@@ -15,6 +15,11 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode !== 'android' && VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        // Incluye el lector de PDF (.mjs, ~1.3 MB) para importar estados de cuenta sin conexión.
+        globPatterns: ['**/*.{js,mjs,css,html,png,svg,webmanifest}'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+      },
       includeAssets: ['icono.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Mis Finanzas',

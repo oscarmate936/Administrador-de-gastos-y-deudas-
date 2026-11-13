@@ -965,3 +965,100 @@ button {
   font-size: 0.85rem;
   font-weight: 400;
 }
+
+/* ---------- Importar estado de cuenta ---------- */
+
+.boton-importar {
+  width: 100%;
+}
+
+.subtitulo {
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.lista-importar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fila-importar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  background: var(--superficie);
+}
+
+.fila-importar.marcada {
+  border-color: color-mix(in srgb, var(--primario) 45%, var(--borde));
+  background: color-mix(in srgb, var(--primario) 6%, var(--superficie));
+}
+
+.fila-importar-principal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.fila-importar-principal input[type='checkbox'] {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  accent-color: var(--primario);
+}
+
+.fila-importar .fila-titulo {
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.selector-categoria {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--superficie);
+  font: inherit;
+  font-size: 0.9rem;
+  color: inherit;
+}
+
+.boton:disabled {
+  opacity: 0.6;
+}
+
+.toast {
+  position: fixed;
+  z-index: 20;
+  left: 16px;
+  right: 16px;
+  bottom: calc(var(--alto-nav) + env(safe-area-inset-bottom) + 16px);
+  max-width: 488px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--texto);
+  color: var(--fondo);
+  font-size: 0.92rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 25%);
+}
+
+.toast.error {
+  background: var(--peligro);
+  color: #fff;
+}
+
+.toast .enlace {
+  color: inherit;
+  text-decoration: underline;
+}

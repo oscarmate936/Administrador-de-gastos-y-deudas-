@@ -28,6 +28,12 @@ no hay servidor ni cuentas.
   simulador de abono extra.
 - Próximos pagos de tarjetas y préstamos, y cuánto queda libre después de
   apartar lo que vence en 15 días.
+- Importar estados de cuenta en PDF de tarjetas de Davivienda y Banco Agrícola:
+  lee el resumen (corte, último día de pago, pago de contado, pago mínimo,
+  saldo, límite, disponible, tasa) y los movimientos, comprueba que sumen lo
+  mismo que los totales del banco, detecta los ya registrados y sugiere
+  categorías. La lectura ocurre en el dispositivo con PDF.js; el archivo no se
+  envía a ningún servidor.
 - Respaldo: exportar todos los datos a un archivo y restaurarlos.
 
 Las compras con tarjeta aumentan la deuda de la tarjeta y no bajan el
@@ -42,7 +48,7 @@ disponible; el disponible baja cuando se registra el pago de la tarjeta.
 | 3 | Tarjetas de crédito: corte, fecha límite, periodos, pagos, compras en cuotas | Hecho |
 | 4 | Préstamos: cuotas, abonos extra, tiempo restante, simulador | Hecho |
 | 5 | Recordatorios de fechas de corte y de pago | Pendiente |
-| 6 | Lectura de estados de cuenta en PDF y de fotos, dentro del celular | Pendiente |
+| 6 | Lectura de estados de cuenta en PDF (hecho para tarjetas de Davivienda y Banco Agrícola) y de fotos | En curso |
 | 7 | Reportes, simulador de pago de deudas | Pendiente |
 
 ## Desarrollo
@@ -81,6 +87,8 @@ conviene firmar siempre con una misma llave propia.
 - `src/lib/`: lógica sin interfaz (dinero en centavos, fechas, resúmenes, tarjetas y préstamos, respaldo), con pruebas.
 - `src/pantallas/`: Inicio, Movimientos, Deudas (con el detalle de cada tarjeta y préstamo) y Ajustes.
 - `src/componentes/`: formularios y piezas compartidas.
+- `src/lib/estados/`: lectura de estados de cuenta en PDF. `ejemplos.ts` imita la
+  posición del texto de cada banco con datos inventados para las pruebas.
 - `src/lib/nativo.ts`: lo que cambia dentro del APK (botón Atrás, compartir el respaldo).
 - `android/`: proyecto de Android generado por Capacitor.
 
@@ -90,4 +98,5 @@ conviene firmar siempre con una misma llave propia.
 Pages con cada cambio en `main`. Requiere activar Pages una vez en
 Settings → Pages → Source: **GitHub Actions**.
 
-No subas estados de cuenta ni respaldos a este repositorio: es público.
+No subas estados de cuenta ni respaldos a este repositorio: es público. Las
+pruebas usan solo datos inventados.

@@ -1,4 +1,4 @@
-import type { BaseDeDatos, Categoria, Movimiento, Prestamo, Tarjeta } from '../db';
+import type { BaseDeDatos, Categoria, Movimiento, Prestamo, Tarjeta, UltimoEstado } from '../db';
 import { esFechaValida } from './fechas';
 
 // Los datos viven solo en el dispositivo, así que el respaldo es la única
@@ -65,6 +65,24 @@ function leerTarjeta(v: unknown, i: number): Tarjeta {
     fechaSaldo: v.fechaSaldo,
     color: typeof v.color === 'string' ? v.color : '#0f6b54',
     creadoEn: typeof v.creadoEn === 'number' ? v.creadoEn : Date.now(),
+    ultimos4: typeof v.ultimos4 === 'string' && /^\d{4}$/.test(v.ultimos4) ? v.ultimos4 : undefined,
+    tasaAnual: typeof v.tasaAnual === 'number' && Number.isFinite(v.tasaAnual) && v.tasaAnual >= 0 ? v.tasaAnual : undefined,
+    ultimoEstado: leerUltimoEstado(v.ultimoEstado),
+  };
+}
+
+function leerUltimoEstado(v: unknown): UltimoEstado | undefined {
+  if (!esObjeto(v)) return undefined;
+  if (!esFechaValida(v.fechaCorte) || !esFechaValida(v.fechaLimite)) return undefined;
+  if (!esCentavos(v.pagoContadoCentavos) || !esCentavos(v.saldoCentavos)) return undefined;
+  return {
+    fechaCorte: v.fechaCorte,
+    fechaLimite: v.fechaLimite,
+    pagoContadoCentavos: v.pagoContadoCentavos,
+    pagoMinimoCentavos: esCentavos(v.pagoMinimoCentavos) ? v.pagoMinimoCentavos : undefined,
+    saldoCentavos: v.saldoCentavos,
+    disponibleCentavos:
+      typeof v.disponibleCentavos === 'number' && Number.isSafeInteger(v.disponibleCentavos) ? v.disponibleCentavos : undefined,
   };
 }
 

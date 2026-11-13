@@ -14,10 +14,11 @@ interface Props {
   alEditarTarjeta: () => void;
   alPagar: () => void;
   alComprar: () => void;
+  alImportar: () => void;
   alEditarMovimiento: (m: Movimiento) => void;
 }
 
-export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, alPagar, alComprar, alEditarMovimiento }: Props) {
+export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, alPagar, alComprar, alImportar, alEditarMovimiento }: Props) {
   const e = estadoTarjeta(t, datos.movimientos, hoy());
   const movs = ordenarRecientes(datos.movimientos.filter((m) => m.tarjetaId === t.id));
 
@@ -42,7 +43,12 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
       </section>
 
       <section className="tarjeta">
-        <h2>Estado de cuenta</h2>
+        <div className="cabecera-seccion">
+          <h2>Estado de cuenta</h2>
+          <button type="button" className="enlace" onClick={alImportar}>
+            Importar PDF
+          </button>
+        </div>
         {e.vencido && (
           <p className="aviso error">
             El pago de contado venció el {fechaCorta(e.fechaLimite)}. Págalo cuanto antes para evitar intereses y cargos por mora.
@@ -66,6 +72,12 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
               {e.pendienteCentavos > 0 ? formatearDinero(e.pendienteCentavos) : 'Pagado ✓'}
             </dd>
           </div>
+          {e.pagoMinimoCentavos !== null && (
+            <div>
+              <dt>Pago mínimo pendiente</dt>
+              <dd>{e.pagoMinimoCentavos > 0 ? formatearDinero(e.pagoMinimoCentavos) : 'Cubierto ✓'}</dd>
+            </div>
+          )}
           <div>
             <dt>Próximo corte</dt>
             <dd>{fechaCorta(e.proximoCorte)}</dd>
@@ -78,8 +90,9 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
           </div>
         </dl>
         <p className="ayuda sin-margen">
-          Son cálculos con lo que registras aquí. Compáralos con tu estado de cuenta: si no coinciden, puede faltar alguna
-          compra, cargo o pago.
+          {e.segunEstado
+            ? `Cifras de tu estado de cuenta del ${fechaCorta(e.corteAnterior)}, menos los pagos que registraste después. Lo del próximo corte es un cálculo con lo que registras aquí.`
+            : 'Son cálculos con lo que registras aquí. Compáralos con tu estado de cuenta, o importa el PDF para usar las cifras del banco.'}
         </p>
         <div className="acciones">
           <button type="button" className="boton" onClick={alComprar}>

@@ -22,6 +22,8 @@ describe('respaldo', () => {
     await origen.tarjetas.add({
       id: 't1', nombre: 'Visa', banco: 'Banco Agrícola', limiteCentavos: 100000, diaCorte: 20, diaPago: 15,
       saldoInicialCentavos: 30000, pendienteInicialCentavos: 10000, fechaSaldo: '2026-11-13', color: '#0f6b54', creadoEn: 3,
+      ultimos4: '5678', tasaAnual: 39.9,
+      ultimoEstado: { fechaCorte: '2026-11-06', fechaLimite: '2026-12-01', pagoContadoCentavos: 10000, pagoMinimoCentavos: 900, saldoCentavos: 30000 },
     });
     await origen.prestamos.add({
       id: 'p1', nombre: 'Personal', acreedor: 'Davivienda', montoOriginalCentavos: 200000, saldoInicialCentavos: 100000,
@@ -60,6 +62,19 @@ describe('respaldo', () => {
     await restaurarRespaldo(db, leerRespaldo(v1));
     expect(await db.movimientos.count()).toBe(1);
     expect(await db.tarjetas.count()).toBe(0);
+  });
+
+  it('al pasar a la versión 3 la fecha de saldo de las tarjetas se mueve un día atrás', async () => {
+    const nombre = `prueba-${++contador}`;
+    const v2 = new Dexie(nombre);
+    v2.version(2).stores({ movimientos: 'id, fecha, tipo, tarjetaId, prestamoId', categorias: 'id, orden', tarjetas: 'id', prestamos: 'id' });
+    await v2.table('tarjetas').add({
+      id: 't', nombre: 'X', banco: '', limiteCentavos: 1, diaCorte: 1, diaPago: 1,
+      saldoInicialCentavos: 0, pendienteInicialCentavos: 0, fechaSaldo: '2026-11-01', color: '#000', creadoEn: 0,
+    });
+    v2.close();
+    const nueva = new BaseDeDatos(nombre);
+    expect((await nueva.tarjetas.get('t'))?.fechaSaldo).toBe('2026-10-31');
   });
 
   it('una base creada con la versión 1 conserva sus datos al actualizar', async () => {

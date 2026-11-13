@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+import { sumarDias } from './lib/fechas';
 
 /**
  * - ingreso: dinero que entra al disponible.
@@ -44,14 +45,32 @@ export interface Tarjeta {
   diaCorte: number;
   /** Día del mes del último día de pago. */
   diaPago: number;
-  /** Lo que se debía en total el día que se registró la tarjeta en la app. */
+  /** Lo que se debía en total al terminar el día `fechaSaldo`. */
   saldoInicialCentavos: number;
   /** Lo que faltaba pagar del último estado de cuenta ese mismo día. */
   pendienteInicialCentavos: number;
-  /** Fecha a la que corresponden los dos saldos anteriores. */
+  /**
+   * Fecha a la que corresponden los dos saldos anteriores: ya incluyen todo lo
+   * de ese día y de antes. Solo las compras y pagos posteriores los modifican.
+   */
   fechaSaldo: string;
   color: string;
   creadoEn: number;
+  /** Últimos 4 dígitos, para reconocer la tarjeta al importar un estado de cuenta. */
+  ultimos4?: string;
+  tasaAnual?: number;
+  /** Datos del último estado de cuenta importado. */
+  ultimoEstado?: UltimoEstado;
+}
+
+export interface UltimoEstado {
+  fechaCorte: string;
+  fechaLimite: string;
+  pagoContadoCentavos: number;
+  pagoMinimoCentavos?: number;
+  saldoCentavos: number;
+  /** Crédito disponible según el banco (algunos no descuentan los intereses del límite). */
+  disponibleCentavos?: number;
 }
 
 export interface Prestamo {
@@ -124,6 +143,17 @@ export class BaseDeDatos extends Dexie {
           await categorias.add(CATEGORIA_INTERESES);
         }
       });
+    // Versión 3: los saldos de una tarjeta ya incluyen el día `fechaSaldo`. Antes
+    // era el día en que se registró y contaba lo de ese día, así que se mueve
+    // un día atrás para que todo siga sumando igual.
+    this.version(3).upgrade(async (tx) => {
+      await tx
+        .table<Tarjeta, string>('tarjetas')
+        .toCollection()
+        .modify((t) => {
+          t.fechaSaldo = sumarDias(t.fechaSaldo, -1);
+        });
+    });
     // Solo corre la primera vez que se crea la base en el dispositivo.
     this.on('populate', (tx) => {
       tx.table('categorias').bulkAdd([...CATEGORIAS_INICIALES, CATEGORIA_INTERESES]);

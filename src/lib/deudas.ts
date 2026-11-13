@@ -74,6 +74,10 @@ export interface EstadoTarjeta {
   fechaLimite: string;
   /** Lo que falta pagar de ese estado de cuenta para no generar intereses. */
   pendienteCentavos: number;
+  /** Lo que falta del pago mínimo; null si no se conoce (no se importó ese estado de cuenta). */
+  pagoMinimoCentavos: number | null;
+  /** true si las cifras del corte vienen de un estado de cuenta importado. */
+  segunEstado: boolean;
   vencido: boolean;
   /** Días que faltan para `fechaLimite`; negativo si ya pasó. */
   diasParaLimite: number;
@@ -84,39 +88,58 @@ export interface EstadoTarjeta {
 }
 
 export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: string): EstadoTarjeta {
-  const gastos = movimientos.filter((m) => m.tipo === 'gasto' && m.tarjetaId === tarjeta.id);
-  const pagos = movimientos.filter((m) => m.tipo === 'pago' && m.tarjetaId === tarjeta.id);
-  const saldoCentavos = tarjeta.saldoInicialCentavos + sumar(gastos) - sumar(pagos);
+  // Lo de `fechaSaldo` y antes ya está incluido en los saldos iniciales.
+  const posterior = (m: Movimiento) => m.tarjetaId === tarjeta.id && m.fecha > tarjeta.fechaSaldo;
+  const gastos = movimientos.filter((m) => m.tipo === 'gasto' && posterior(m));
+  const pagos = movimientos.filter((m) => m.tipo === 'pago' && posterior(m));
+  const pagado = sumar(pagos);
+  const saldoCentavos = tarjeta.saldoInicialCentavos + sumar(gastos) - pagado;
   const deuda = Math.max(0, saldoCentavos);
 
-  const corteAnterior = ultimoDiaHasta(tarjeta.diaCorte, hoy);
-  const proximoCorte = primerDiaDespues(tarjeta.diaCorte, hoy);
-  const fechaLimite = primerDiaDespues(tarjeta.diaPago, corteAnterior);
+  // Si el banco corrió el corte unos días (fin de semana, feriado), manda la
+  // fecha del estado de cuenta importado.
+  const ue = tarjeta.ultimoEstado;
+  const corteCalculado = ultimoDiaHasta(tarjeta.diaCorte, hoy);
+  const segunEstado = ue !== undefined && ue.fechaCorte <= hoy && Math.abs(diasEntre(ue.fechaCorte, corteCalculado)) <= 5;
+  const corteAnterior = segunEstado ? ue.fechaCorte : corteCalculado;
+  const d = aDate(corteAnterior);
+  const proximoCorte = fechaConDia(d.getFullYear(), d.getMonth() + 1, tarjeta.diaCorte);
+  const fechaLimite = segunEstado ? ue.fechaLimite : primerDiaDespues(tarjeta.diaPago, corteAnterior);
 
-  /** Lo que queda por pagar del estado de cuenta de ese corte. Solo para cortes posteriores al registro. */
+  /** Lo que queda por pagar del estado de cuenta de ese corte, si es posterior a `fechaSaldo`. */
   const pendienteDelCorte = (corte: string): number => {
     const facturado = gastos.reduce(
       (t, g) =>
         t + montoFacturado(g.montoCentavos, g.cuotas ?? 1, cortesFacturados(tarjeta.diaCorte, g.fecha, corte)),
       tarjeta.saldoInicialCentavos,
     );
-    return Math.min(deuda, Math.max(0, facturado - sumar(pagos)));
+    return Math.min(deuda, Math.max(0, facturado - pagado));
   };
 
-  // Si el último corte fue antes de registrar la tarjeta, la app no conoce ese
-  // estado de cuenta: usa lo que la persona dijo que le faltaba pagar.
-  const pendienteCentavos =
-    corteAnterior <= tarjeta.fechaSaldo
-      ? Math.min(deuda, Math.max(0, tarjeta.pendienteInicialCentavos - sumar(pagos)))
-      : pendienteDelCorte(corteAnterior);
+  // Si el último corte no es posterior a `fechaSaldo`, la app no armó ese estado
+  // de cuenta: usa lo que se registró (a mano o desde el PDF) como pendiente.
+  const corteConocido = corteAnterior <= tarjeta.fechaSaldo;
+  const pendienteCentavos = corteConocido
+    ? Math.min(deuda, Math.max(0, tarjeta.pendienteInicialCentavos - pagado))
+    : pendienteDelCorte(corteAnterior);
+  const pagoMinimoCentavos =
+    corteConocido && segunEstado && ue.pagoMinimoCentavos !== undefined
+      ? Math.min(pendienteCentavos, Math.max(0, ue.pagoMinimoCentavos - pagado))
+      : null;
 
   return {
     saldoCentavos,
-    creditoDisponibleCentavos: tarjeta.limiteCentavos - saldoCentavos,
+    // Si los saldos vienen del estado de cuenta, parte del disponible que dio el banco.
+    creditoDisponibleCentavos:
+      ue?.disponibleCentavos !== undefined && ue.fechaCorte === tarjeta.fechaSaldo
+        ? ue.disponibleCentavos - (saldoCentavos - tarjeta.saldoInicialCentavos)
+        : tarjeta.limiteCentavos - saldoCentavos,
     corteAnterior,
     proximoCorte,
     fechaLimite,
     pendienteCentavos,
+    pagoMinimoCentavos,
+    segunEstado: segunEstado && corteConocido,
     vencido: pendienteCentavos > 0 && hoy > fechaLimite,
     diasParaLimite: diasEntre(hoy, fechaLimite),
     proximoEstadoCentavos: pendienteDelCorte(proximoCorte),

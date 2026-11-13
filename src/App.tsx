@@ -6,7 +6,10 @@ import { FormularioMovimiento } from './componentes/FormularioMovimiento';
 import { FormularioPago } from './componentes/FormularioPago';
 import { FormularioPrestamo } from './componentes/FormularioPrestamo';
 import { FormularioTarjeta } from './componentes/FormularioTarjeta';
+import { RevisionEstado } from './componentes/RevisionEstado';
 import { IconoAjustes, IconoDeudas, IconoInicio, IconoLista, IconoMas } from './componentes/Iconos';
+import { ErrorEstado, leerEstadoTarjeta } from './lib/estados/leer';
+import { extraerPaginas } from './lib/estados/pdf';
 import { escucharBotonAtras } from './lib/nativo';
 import { Ajustes } from './pantallas/Ajustes';
 import { Deudas } from './pantallas/Deudas';
@@ -28,6 +31,10 @@ export function App() {
   const [pestana, setPestana] = useState<Pestana>('inicio');
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const [formulario, setFormulario] = useState<Formulario | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [leyendo, setLeyendo] = useState(false);
+  const entradaPdf = useRef<HTMLInputElement>(null);
+  const tarjetaParaImportar = useRef<string | undefined>(undefined);
 
   const movimientos = useLiveQuery(() => db.movimientos.toArray(), []);
   const categorias = useLiveQuery(() => db.categorias.orderBy('orden').toArray(), []);
@@ -93,6 +100,24 @@ export function App() {
     setFormulario(f);
   };
 
+  const importarEstado = (tarjetaId?: string) => {
+    tarjetaParaImportar.current = tarjetaId;
+    setAviso(null);
+    entradaPdf.current?.click();
+  };
+  async function leerPdf(archivo: File) {
+    setLeyendo(true);
+    try {
+      const estado = leerEstadoTarjeta(await extraerPaginas(archivo));
+      setFormulario({ clase: 'estado', estado, tarjetaId: tarjetaParaImportar.current });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      setAviso(e instanceof ErrorEstado ? e.message : 'No pude leer este PDF.');
+    } finally {
+      setLeyendo(false);
+    }
+  }
+
   const tarjetaAbierta = detalle?.tipo === 'tarjeta' ? datos?.tarjetas.find((t) => t.id === detalle.id) : undefined;
   const prestamoAbierto = detalle?.tipo === 'prestamo' ? datos?.prestamos.find((p) => p.id === detalle.id) : undefined;
 
@@ -122,6 +147,7 @@ export function App() {
               alEditarTarjeta={() => setFormulario({ clase: 'tarjeta', tarjeta: tarjetaAbierta })}
               alPagar={() => setFormulario({ clase: 'pago', tarjetaId: tarjetaAbierta.id })}
               alComprar={() => setFormulario({ clase: 'movimiento', tipo: 'gasto', tarjetaId: tarjetaAbierta.id })}
+              alImportar={() => importarEstado(tarjetaAbierta.id)}
               alEditarMovimiento={editar}
             />
           );
@@ -145,6 +171,7 @@ export function App() {
             alAbrir={abrirDeuda}
             alNuevaTarjeta={() => setFormulario({ clase: 'tarjeta' })}
             alNuevoPrestamo={() => setFormulario({ clase: 'prestamo' })}
+            alImportar={() => importarEstado()}
           />
         );
       case 'ajustes':
@@ -185,6 +212,19 @@ export function App() {
         return <FormularioTarjeta tarjeta={f.tarjeta} cantidad={d.tarjetas.length} alCerrar={cerrar} />;
       case 'prestamo':
         return <FormularioPrestamo prestamo={f.prestamo} alCerrar={cerrar} />;
+      case 'estado':
+        return (
+          <RevisionEstado
+            estado={f.estado}
+            datos={d}
+            tarjetaPreferida={f.tarjetaId}
+            alCerrar={cerrar}
+            alGuardar={(id) => {
+              cerrar();
+              abrirDeuda({ tipo: 'tarjeta', id });
+            }}
+          />
+        );
     }
   }
 
@@ -219,6 +259,28 @@ export function App() {
       </nav>
 
       {formulario && datos && hoja(formulario, datos)}
+
+      <input
+        ref={entradaPdf}
+        type="file"
+        accept="application/pdf,.pdf"
+        hidden
+        onChange={(e) => {
+          const archivo = e.target.files?.[0];
+          e.target.value = '';
+          if (archivo) void leerPdf(archivo);
+        }}
+      />
+      {(leyendo || aviso) && (
+        <div className={aviso ? 'toast error' : 'toast'} role={aviso ? 'alert' : 'status'}>
+          <span>{aviso ?? 'Leyendo el estado de cuenta…'}</span>
+          {aviso && (
+            <button type="button" className="enlace" onClick={() => setAviso(null)}>
+              Cerrar
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

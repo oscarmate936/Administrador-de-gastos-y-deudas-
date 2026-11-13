@@ -1,4 +1,5 @@
 import type { Categoria, Movimiento, Prestamo, Tarjeta } from './db';
+import type { EstadoCuentaTarjeta } from './lib/estados/tipos';
 
 /** Todo lo que las pantallas leen de la base de datos. */
 export interface Datos {
@@ -14,7 +15,8 @@ export type Formulario =
   | { clase: 'movimiento'; tipo: 'ingreso' | 'gasto'; movimiento?: Movimiento; tarjetaId?: string }
   | { clase: 'pago'; tarjetaId?: string; prestamoId?: string; movimiento?: Movimiento; extra?: boolean }
   | { clase: 'tarjeta'; tarjeta?: Tarjeta }
-  | { clase: 'prestamo'; prestamo?: Prestamo };
+  | { clase: 'prestamo'; prestamo?: Prestamo }
+  | { clase: 'estado'; estado: EstadoCuentaTarjeta; tarjetaId?: string };
 
 /** Tarjeta o préstamo abierto en la pestaña Deudas. */
 export type Detalle = { tipo: 'tarjeta' | 'prestamo'; id: string };

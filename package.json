@@ -1,7 +1,7 @@
 {
   "name": "mis-finanzas",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -19,6 +19,7 @@
     "@capacitor/share": "^8.0.3",
     "dexie": "^4.4.7",
     "dexie-react-hooks": "^4.4.0",
+    "pdfjs-dist": "6.4.299",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

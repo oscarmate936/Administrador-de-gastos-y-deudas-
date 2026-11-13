@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { BANCOS, COLORES } from '../datos';
 import { db, nuevoId, type Tarjeta } from '../db';
 import { centavosATexto, textoACentavos } from '../lib/dinero';
-import { fechaCorta, hoy } from '../lib/fechas';
+import { fechaCorta, hoy, sumarDias } from '../lib/fechas';
 import { Hoja } from './Hoja';
 
 interface Props {
@@ -55,10 +55,14 @@ export function FormularioTarjeta({ tarjeta, cantidad, alCerrar }: Props) {
       diaPago: Number(diaPago),
       saldoInicialCentavos: saldoCentavos,
       pendienteInicialCentavos: pendienteCentavos,
-      // Los saldos son del día en que se registró la tarjeta; editar no cambia esa fecha.
-      fechaSaldo: tarjeta?.fechaSaldo ?? hoy(),
+      // Lo que se registre con fecha de hoy en adelante suma o resta a estos saldos.
+      // Editar no cambia esa fecha.
+      fechaSaldo: tarjeta?.fechaSaldo ?? sumarDias(hoy(), -1),
       color,
       creadoEn: tarjeta?.creadoEn ?? Date.now(),
+      ultimos4: tarjeta?.ultimos4,
+      tasaAnual: tarjeta?.tasaAnual,
+      ultimoEstado: tarjeta?.ultimoEstado,
     });
     alCerrar();
   }
@@ -72,7 +76,7 @@ export function FormularioTarjeta({ tarjeta, cantidad, alCerrar }: Props) {
   }
 
   const otroBanco = !BANCOS.includes(banco);
-  const desde = tarjeta ? ` el ${fechaCorta(tarjeta.fechaSaldo)}` : '';
+  const desde = tarjeta ? ` al ${fechaCorta(tarjeta.fechaSaldo)}` : '';
 
   return (
     <Hoja titulo={tarjeta ? 'Editar tarjeta' : 'Nueva tarjeta de crédito'} alCerrar={alCerrar}>
@@ -129,7 +133,11 @@ export function FormularioTarjeta({ tarjeta, cantidad, alCerrar }: Props) {
         <label className="campo">
           <span>{tarjeta ? `Deuda total${desde}` : 'Deuda total hoy'}</span>
           <input type="text" inputMode="decimal" value={saldo} placeholder="0.00" onChange={cambiar(setSaldo)} />
-          <span className="ayuda sin-margen">El saldo actual que ves en tu banca en línea.</span>
+          <span className="ayuda sin-margen">
+            {tarjeta
+              ? 'Las compras y pagos con fecha posterior se suman o restan a esta deuda.'
+              : 'El saldo actual que ves en tu banca en línea. Lo que registres con fecha de hoy en adelante se suma o resta.'}
+          </span>
         </label>
 
         <label className="campo">

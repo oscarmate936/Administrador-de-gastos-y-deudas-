@@ -76,7 +76,7 @@ describe('estadoTarjeta', () => {
     diaPago: 15,
     saldoInicialCentavos: 30000,
     pendienteInicialCentavos: 10000,
-    fechaSaldo: '2026-11-13',
+    fechaSaldo: '2026-11-12',
     color: '#000',
     creadoEn: 0,
   };
@@ -130,6 +130,17 @@ describe('estadoTarjeta', () => {
     expect(estadoTarjeta(tarjeta, movs, '2027-02-25').pendienteCentavos).toBe(26000 + 12000);
   });
 
+  it('lo anterior a fechaSaldo ya está en el saldo y no cuenta otra vez', () => {
+    const viejo = mov({ tipo: 'gasto', montoCentavos: 5000, fecha: '2026-11-12', tarjetaId: 't1' });
+    const pagoViejo = mov({ tipo: 'pago', montoCentavos: 5000, fecha: '2026-11-01', tarjetaId: 't1' });
+    const hoyMismo = mov({ tipo: 'gasto', montoCentavos: 700, fecha: '2026-11-13', tarjetaId: 't1' });
+    const e = estadoTarjeta(tarjeta, [viejo, pagoViejo, hoyMismo], '2026-11-13');
+    expect(e.saldoCentavos).toBe(30700);
+    expect(e.pendienteCentavos).toBe(10000);
+    expect(e.pagoMinimoCentavos).toBeNull();
+    expect(e.segunEstado).toBe(false);
+  });
+
   it('un pago después del corte baja lo pendiente y nunca queda negativo', () => {
     const abono = mov({ tipo: 'pago', montoCentavos: 20000, fecha: '2026-11-28', tarjetaId: 't1' });
     expect(estadoTarjeta(tarjeta, [pago, compra, abono], '2026-11-29').pendienteCentavos).toBe(6000);
@@ -137,6 +148,43 @@ describe('estadoTarjeta', () => {
     const e = estadoTarjeta(tarjeta, [pago, compra, total], '2026-11-29');
     expect(e.pendienteCentavos).toBe(0);
     expect(e.saldoCentavos).toBe(-24000);
+  });
+});
+
+describe('tarjeta con estado de cuenta importado', () => {
+  const tarjeta: Tarjeta = {
+    id: 't1', nombre: 'Visa', banco: 'Banco Agrícola', limiteCentavos: 60000, diaCorte: 6, diaPago: 1,
+    saldoInicialCentavos: 38113, pendienteInicialCentavos: 38113, fechaSaldo: '2026-11-06', color: '#000', creadoEn: 0,
+    ultimoEstado: { fechaCorte: '2026-11-06', fechaLimite: '2026-12-01', pagoContadoCentavos: 38113, pagoMinimoCentavos: 747, saldoCentavos: 38113 },
+  };
+
+  it('usa las cifras del estado de cuenta y descuenta los pagos posteriores', () => {
+    const e = estadoTarjeta(tarjeta, [], '2026-11-13');
+    expect(e.segunEstado).toBe(true);
+    expect(e.corteAnterior).toBe('2026-11-06');
+    expect(e.fechaLimite).toBe('2026-12-01');
+    expect(e.pendienteCentavos).toBe(38113);
+    expect(e.pagoMinimoCentavos).toBe(747);
+    const abono = mov({ tipo: 'pago', montoCentavos: 500, fecha: '2026-11-10', tarjetaId: 't1' });
+    const e2 = estadoTarjeta(tarjeta, [abono], '2026-11-13');
+    expect(e2.pagoMinimoCentavos).toBe(247);
+    expect(e2.pendienteCentavos).toBe(37613);
+  });
+
+  it('si el banco corrió el corte unos días, manda la fecha del estado de cuenta', () => {
+    const corrido: Tarjeta = { ...tarjeta, diaCorte: 8, fechaSaldo: '2026-11-07', ultimoEstado: { ...tarjeta.ultimoEstado!, fechaCorte: '2026-11-07' } };
+    const e = estadoTarjeta(corrido, [], '2026-11-13');
+    expect(e.corteAnterior).toBe('2026-11-07');
+    expect(e.proximoCorte).toBe('2026-12-08');
+    expect(e.pendienteCentavos).toBe(38113);
+  });
+
+  it('pasado el siguiente corte vuelve a calcular y ya no hay pago mínimo conocido', () => {
+    const e = estadoTarjeta(tarjeta, [], '2026-12-07');
+    expect(e.segunEstado).toBe(false);
+    expect(e.corteAnterior).toBe('2026-12-06');
+    expect(e.pagoMinimoCentavos).toBeNull();
+    expect(e.fechaLimite).toBe('2027-01-01');
   });
 });
 
@@ -236,7 +284,7 @@ describe('préstamos', () => {
   it('junta los próximos pagos por fecha y suma los que vencen pronto', () => {
     const tarjeta: Tarjeta = {
       id: 't1', nombre: 'Visa', banco: '', limiteCentavos: 100000, diaCorte: 20, diaPago: 15,
-      saldoInicialCentavos: 30000, pendienteInicialCentavos: 10000, fechaSaldo: '2026-11-13', color: '#000', creadoEn: 0,
+      saldoInicialCentavos: 30000, pendienteInicialCentavos: 10000, fechaSaldo: '2026-11-12', color: '#000', creadoEn: 0,
     };
     const sinPendiente: Tarjeta = { ...tarjeta, id: 't2', nombre: 'Master', pendienteInicialCentavos: 0, saldoInicialCentavos: 5000 };
     const sinDeuda: Tarjeta = { ...tarjeta, id: 't3', nombre: 'Vacía', pendienteInicialCentavos: 0, saldoInicialCentavos: 0 };

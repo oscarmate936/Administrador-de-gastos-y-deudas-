@@ -8,9 +8,10 @@ interface Props {
   alAbrir: (d: Detalle) => void;
   alNuevaTarjeta: () => void;
   alNuevoPrestamo: () => void;
+  alImportar: () => void;
 }
 
-export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo }: Props) {
+export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImportar }: Props) {
   const { tarjetas, prestamos, movimientos } = datos;
   const fechaHoy = hoy();
 
@@ -27,6 +28,9 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo }: Prop
         </p>
         <button type="button" className="boton primario" onClick={alNuevaTarjeta}>
           Agregar tarjeta de crédito
+        </button>
+        <button type="button" className="boton" onClick={alImportar}>
+          📄 Importar estado de cuenta (PDF)
         </button>
         <button type="button" className="boton" onClick={alNuevoPrestamo}>
           Agregar préstamo
@@ -57,6 +61,10 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo }: Prop
               : 'Nada por pagar en los próximos 30 días.'}
         </p>
       </section>
+
+      <button type="button" className="boton boton-importar" onClick={alImportar}>
+        📄 Importar estado de cuenta (PDF)
+      </button>
 
       {proximos.length > 0 && (
         <section className="tarjeta">

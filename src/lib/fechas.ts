@@ -21,6 +21,12 @@ export function esFechaValida(fecha: unknown): fecha is string {
   return aFechaTexto(aDate(fecha)) === fecha;
 }
 
+export function sumarDias(fecha: string, dias: number): string {
+  const d = aDate(fecha);
+  d.setDate(d.getDate() + dias);
+  return aFechaTexto(d);
+}
+
 /** Días completos entre dos fechas (hasta - desde). */
 export function diasEntre(desde: string, hasta: string): number {
   const ms = aDate(hasta).getTime() - aDate(desde).getTime();
