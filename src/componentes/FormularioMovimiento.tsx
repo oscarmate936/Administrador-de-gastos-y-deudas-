@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { db, nuevoId, type Categoria, type Movimiento, type TipoMovimiento } from '../db';
+import { db, nuevoId, type Categoria, type Movimiento, type Tarjeta } from '../db';
 import { centavosATexto, textoACentavos } from '../lib/dinero';
 import { esFechaValida, hoy } from '../lib/fechas';
 import { Hoja } from './Hoja';
@@ -7,13 +7,18 @@ import { Hoja } from './Hoja';
 interface Props {
   /** Si viene, se edita ese movimiento; si no, se crea uno nuevo. */
   movimiento?: Movimiento;
-  tipoInicial: TipoMovimiento;
+  tipoInicial: 'ingreso' | 'gasto';
   categorias: Categoria[];
+  tarjetas: Tarjeta[];
+  /** Tarjeta preseleccionada al registrar una compra desde el detalle de una tarjeta. */
+  tarjetaInicial?: string;
   alCerrar: () => void;
 }
 
-export function FormularioMovimiento({ movimiento, tipoInicial, categorias, alCerrar }: Props) {
-  const [tipo, setTipo] = useState<TipoMovimiento>(movimiento?.tipo ?? tipoInicial);
+export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarjetas, tarjetaInicial, alCerrar }: Props) {
+  const [tipo, setTipo] = useState<'ingreso' | 'gasto'>(movimiento?.tipo === 'ingreso' ? 'ingreso' : movimiento ? 'gasto' : tipoInicial);
+  const [tarjetaId, setTarjetaId] = useState(movimiento ? movimiento.tarjetaId : tarjetaInicial);
+  const [cuotas, setCuotas] = useState(String(movimiento?.cuotas ?? 1));
   const [monto, setMonto] = useState(movimiento ? centavosATexto(movimiento.montoCentavos) : '');
   const [fecha, setFecha] = useState(movimiento?.fecha ?? hoy());
   const [categoriaId, setCategoriaId] = useState(movimiento?.categoriaId);
@@ -32,6 +37,12 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, alCe
       setError('Elige una fecha válida.');
       return;
     }
+    const conTarjeta = tipo === 'gasto' && tarjetaId !== undefined;
+    const numCuotas = Number(cuotas);
+    if (conTarjeta && (!Number.isInteger(numCuotas) || numCuotas < 1 || numCuotas > 60)) {
+      setError('Las cuotas deben ser un número entre 1 y 60.');
+      return;
+    }
     await db.movimientos.put({
       id: movimiento?.id ?? nuevoId(),
       tipo,
@@ -39,6 +50,8 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, alCe
       fecha,
       categoriaId: tipo === 'gasto' ? categoriaId : undefined,
       esPago: tipo === 'ingreso' ? esPago : undefined,
+      tarjetaId: conTarjeta ? tarjetaId : undefined,
+      cuotas: conTarjeta && numCuotas > 1 ? numCuotas : undefined,
       nota: nota.trim(),
       creadoEn: movimiento?.creadoEn ?? Date.now(),
     });
@@ -122,6 +135,34 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, alCe
                 : 'Suma a tu disponible sin reiniciar la cuenta desde tu último pago.'}
             </p>
           </fieldset>
+        )}
+
+        {tipo === 'gasto' && tarjetas.length > 0 && (
+          <fieldset className="campo">
+            <legend>¿Con qué pagaste?</legend>
+            <div className="chips">
+              <button type="button" className="chip" aria-pressed={tarjetaId === undefined} onClick={() => setTarjetaId(undefined)}>
+                <span aria-hidden="true">💵</span> Efectivo o débito
+              </button>
+              {tarjetas.map((t) => (
+                <button key={t.id} type="button" className="chip" aria-pressed={tarjetaId === t.id} onClick={() => setTarjetaId(t.id)}>
+                  <span aria-hidden="true">💳</span> {t.nombre}
+                </button>
+              ))}
+            </div>
+            <p className="ayuda">
+              {tarjetaId === undefined
+                ? 'Se resta de tu disponible.'
+                : 'Aumenta la deuda de la tarjeta; tu disponible baja cuando pagues la tarjeta.'}
+            </p>
+          </fieldset>
+        )}
+
+        {tipo === 'gasto' && tarjetaId !== undefined && (
+          <label className="campo">
+            <span>Cuotas (1 = de contado)</span>
+            <input type="text" inputMode="numeric" value={cuotas} maxLength={2} onChange={(e) => { setCuotas(e.target.value); setError(''); }} />
+          </label>
         )}
 
         <label className="campo">

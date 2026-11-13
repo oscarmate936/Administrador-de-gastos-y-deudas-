@@ -149,7 +149,7 @@ button {
 
 .navegacion button {
   flex: 1;
-  max-width: 173px;
+  max-width: 130px;
   height: var(--alto-nav);
   display: flex;
   flex-direction: column;
@@ -762,4 +762,206 @@ button {
 
 .acciones .primario {
   flex: 1;
+}
+
+/* ---------- Tarjetas y préstamos ---------- */
+
+.texto-peligro {
+  color: var(--peligro);
+}
+
+.fila-monto.credito {
+  color: var(--tenue);
+}
+
+.ayuda.sin-margen {
+  margin-top: 0;
+}
+
+.campo select {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 12px;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  background: var(--superficie);
+  font: inherit;
+  color: inherit;
+}
+
+.campo select + input,
+.campo .chips + input {
+  margin-top: 8px;
+}
+
+.campo input[inputmode] {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 14px;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  background: var(--superficie);
+}
+
+.campo-monto input[inputmode] {
+  width: 6.2ch;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.cifras-heroe {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgb(255 255 255 / 22%);
+}
+
+.cifras-heroe dt {
+  font-size: 0.76rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.cifras-heroe dd {
+  font-size: 1.1rem;
+  font-weight: 720;
+  font-variant-numeric: tabular-nums;
+}
+
+.heroe-alerta {
+  color: #ffd6a8;
+}
+
+.barra-clara {
+  margin-top: 12px;
+  background: rgb(255 255 255 / 22%);
+}
+
+.barra-clara .barra-relleno {
+  background: #fff;
+}
+
+.items-deuda {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: -4px -8px;
+}
+
+.item-deuda {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  text-align: left;
+}
+
+.item-deuda:active {
+  background: var(--superficie-2);
+}
+
+.item-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.punto {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.item-nombre {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-monto {
+  flex: none;
+  font-weight: 720;
+  font-variant-numeric: tabular-nums;
+}
+
+.item-pie {
+  color: var(--tenue);
+  font-size: 0.85rem;
+}
+
+.item-pie.texto-peligro {
+  color: var(--peligro);
+  font-weight: 600;
+}
+
+.barra-detalle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: -6px 0 -4px -10px;
+}
+
+.barra-detalle h2 {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.datos-lista {
+  display: flex;
+  flex-direction: column;
+}
+
+.datos-lista > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--borde);
+}
+
+.datos-lista > div:last-child {
+  border-bottom: 0;
+}
+
+.datos-lista dt {
+  color: var(--tenue);
+  font-size: 0.92rem;
+}
+
+.datos-lista dd {
+  font-weight: 650;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.acciones .boton:not(.primario):not(.peligro) {
+  flex: 1;
+}
+
+/* Las barras también se usan dentro de botones con <span>, que es inline por defecto. */
+.barra,
+.barra-relleno {
+  display: block;
+}
+
+/* Texto de ayuda dentro de un campo: no hereda el estilo de la etiqueta. */
+.campo > span.ayuda {
+  font-size: 0.85rem;
+  font-weight: 400;
 }

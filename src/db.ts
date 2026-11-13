@@ -1,6 +1,11 @@
 import Dexie, { type EntityTable } from 'dexie';
 
-export type TipoMovimiento = 'ingreso' | 'gasto';
+/**
+ * - ingreso: dinero que entra al disponible.
+ * - gasto: sin tarjetaId sale del disponible; con tarjetaId aumenta la deuda de esa tarjeta.
+ * - pago: sale del disponible y baja la deuda de una tarjeta o de un préstamo.
+ */
+export type TipoMovimiento = 'ingreso' | 'gasto' | 'pago';
 
 export interface Movimiento {
   id: string;
@@ -16,7 +21,52 @@ export interface Movimiento {
    * cuenta el periodo desde el último pago, no desde cualquier ingreso.
    */
   esPago?: boolean;
+  /** En gastos: la tarjeta con la que se pagó. En pagos: la tarjeta que se abona. */
+  tarjetaId?: string;
+  /** Solo en gastos con tarjeta: número de cuotas (1 o ausente = de contado). */
+  cuotas?: number;
+  /** Solo en pagos: el préstamo que se abona. */
+  prestamoId?: string;
+  /** Solo en pagos a préstamos: la parte del pago que baja el saldo (el resto son intereses y cargos). */
+  capitalCentavos?: number;
+  /** Solo en pagos a préstamos: true si es un abono extra y no cuenta como cuota del mes. */
+  esExtra?: boolean;
   nota: string;
+  creadoEn: number;
+}
+
+export interface Tarjeta {
+  id: string;
+  nombre: string;
+  banco: string;
+  limiteCentavos: number;
+  /** Día del mes (1-31). Si el mes es más corto se usa su último día. */
+  diaCorte: number;
+  /** Día del mes del último día de pago. */
+  diaPago: number;
+  /** Lo que se debía en total el día que se registró la tarjeta en la app. */
+  saldoInicialCentavos: number;
+  /** Lo que faltaba pagar del último estado de cuenta ese mismo día. */
+  pendienteInicialCentavos: number;
+  /** Fecha a la que corresponden los dos saldos anteriores. */
+  fechaSaldo: string;
+  color: string;
+  creadoEn: number;
+}
+
+export interface Prestamo {
+  id: string;
+  nombre: string;
+  acreedor: string;
+  /** Opcional: monto con el que empezó el préstamo, para mostrar el avance. */
+  montoOriginalCentavos?: number;
+  /** Saldo de capital el día que se registró en la app. */
+  saldoInicialCentavos: number;
+  /** Tasa de interés anual en porcentaje, por ejemplo 12.5. */
+  tasaAnual: number;
+  cuotaCentavos: number;
+  /** Fecha de la primera cuota a pagar después de registrarlo; las siguientes caen el mismo día de cada mes. */
+  primeraCuota: string;
   creadoEn: number;
 }
 
@@ -39,9 +89,20 @@ export const CATEGORIAS_INICIALES: Categoria[] = [
   { id: 'otros', nombre: 'Otros', emoji: '📦', color: '#7c8791', orden: 8 },
 ];
 
+/** Para registrar en una tarjeta los cargos que no son compras. */
+export const CATEGORIA_INTERESES: Categoria = {
+  id: 'intereses',
+  nombre: 'Intereses y comisiones',
+  emoji: '🏦',
+  color: '#a8563b',
+  orden: 9,
+};
+
 export class BaseDeDatos extends Dexie {
   movimientos!: EntityTable<Movimiento, 'id'>;
   categorias!: EntityTable<Categoria, 'id'>;
+  tarjetas!: EntityTable<Tarjeta, 'id'>;
+  prestamos!: EntityTable<Prestamo, 'id'>;
 
   constructor(nombre = 'mis-finanzas') {
     super(nombre);
@@ -49,9 +110,23 @@ export class BaseDeDatos extends Dexie {
       movimientos: 'id, fecha, tipo',
       categorias: 'id, orden',
     });
+    // Versión 2: tarjetas de crédito y préstamos.
+    this.version(2)
+      .stores({
+        movimientos: 'id, fecha, tipo, tarjetaId, prestamoId',
+        categorias: 'id, orden',
+        tarjetas: 'id',
+        prestamos: 'id',
+      })
+      .upgrade(async (tx) => {
+        const categorias = tx.table<Categoria, string>('categorias');
+        if (!(await categorias.get(CATEGORIA_INTERESES.id))) {
+          await categorias.add(CATEGORIA_INTERESES);
+        }
+      });
     // Solo corre la primera vez que se crea la base en el dispositivo.
     this.on('populate', (tx) => {
-      tx.table('categorias').bulkAdd(CATEGORIAS_INICIALES);
+      tx.table('categorias').bulkAdd([...CATEGORIAS_INICIALES, CATEGORIA_INTERESES]);
     });
   }
 }

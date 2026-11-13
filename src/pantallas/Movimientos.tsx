@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { Categoria, Movimiento } from '../db';
+import type { Datos } from '../datos';
+import type { Movimiento } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { IconoAnterior, IconoSiguiente } from '../componentes/Iconos';
 import { formatearDinero } from '../lib/dinero';
@@ -7,14 +8,13 @@ import { fechaRelativa, hoy, mesDe, moverMes, nombreMes } from '../lib/fechas';
 import { agruparPorDia, totalesDelMes } from '../lib/resumen';
 
 interface Props {
-  movimientos: Movimiento[];
-  categorias: Map<string, Categoria>;
+  datos: Datos;
   alEditar: (m: Movimiento) => void;
 }
 
-export function Movimientos({ movimientos, categorias, alEditar }: Props) {
+export function Movimientos({ datos, alEditar }: Props) {
   const [mes, setMes] = useState(() => mesDe(hoy()));
-  const totales = totalesDelMes(movimientos, mes);
+  const totales = totalesDelMes(datos.movimientos, mes);
   const dias = agruparPorDia(totales.movimientos);
 
   return (
@@ -36,14 +36,20 @@ export function Movimientos({ movimientos, categorias, alEditar }: Props) {
             <dd className="positivo">{formatearDinero(totales.ingresosCentavos)}</dd>
           </div>
           <div>
-            <dt>Gastos</dt>
-            <dd>{formatearDinero(totales.gastosCentavos)}</dd>
+            <dt>Salidas</dt>
+            <dd>{formatearDinero(totales.salidasCentavos)}</dd>
           </div>
           <div>
             <dt>Diferencia</dt>
-            <dd>{formatearDinero(totales.ingresosCentavos - totales.gastosCentavos)}</dd>
+            <dd>{formatearDinero(totales.ingresosCentavos - totales.salidasCentavos)}</dd>
           </div>
         </dl>
+        {totales.conTarjetaCentavos > 0 && (
+          <p className="ayuda sin-margen">
+            Además compraste {formatearDinero(totales.conTarjetaCentavos)} con tarjeta. Eso no resta de tu disponible
+            hasta que pagas la tarjeta.
+          </p>
+        )}
       </section>
 
       {dias.length === 0 ? (
@@ -54,7 +60,7 @@ export function Movimientos({ movimientos, categorias, alEditar }: Props) {
             <h3 className="titulo-dia">{fechaRelativa(fecha)}</h3>
             <ul className="lista">
               {lista.map((m) => (
-                <FilaMovimiento key={m.id} movimiento={m} categorias={categorias} alTocar={alEditar} />
+                <FilaMovimiento key={m.id} movimiento={m} datos={datos} alTocar={alEditar} />
               ))}
             </ul>
           </section>

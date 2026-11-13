@@ -20,7 +20,18 @@ no hay servidor ni cuentas.
   y gasto por categoría.
 - Historial por mes, con edición y borrado.
 - Categorías personalizables.
+- Tarjetas de crédito: fecha de corte y último día de pago, saldo, crédito
+  disponible, pago de contado pendiente, estimado del próximo estado de cuenta,
+  compras en cuotas y pagos.
+- Préstamos: saldo, próxima cuota, tiempo restante, fecha de término, intereses
+  por pagar, cuotas y abonos extra con separación de capital e intereses, y
+  simulador de abono extra.
+- Próximos pagos de tarjetas y préstamos, y cuánto queda libre después de
+  apartar lo que vence en 15 días.
 - Respaldo: exportar todos los datos a un archivo y restaurarlos.
+
+Las compras con tarjeta aumentan la deuda de la tarjeta y no bajan el
+disponible; el disponible baja cuando se registra el pago de la tarjeta.
 
 ## Plan
 
@@ -28,8 +39,8 @@ no hay servidor ni cuentas.
 |---|---|---|
 | 1 | Base del proyecto, diseño para celular, app instalable | Hecho |
 | 2 | Ingresos, gastos, categorías, disponible, respaldo | Hecho |
-| 3 | Tarjetas de crédito: corte, fecha límite, periodos, pagos, compras en cuotas | Pendiente |
-| 4 | Préstamos: tabla de pagos, pagos extras, tiempo restante | Pendiente |
+| 3 | Tarjetas de crédito: corte, fecha límite, periodos, pagos, compras en cuotas | Hecho |
+| 4 | Préstamos: cuotas, abonos extra, tiempo restante, simulador | Hecho |
 | 5 | Recordatorios de fechas de corte y de pago | Pendiente |
 | 6 | Lectura de estados de cuenta en PDF y de fotos, dentro del celular | Pendiente |
 | 7 | Reportes, simulador de pago de deudas | Pendiente |
@@ -67,8 +78,8 @@ conviene firmar siempre con una misma llave propia.
 ## Estructura
 
 - `src/db.ts`: base de datos local (IndexedDB con Dexie) y tipos.
-- `src/lib/`: lógica sin interfaz (dinero en centavos, fechas, resúmenes, respaldo), con pruebas.
-- `src/pantallas/`: Inicio, Movimientos y Ajustes.
+- `src/lib/`: lógica sin interfaz (dinero en centavos, fechas, resúmenes, tarjetas y préstamos, respaldo), con pruebas.
+- `src/pantallas/`: Inicio, Movimientos, Deudas (con el detalle de cada tarjeta y préstamo) y Ajustes.
 - `src/componentes/`: formularios y piezas compartidas.
 - `src/lib/nativo.ts`: lo que cambia dentro del APK (botón Atrás, compartir el respaldo).
 - `android/`: proyecto de Android generado por Capacitor.

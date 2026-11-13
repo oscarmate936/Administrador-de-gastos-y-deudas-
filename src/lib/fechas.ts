@@ -73,3 +73,19 @@ export function haceCuanto(fecha: string, referencia: string = hoy()): string {
   if (dias === 1) return 'ayer';
   return `hace ${dias} días`;
 }
+
+const fmtMesCorto = new Intl.DateTimeFormat('es-SV', { month: 'short', year: 'numeric' });
+
+/** "sep 2027" */
+export function mesCorto(fecha: string): string {
+  return fmtMesCorto.format(aDate(fecha));
+}
+
+/** Para vencimientos: "hoy", "mañana", "faltan 5 días", "venció ayer", "venció hace 3 días". */
+export function textoFaltan(dias: number): string {
+  if (dias === 0) return 'hoy';
+  if (dias === 1) return 'mañana';
+  if (dias > 1) return `faltan ${dias} días`;
+  if (dias === -1) return 'venció ayer';
+  return `venció hace ${-dias} días`;
+}

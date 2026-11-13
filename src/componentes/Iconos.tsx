@@ -63,3 +63,10 @@ export const IconoCerrar = () => (
     <path d="M6 6l12 12M18 6 6 18" />
   </Icono>
 );
+
+export const IconoDeudas = () => (
+  <Icono>
+    <rect x="3" y="5.5" width="18" height="13" rx="2.5" />
+    <path d="M3 10h18M7 15h4" />
+  </Icono>
+);

@@ -1,5 +1,7 @@
-import type { Categoria, Movimiento } from '../db';
+import type { Datos, Detalle } from '../datos';
+import type { Movimiento } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
+import { proximosPagos, totalPorPagar } from '../lib/deudas';
 import { formatearDinero } from '../lib/dinero';
 import { fechaCorta, haceCuanto, hoy } from '../lib/fechas';
 import {
@@ -8,23 +10,26 @@ import {
   ordenarRecientes,
   resumenDesdeUltimoPago,
 } from '../lib/resumen';
+import { ListaProximos } from './Deudas';
+
+/** Días hacia adelante que se apartan para pagos al calcular lo "libre". */
+const DIAS_A_APARTAR = 15;
 
 interface Props {
-  movimientos: Movimiento[];
-  categorias: Map<string, Categoria>;
+  datos: Datos;
   alAgregarIngreso: () => void;
   alAgregarGasto: () => void;
   alEditar: (m: Movimiento) => void;
   alVerTodos: () => void;
+  alVerDeudas: () => void;
+  alAbrirDeuda: (d: Detalle) => void;
 }
 
-export function Inicio({ movimientos, categorias, alAgregarIngreso, alAgregarGasto, alEditar, alVerTodos }: Props) {
+export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVerTodos, alVerDeudas, alAbrirDeuda }: Props) {
+  const { movimientos, mapaCategorias, tarjetas, prestamos } = datos;
   const fechaHoy = hoy();
-  const disponible = calcularDisponible(movimientos);
-  const periodo = resumenDesdeUltimoPago(movimientos, fechaHoy);
-  const recientes = ordenarRecientes(movimientos).slice(0, 5);
 
-  if (movimientos.length === 0) {
+  if (movimientos.length === 0 && tarjetas.length === 0 && prestamos.length === 0) {
     return (
       <section className="vacio">
         <div className="vacio-emoji" aria-hidden="true">
@@ -41,11 +46,25 @@ export function Inicio({ movimientos, categorias, alAgregarIngreso, alAgregarGas
         <button type="button" className="boton" onClick={alAgregarGasto}>
           Registrar un gasto
         </button>
+        <button type="button" className="boton" onClick={alVerDeudas}>
+          Agregar tarjetas y préstamos
+        </button>
       </section>
     );
   }
 
-  const porCategoria = periodo ? gastosPorCategoria(periodo.gastos, new Set(categorias.keys())) : [];
+  const disponible = calcularDisponible(movimientos);
+  const periodo = resumenDesdeUltimoPago(movimientos, fechaHoy);
+  const recientes = ordenarRecientes(movimientos).slice(0, 5);
+  const proximos = proximosPagos(tarjetas, prestamos, movimientos, fechaHoy);
+  const porApartar = totalPorPagar(proximos, DIAS_A_APARTAR);
+  const libre = disponible - porApartar;
+
+  // Por categoría cuenta todo lo comprado desde el pago, también con tarjeta.
+  const comprasPeriodo = periodo
+    ? movimientos.filter((m) => m.tipo === 'gasto' && m.fecha >= periodo.pago.fecha && m.fecha <= fechaHoy)
+    : [];
+  const porCategoria = gastosPorCategoria(comprasPeriodo, new Set(mapaCategorias.keys()));
   const mayor = porCategoria[0]?.totalCentavos ?? 0;
   const recibido = periodo ? periodo.pago.montoCentavos + periodo.otrosIngresosCentavos : 0;
   const porcentaje = recibido > 0 ? Math.min(100, Math.round((periodo!.gastadoCentavos / recibido) * 100)) : 0;
@@ -55,12 +74,37 @@ export function Inicio({ movimientos, categorias, alAgregarIngreso, alAgregarGas
       <section className={disponible < 0 ? 'tarjeta-principal negativo' : 'tarjeta-principal'}>
         <p className="etiqueta">Disponible</p>
         <p className="monto-grande">{formatearDinero(disponible)}</p>
-        <p className="nota-principal">
-          {disponible < 0
-            ? 'Has gastado más de lo que has registrado como ingreso.'
-            : 'Lo que has recibido menos lo que has gastado.'}
-        </p>
+        {porApartar > 0 ? (
+          <dl className="cifras-heroe">
+            <div>
+              <dt>Pagos en {DIAS_A_APARTAR} días</dt>
+              <dd>{formatearDinero(porApartar)}</dd>
+            </div>
+            <div>
+              <dt>Libre después de pagar</dt>
+              <dd className={libre < 0 ? 'heroe-alerta' : ''}>{formatearDinero(libre)}</dd>
+            </div>
+          </dl>
+        ) : (
+          <p className="nota-principal">
+            {disponible < 0
+              ? 'Ha salido más dinero del que has registrado como ingreso.'
+              : 'Lo que has recibido menos lo que ha salido.'}
+          </p>
+        )}
       </section>
+
+      {proximos.length > 0 && (
+        <section className="tarjeta">
+          <div className="cabecera-seccion">
+            <h2>Próximos pagos</h2>
+            <button type="button" className="enlace" onClick={alVerDeudas}>
+              Ver deudas
+            </button>
+          </div>
+          <ListaProximos datos={datos} alAbrir={alAbrirDeuda} limite={3} />
+        </section>
+      )}
 
       {periodo ? (
         <section className="tarjeta">
@@ -87,7 +131,7 @@ export function Inicio({ movimientos, categorias, alAgregarIngreso, alAgregarGas
           </div>
           <dl className="cifras">
             <div>
-              <dt>Gastado</dt>
+              <dt>Ha salido</dt>
               <dd>{formatearDinero(periodo.gastadoCentavos)}</dd>
             </div>
             <div>
@@ -99,11 +143,16 @@ export function Inicio({ movimientos, categorias, alAgregarIngreso, alAgregarGas
               <dd>{formatearDinero(periodo.promedioDiarioCentavos)}</dd>
             </div>
           </dl>
+          {periodo.pagosDeudasCentavos > 0 && (
+            <p className="ayuda sin-margen">
+              Incluye {formatearDinero(periodo.pagosDeudasCentavos)} en pagos de tarjetas y préstamos.
+            </p>
+          )}
 
           {porCategoria.length > 0 && (
             <ul className="categorias-barras">
               {porCategoria.map(({ categoriaId, totalCentavos }) => {
-                const c = categoriaId ? categorias.get(categoriaId) : undefined;
+                const c = categoriaId ? mapaCategorias.get(categoriaId) : undefined;
                 return (
                   <li key={categoriaId ?? 'sin'}>
                     <span className="categoria-nombre">
@@ -136,19 +185,21 @@ export function Inicio({ movimientos, categorias, alAgregarIngreso, alAgregarGas
         </section>
       )}
 
-      <section className="tarjeta">
-        <div className="cabecera-seccion">
-          <h2>Últimos movimientos</h2>
-          <button type="button" className="enlace" onClick={alVerTodos}>
-            Ver todos
-          </button>
-        </div>
-        <ul className="lista">
-          {recientes.map((m) => (
-            <FilaMovimiento key={m.id} movimiento={m} categorias={categorias} mostrarFecha alTocar={alEditar} />
-          ))}
-        </ul>
-      </section>
+      {recientes.length > 0 && (
+        <section className="tarjeta">
+          <div className="cabecera-seccion">
+            <h2>Últimos movimientos</h2>
+            <button type="button" className="enlace" onClick={alVerTodos}>
+              Ver todos
+            </button>
+          </div>
+          <ul className="lista">
+            {recientes.map((m) => (
+              <FilaMovimiento key={m.id} movimiento={m} datos={datos} mostrarFecha alTocar={alEditar} />
+            ))}
+          </ul>
+        </section>
+      )}
     </>
   );
 }

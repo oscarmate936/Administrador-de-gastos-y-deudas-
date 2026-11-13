@@ -34,8 +34,9 @@ export function Ajustes({ categorias, totalMovimientos }: Props) {
     try {
       const respaldo = leerRespaldo(await archivo.text());
       const mensaje =
-        `El respaldo tiene ${respaldo.movimientos.length} movimientos. ` +
-        `Se reemplazarán los ${totalMovimientos} que hay ahora en este dispositivo. ¿Continuar?`;
+        `El respaldo tiene ${respaldo.movimientos.length} movimientos, ${respaldo.tarjetas.length} tarjetas ` +
+        `y ${respaldo.prestamos.length} préstamos. Reemplazará todo lo que hay ahora en este dispositivo ` +
+        `(${totalMovimientos} movimientos). ¿Continuar?`;
       if (!window.confirm(mensaje)) return;
       await restaurarRespaldo(db, respaldo);
       setAviso({ tipo: 'ok', texto: `Se restauraron ${respaldo.movimientos.length} movimientos.` });

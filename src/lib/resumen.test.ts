@@ -83,7 +83,8 @@ describe('listas', () => {
   it('totales del mes', () => {
     const t = totalesDelMes(todos, '2026-11');
     expect(t.ingresosCentavos).toBe(62000);
-    expect(t.gastosCentavos).toBe(11000);
+    expect(t.salidasCentavos).toBe(11000);
+    expect(t.conTarjetaCentavos).toBe(0);
     expect(t.movimientos).toHaveLength(5);
   });
 
@@ -95,5 +96,32 @@ describe('listas', () => {
       ['2026-11-10', 1],
       ['2026-11-05', 2],
     ]);
+  });
+});
+
+describe('tarjetas y pagos de deudas', () => {
+  const pago = mov({ tipo: 'ingreso', esPago: true, montoCentavos: 100000, fecha: '2026-11-01' });
+  const efectivo = mov({ tipo: 'gasto', montoCentavos: 5000, fecha: '2026-11-02', categoriaId: 'comida' });
+  const conTarjeta = mov({ tipo: 'gasto', montoCentavos: 30000, fecha: '2026-11-03', tarjetaId: 't1' });
+  const pagoTarjeta = mov({ tipo: 'pago', montoCentavos: 20000, fecha: '2026-11-04', tarjetaId: 't1' });
+  const pagoPrestamo = mov({ tipo: 'pago', montoCentavos: 15000, fecha: '2026-11-05', prestamoId: 'p1', capitalCentavos: 10000 });
+  const movs = [pago, efectivo, conTarjeta, pagoTarjeta, pagoPrestamo];
+
+  it('la compra con tarjeta no baja el disponible; pagar la tarjeta o el préstamo sí', () => {
+    expect(calcularDisponible(movs)).toBe(100000 - 5000 - 20000 - 15000);
+  });
+
+  it('el resumen desde el pago cuenta salidas reales y separa los pagos de deudas', () => {
+    const r = resumenDesdeUltimoPago(movs, '2026-11-10')!;
+    expect(r.gastadoCentavos).toBe(5000 + 20000 + 15000);
+    expect(r.pagosDeudasCentavos).toBe(35000);
+    expect(r.gastos.map((g) => g.id)).toEqual([efectivo.id]);
+  });
+
+  it('los totales del mes separan salidas y compras con tarjeta', () => {
+    const t = totalesDelMes(movs, '2026-11');
+    expect(t.ingresosCentavos).toBe(100000);
+    expect(t.salidasCentavos).toBe(40000);
+    expect(t.conTarjetaCentavos).toBe(30000);
   });
 });

@@ -1,0 +1,171 @@
+import { useState, type FormEvent } from 'react';
+import { BANCOS, COLORES } from '../datos';
+import { db, nuevoId, type Tarjeta } from '../db';
+import { centavosATexto, textoACentavos } from '../lib/dinero';
+import { fechaCorta, hoy } from '../lib/fechas';
+import { Hoja } from './Hoja';
+
+interface Props {
+  tarjeta?: Tarjeta;
+  /** Cuántas tarjetas hay ya, para proponer un color distinto a cada una. */
+  cantidad: number;
+  alCerrar: () => void;
+}
+
+const DIAS = Array.from({ length: 31 }, (_, i) => i + 1);
+
+/** Campo vacío = 0; texto inválido = null. */
+const montoOpcional = (texto: string) => (texto.trim() === '' ? 0 : textoACentavos(texto));
+
+export function FormularioTarjeta({ tarjeta, cantidad, alCerrar }: Props) {
+  const [nombre, setNombre] = useState(tarjeta?.nombre ?? '');
+  const [banco, setBanco] = useState(tarjeta?.banco ?? BANCOS[0]);
+  const [limite, setLimite] = useState(tarjeta ? centavosATexto(tarjeta.limiteCentavos) : '');
+  const [diaCorte, setDiaCorte] = useState(String(tarjeta?.diaCorte ?? ''));
+  const [diaPago, setDiaPago] = useState(String(tarjeta?.diaPago ?? ''));
+  const [saldo, setSaldo] = useState(tarjeta ? centavosATexto(tarjeta.saldoInicialCentavos) : '');
+  const [pendiente, setPendiente] = useState(tarjeta ? centavosATexto(tarjeta.pendienteInicialCentavos) : '');
+  const [color, setColor] = useState(tarjeta?.color ?? COLORES[(2 + cantidad * 3) % COLORES.length]);
+  const [error, setError] = useState('');
+
+  const cambiar = (set: (v: string) => void) => (e: { target: { value: string } }) => {
+    set(e.target.value);
+    setError('');
+  };
+
+  async function guardar(e: FormEvent) {
+    e.preventDefault();
+    const limiteCentavos = textoACentavos(limite);
+    const saldoCentavos = montoOpcional(saldo);
+    const pendienteCentavos = montoOpcional(pendiente);
+    if (!nombre.trim()) return setError('Escribe un nombre para la tarjeta, por ejemplo "Visa Clásica".');
+    if (!limiteCentavos) return setError('Escribe el límite de crédito de la tarjeta.');
+    if (!diaCorte) return setError('Elige el día de corte.');
+    if (!diaPago) return setError('Elige el último día de pago.');
+    if (saldoCentavos === null) return setError('La deuda actual no es un monto válido.');
+    if (pendienteCentavos === null) return setError('El pago de contado pendiente no es un monto válido.');
+    if (pendienteCentavos > saldoCentavos) return setError('Lo pendiente del estado de cuenta no puede ser mayor que la deuda total.');
+
+    await db.tarjetas.put({
+      id: tarjeta?.id ?? nuevoId(),
+      nombre: nombre.trim(),
+      banco: banco.trim(),
+      limiteCentavos,
+      diaCorte: Number(diaCorte),
+      diaPago: Number(diaPago),
+      saldoInicialCentavos: saldoCentavos,
+      pendienteInicialCentavos: pendienteCentavos,
+      // Los saldos son del día en que se registró la tarjeta; editar no cambia esa fecha.
+      fechaSaldo: tarjeta?.fechaSaldo ?? hoy(),
+      color,
+      creadoEn: tarjeta?.creadoEn ?? Date.now(),
+    });
+    alCerrar();
+  }
+
+  async function eliminar() {
+    if (!tarjeta) return;
+    const mensaje = `¿Eliminar la tarjeta "${tarjeta.nombre}"? Sus compras y pagos se conservan en Movimientos.`;
+    if (!window.confirm(mensaje)) return;
+    await db.tarjetas.delete(tarjeta.id);
+    alCerrar();
+  }
+
+  const otroBanco = !BANCOS.includes(banco);
+  const desde = tarjeta ? ` el ${fechaCorta(tarjeta.fechaSaldo)}` : '';
+
+  return (
+    <Hoja titulo={tarjeta ? 'Editar tarjeta' : 'Nueva tarjeta de crédito'} alCerrar={alCerrar}>
+      <form onSubmit={guardar} className="formulario" noValidate>
+        <label className="campo">
+          <span>Nombre</span>
+          <input type="text" value={nombre} maxLength={30} placeholder="Ej. Visa Clásica" autoFocus={!tarjeta} onChange={cambiar(setNombre)} />
+        </label>
+
+        <fieldset className="campo">
+          <legend>Banco</legend>
+          <div className="chips">
+            {BANCOS.map((b) => (
+              <button key={b} type="button" className="chip" aria-pressed={banco === b} onClick={() => setBanco(b)}>
+                {b}
+              </button>
+            ))}
+            <button type="button" className="chip" aria-pressed={otroBanco} onClick={() => setBanco('')}>
+              Otro
+            </button>
+          </div>
+          {otroBanco && (
+            <input type="text" value={banco} maxLength={30} placeholder="Nombre del banco" aria-label="Nombre del banco" onChange={cambiar(setBanco)} />
+          )}
+        </fieldset>
+
+        <label className="campo">
+          <span>Límite de crédito</span>
+          <input type="text" inputMode="decimal" value={limite} placeholder="0.00" onChange={cambiar(setLimite)} />
+        </label>
+
+        <div className="fila-campos">
+          <label className="campo campo-crece">
+            <span>Día de corte</span>
+            <select value={diaCorte} onChange={cambiar(setDiaCorte)}>
+              <option value="">Elegir</option>
+              {DIAS.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </label>
+          <label className="campo campo-crece">
+            <span>Último día de pago</span>
+            <select value={diaPago} onChange={cambiar(setDiaPago)}>
+              <option value="">Elegir</option>
+              {DIAS.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p className="ayuda sin-margen">Los dos aparecen en tu estado de cuenta. Si un mes no tiene ese día, se usa su último día.</p>
+
+        <label className="campo">
+          <span>{tarjeta ? `Deuda total${desde}` : 'Deuda total hoy'}</span>
+          <input type="text" inputMode="decimal" value={saldo} placeholder="0.00" onChange={cambiar(setSaldo)} />
+          <span className="ayuda sin-margen">El saldo actual que ves en tu banca en línea.</span>
+        </label>
+
+        <label className="campo">
+          <span>{tarjeta ? `Pago de contado pendiente${desde}` : 'Pago de contado pendiente'}</span>
+          <input type="text" inputMode="decimal" value={pendiente} placeholder="0.00" onChange={cambiar(setPendiente)} />
+          <span className="ayuda sin-margen">
+            Lo que te falta pagar de tu último estado de cuenta para no generar intereses. Si ya lo pagaste, déjalo en 0.
+          </span>
+        </label>
+
+        <fieldset className="campo">
+          <legend>Color</legend>
+          <div className="colores">
+            {COLORES.map((c) => (
+              <button key={c} type="button" className="color" style={{ background: c }} aria-pressed={color === c} aria-label={`Color ${c}`} onClick={() => setColor(c)} />
+            ))}
+          </div>
+        </fieldset>
+
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+
+        <div className="acciones">
+          {tarjeta && (
+            <button type="button" className="boton peligro" onClick={eliminar}>
+              Eliminar
+            </button>
+          )}
+          <button type="submit" className="boton primario">
+            Guardar
+          </button>
+        </div>
+      </form>
+    </Hoja>
+  );
+}
