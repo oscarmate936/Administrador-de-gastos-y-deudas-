@@ -32,13 +32,6 @@ export const IconoLista = () => (
   </Icono>
 );
 
-export const IconoAjustes = () => (
-  <Icono>
-    <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
-    <circle cx="16" cy="7" r="2" />
-    <circle cx="8" cy="17" r="2" />
-  </Icono>
-);
 
 export const IconoMas = () => (
   <Icono>
@@ -88,12 +81,6 @@ export const IconoBorrar = () => (
   </Icono>
 );
 
-export const IconoCandado = () => (
-  <Icono>
-    <rect x="5" y="10.5" width="14" height="10" rx="2.5" />
-    <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" />
-  </Icono>
-);
 
 export const IconoFlecha = () => (
   <Icono>

@@ -14,7 +14,7 @@ interface Props {
   alAbrir: (d: Detalle | 'movimientos') => void;
 }
 
-const SUGERENCIAS = ['¿Cuánto debo?', '¿Qué tengo que pagar?', '¿Cuánto gasté este mes?', '¿Cuánto tengo disponible?'];
+// Ejemplos de frases; al tocarlos se escriben en la barra para completarlos.
 const EJEMPLOS = ['Gasté 5 en almuerzo', 'Pagué 100 a la tarjeta', 'Me pagaron 450'];
 
 const textoDia = (fecha: string) => {
@@ -24,13 +24,24 @@ const textoDia = (fecha: string) => {
   return fechaCorta(fecha);
 };
 
-/** Asistente sin IA: escribe o dicta una frase para registrar o preguntar. */
+/**
+ * Asistente sin IA: escribe o dicta una frase para registrar un movimiento.
+ * Si escribes una pregunta («¿cuánto debo?») también la responde, pero no se
+ * sugieren preguntas porque Inicio y Deudas ya muestran esas cifras.
+ */
 export function Asistente({ datos, alAbrirFormulario, alAbrir }: Props) {
   const [texto, setTexto] = useState('');
   const [resultado, setResultado] = useState<Intencion | null>(null);
   const [guardado, setGuardado] = useState<{ id: string; texto: string } | null>(null);
   // Las sugerencias aparecen al tocar la barra, para que Inicio quede limpio.
   const [abierto, setAbierto] = useState(false);
+  const entrada = useRef<HTMLInputElement>(null);
+  /** Escribe un ejemplo en la barra y deja el cursor listo para cambiarlo. */
+  const usarEjemplo = (frase: string) => {
+    setResultado(null);
+    setTexto(frase);
+    entrada.current?.focus();
+  };
 
   const preguntar = (frase: string) => {
     setGuardado(null);
@@ -134,12 +145,13 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir }: Props) {
       <form className="asistente-entrada" onSubmit={enviar}>
         <Simbolo nombre="chispa" />
         <input
+          ref={entrada}
           onFocus={() => setAbierto(true)}
           type="text"
           enterKeyHint="send"
           autoComplete="off"
-          placeholder="Pregunta o registra: «gasté 5 en almuerzo»"
-          aria-label="Pregunta o registra algo"
+          placeholder="Escribe «gasté 5 en almuerzo»"
+          aria-label="Registra con una frase"
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
         />
@@ -150,10 +162,10 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir }: Props) {
         )}
       </form>
 
-      {abierto && !resultado && !guardado && (
+      {abierto && !resultado && !guardado && !texto && (
         <div className="chips desplazable">
-          {SUGERENCIAS.map((s) => (
-            <button key={s} type="button" className="chip" onClick={() => preguntar(s)}>
+          {EJEMPLOS.map((s) => (
+            <button key={s} type="button" className="chip" onClick={() => usarEjemplo(s)}>
               {s}
             </button>
           ))}
@@ -217,8 +229,8 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir }: Props) {
           <strong>No entendí esa frase.</strong>
           <span className="texto-tenue">Prueba con algo como:</span>
           <div className="chips">
-            {[...EJEMPLOS, ...SUGERENCIAS.slice(0, 2)].map((s) => (
-              <button key={s} type="button" className="chip" onClick={() => (s.startsWith('¿') ? preguntar(s) : setTexto(s))}>
+            {EJEMPLOS.map((s) => (
+              <button key={s} type="button" className="chip" onClick={() => usarEjemplo(s)}>
                 {s}
               </button>
             ))}

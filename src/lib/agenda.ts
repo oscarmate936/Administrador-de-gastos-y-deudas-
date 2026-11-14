@@ -23,6 +23,8 @@ export interface Evento {
   entra?: boolean;
   color: string;
   destino?: { tipo: 'tarjeta' | 'prestamo'; id: string };
+  /** Plantilla del movimiento que se repite. */
+  recurrenteId?: string;
 }
 
 export interface FuenteAgenda {
@@ -114,6 +116,7 @@ export function agenda(datos: FuenteAgenda, desde: string, hasta: string, hoy: s
           montoCentavos: r.montoCentavos,
           entra: r.tipo === 'ingreso',
           color: r.tipo === 'ingreso' ? 'var(--positivo)' : (c?.color ?? 'var(--tenue)'),
+          recurrenteId: r.id,
         });
       }
       f = siguienteFecha({ proxima: f, dia: r.dia });
@@ -121,4 +124,23 @@ export function agenda(datos: FuenteAgenda, desde: string, hasta: string, hoy: s
   }
 
   return eventos.sort((a, b) => a.fecha.localeCompare(b.fecha) || ORDEN[a.tipo] - ORDEN[b.tipo]);
+}
+
+/**
+ * Quita los eventos que ya se muestran en otra lista (los pagos que requieren
+ * atención y los movimientos que se repiten por confirmar), para no ver lo
+ * mismo dos veces en la misma pantalla. Los cortes siempre se quedan.
+ */
+export function quitarYaAvisados(
+  eventos: Evento[],
+  pagos: { tipo: 'tarjeta' | 'prestamo'; id: string }[],
+  recurrentes: { id: string; proxima: string }[],
+): Evento[] {
+  return eventos.filter((e) => {
+    if ((e.tipo === 'pago' || e.tipo === 'cuota') && e.destino) {
+      return !pagos.some((p) => p.tipo === e.destino!.tipo && p.id === e.destino!.id);
+    }
+    if (e.tipo === 'repite') return !recurrentes.some((r) => r.id === e.recurrenteId && r.proxima === e.fecha);
+    return true;
+  });
 }

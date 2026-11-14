@@ -1,30 +1,25 @@
 import { useState } from 'react';
-import type { Datos, Detalle } from '../datos';
+import type { Datos } from '../datos';
 import { GraficaDeuda, GraficaFlujo } from '../componentes/Graficas';
-import { IconoAnterior, IconoFlecha, IconoSiguiente } from '../componentes/Iconos';
-import { Insignia, MarcaCategoria, Simbolo } from '../componentes/Simbolo';
+import { IconoAnterior, IconoSiguiente } from '../componentes/Iconos';
+import { MarcaCategoria, Simbolo } from '../componentes/Simbolo';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { Hoja } from '../componentes/Hoja';
 import type { Movimiento } from '../db';
 import { cambiosContraMesAnterior, fijosYVariables } from '../lib/comparar';
-import type { AjustesPlan } from '../lib/ajustes';
 import { costosEntre } from '../lib/costos';
-import { sumarMeses, textoDuracion } from '../lib/deudas';
 import { formatearDinero } from '../lib/dinero';
-import { hoy, mesCorto, mesDe, moverMes, nombreMes } from '../lib/fechas';
+import { hoy, mesDe, moverMes, nombreMes } from '../lib/fechas';
 import { deudaPorMes, flujoPorMes } from '../lib/graficas';
-import { deudasParaPlan, simularPlan, sumaMinimos } from '../lib/plan';
 import { gastosPorCategoria, ordenarRecientes, totalesDelMes } from '../lib/resumen';
 
 interface Props {
   datos: Datos;
-  plan: AjustesPlan;
-  alAbrir: (d: Detalle) => void;
   alEditar: (m: Movimiento) => void;
 }
 
-/** Lo que ayuda a decidir: en qué se va el dinero, límites, costo de las deudas y el plan. */
-export function Analisis({ datos, plan, alAbrir, alEditar }: Props) {
+/** Lo que ayuda a decidir: en qué se va el dinero, límites y el costo de las deudas. */
+export function Analisis({ datos, alEditar }: Props) {
   const fechaHoy = hoy();
   const [mes, setMes] = useState(() => mesDe(fechaHoy));
   // Categoría abierta en detalle; '' = sin categoría.
@@ -49,9 +44,6 @@ export function Analisis({ datos, plan, alAbrir, alEditar }: Props) {
 
   const anio = fechaHoy.slice(0, 4);
   const costoAnio = costosEntre(datos, `${anio}-01-01`, fechaHoy);
-  const deudasPlan = deudasParaPlan(datos, fechaHoy);
-  const pagoPlan = plan.pagoMensualCentavos ?? Math.ceil((sumaMinimos(deudasPlan) * 1.25) / 1000) * 1000;
-  const resultadoPlan = deudasPlan.length > 0 ? simularPlan(deudasPlan, pagoPlan, plan.metodo) : null;
   const historial = deudaPorMes(datos.historial);
 
   return (
@@ -175,26 +167,6 @@ export function Analisis({ datos, plan, alAbrir, alEditar }: Props) {
             <p className="texto-tenue">Marca «Se repite cada mes» al registrar un gasto para que cuente como fijo.</p>
           )}
           <p className="ayuda sin-margen">Fijos: lo que se repite cada mes y las cuotas de préstamos. Variables: el resto de tus gastos.</p>
-        </section>
-      )}
-
-      {resultadoPlan && (
-        <section className="grupo">
-          <h2 className="cabecera-grupo">Tus deudas</h2>
-          <button type="button" className="tarjeta tarjeta-accion" onClick={() => alAbrir({ tipo: 'plan' })}>
-            <Insignia color="var(--primario)" simbolo="objetivo" solida />
-            <span className="fila-texto">
-              <span className="fila-titulo">Plan para salir de deudas</span>
-              <span className="fila-detalle envolver">
-                {resultadoPlan.alcanza && resultadoPlan.meses !== null
-                  ? `Pagando ${formatearDinero(pagoPlan)} al mes terminas en ${mesCorto(sumarMeses(fechaHoy, resultadoPlan.meses - 1))} (${textoDuracion(resultadoPlan.meses)})`
-                  : 'Calcula en qué orden pagar y cuándo terminas'}
-              </span>
-            </span>
-            <span className="opcion-flecha" aria-hidden="true">
-              <IconoFlecha />
-            </span>
-          </button>
         </section>
       )}
 

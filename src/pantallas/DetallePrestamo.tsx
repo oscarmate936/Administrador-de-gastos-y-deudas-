@@ -101,10 +101,6 @@ export function DetallePrestamo({ prestamo: p, datos, alVolver, alEditarPrestamo
                 </div>
               )}
               <div>
-                <dt>Cuotas pagadas en la app</dt>
-                <dd>{e.cuotasPagadas}</dd>
-              </div>
-              <div>
                 <dt>Tasa anual <Ayuda termino="tasa anual" /></dt>
                 <dd>{p.tasaAnual > 0 ? `${p.tasaAnual}%` : 'Sin registrar'}</dd>
               </div>
