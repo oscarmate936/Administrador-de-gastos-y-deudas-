@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { BANCOS } from '../datos';
 import { db, nuevoId, type Prestamo } from '../db';
 import { proyectar, sumarMeses, textoDuracion } from '../lib/deudas';
-import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
+import { centavosATexto, formatearDinero, textoACentavos, textoATasa } from '../lib/dinero';
 import { aFechaTexto, esFechaValida, fechaCorta, mesCorto } from '../lib/fechas';
 import { Hoja } from './Hoja';
 
@@ -11,14 +11,8 @@ interface Props {
   alCerrar: () => void;
 }
 
-/** "12.5" o "12,5" -> 12.5; null si no es una tasa válida. */
-function leerTasa(texto: string): number | null {
-  const limpio = texto.replace('%', '').replace(',', '.').trim();
-  if (limpio === '') return 0;
-  if (!/^\d+(\.\d+)?$/.test(limpio)) return null;
-  const tasa = Number(limpio);
-  return tasa <= 200 ? tasa : null;
-}
+/** Vacío cuenta como 0 (tasa desconocida). */
+const leerTasa = (texto: string) => (texto.trim() === '' ? 0 : textoATasa(texto));
 
 export function FormularioPrestamo({ prestamo, alCerrar }: Props) {
   const [nombre, setNombre] = useState(prestamo?.nombre ?? '');

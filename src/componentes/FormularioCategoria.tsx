@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { db, nuevoId, type Categoria } from '../db';
+import { centavosATexto, textoACentavos } from '../lib/dinero';
 import { Hoja } from './Hoja';
 
 const COLORES = ['#e07a3f', '#3f9b6b', '#3f7fd0', '#8a63c9', '#c9a227', '#d0527a', '#2f9aa8', '#7c8791'];
@@ -14,6 +15,7 @@ export function FormularioCategoria({ categoria, siguienteOrden, alCerrar }: Pro
   const [nombre, setNombre] = useState(categoria?.nombre ?? '');
   const [emoji, setEmoji] = useState(categoria?.emoji ?? '🏷️');
   const [color, setColor] = useState(categoria?.color ?? COLORES[0]);
+  const [limite, setLimite] = useState(categoria?.limiteCentavos ? centavosATexto(categoria.limiteCentavos) : '');
   const [error, setError] = useState('');
 
   async function guardar(e: FormEvent) {
@@ -22,12 +24,18 @@ export function FormularioCategoria({ categoria, siguienteOrden, alCerrar }: Pro
       setError('Escribe un nombre para la categoría.');
       return;
     }
+    const limiteCentavos = limite.trim() === '' ? undefined : textoACentavos(limite);
+    if (limiteCentavos === null || limiteCentavos === 0) {
+      setError('El límite debe ser un monto mayor que cero, o déjalo vacío.');
+      return;
+    }
     await db.categorias.put({
       id: categoria?.id ?? nuevoId(),
       nombre: nombre.trim(),
       emoji: emoji.trim() || '🏷️',
       color,
       orden: categoria?.orden ?? siguienteOrden,
+      limiteCentavos,
     });
     alCerrar();
   }
@@ -68,6 +76,12 @@ export function FormularioCategoria({ categoria, siguienteOrden, alCerrar }: Pro
             {error}
           </p>
         )}
+
+        <label className="campo">
+          <span>Límite de gasto al mes (opcional)</span>
+          <input type="text" inputMode="decimal" value={limite} placeholder="Sin límite" onChange={(e) => { setLimite(e.target.value); setError(''); }} />
+          <span className="ayuda sin-margen">Te avisa al llegar al 80% y al 100%. Cuenta también lo que pagas con tarjeta.</span>
+        </label>
 
         <fieldset className="campo">
           <legend>Color</legend>

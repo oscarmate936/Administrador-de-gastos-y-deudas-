@@ -3,13 +3,14 @@ import type { Movimiento } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { proximosPagos, totalPorPagar } from '../lib/deudas';
 import { formatearDinero } from '../lib/dinero';
-import { fechaCorta, haceCuanto, hoy } from '../lib/fechas';
+import { fechaCorta, haceCuanto, hoy, mesDe, nombreMes } from '../lib/fechas';
 import {
   calcularDisponible,
   gastosPorCategoria,
   ordenarRecientes,
   resumenDesdeUltimoPago,
 } from '../lib/resumen';
+import { estadoLimites } from '../lib/limites';
 import { ListaProximos } from './Deudas';
 
 /** Días hacia adelante que se apartan para pagos al calcular lo "libre". */
@@ -64,6 +65,7 @@ export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVe
   const recientes = ordenarRecientes(movimientos).slice(0, 5);
   const proximos = proximosPagos(tarjetas, prestamos, movimientos, fechaHoy);
   const porApartar = totalPorPagar(proximos, DIAS_A_APARTAR);
+  const limites = estadoLimites(movimientos, datos.categorias, mesDe(fechaHoy));
   const libre = disponible - porApartar;
 
   // Por categoría cuenta todo lo comprado desde el pago, también con tarjeta.
@@ -124,6 +126,32 @@ export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVe
             </button>
           </div>
           <ListaProximos datos={datos} alAbrir={alAbrirDeuda} limite={3} />
+        </section>
+      )}
+
+      {limites.length > 0 && (
+        <section className="tarjeta">
+          <h2>Límites de {nombreMes(mesDe(fechaHoy)).split(' ')[0].toLowerCase()}</h2>
+          <ul className="categorias-barras sin-borde">
+            {limites.map((l) => (
+              <li key={l.categoria.id}>
+                <span className="categoria-nombre">
+                  <span aria-hidden="true">{l.categoria.emoji}</span> {l.categoria.nombre}
+                </span>
+                <span className={l.porcentaje >= 100 ? 'categoria-total texto-peligro' : 'categoria-total'}>
+                  {formatearDinero(l.gastadoCentavos)} <span className="texto-tenue">de {formatearDinero(l.limiteCentavos)}</span>
+                </span>
+                <span className="categoria-barra">
+                  <span
+                    style={{
+                      width: `${Math.min(100, Math.max(3, l.porcentaje))}%`,
+                      background: l.porcentaje >= 100 ? 'var(--peligro)' : l.porcentaje >= 80 ? 'var(--alerta)' : 'var(--primario)',
+                    }}
+                  />
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

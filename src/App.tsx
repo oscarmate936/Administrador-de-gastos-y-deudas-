@@ -15,9 +15,10 @@ import { ErrorEstado, leerEstadoTarjeta } from './lib/estados/leer';
 import { extraerPaginas } from './lib/estados/pdf';
 import { useAjustes } from './lib/ajustes';
 import { copiarSiToca } from './lib/copias';
-import { hoy } from './lib/fechas';
+import { hoy, mesDe } from './lib/fechas';
 import { fotoDeHoy, guardarFoto } from './lib/historial';
 import { generarRecordatorios } from './lib/recordatorios';
+import { avisoLimite, gastadoEnMes } from './lib/limites';
 import {
   agendarNotificaciones,
   consumirSalidaPropia,
@@ -33,6 +34,7 @@ import { DetallePrestamo } from './pantallas/DetallePrestamo';
 import { DetalleTarjeta } from './pantallas/DetalleTarjeta';
 import { Inicio } from './pantallas/Inicio';
 import { Movimientos } from './pantallas/Movimientos';
+import { PlanDeudas } from './pantallas/PlanDeudas';
 
 type Pestana = 'inicio' | 'movimientos' | 'deudas' | 'ajustes';
 
@@ -47,7 +49,13 @@ export function App() {
   const [pestana, setPestana] = useState<Pestana>('inicio');
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const [formulario, setFormulario] = useState<Formulario | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<{ texto: string; tipo: 'error' | 'info' } | null>(null);
+  // Los avisos informativos se cierran solos; los errores esperan a que se lean.
+  useEffect(() => {
+    if (aviso?.tipo !== 'info') return;
+    const t = setTimeout(() => setAviso(null), 7000);
+    return () => clearTimeout(t);
+  }, [aviso]);
   const [leyendo, setLeyendo] = useState(false);
   const entradaPdf = useRef<HTMLInputElement>(null);
   const tarjetaParaImportar = useRef<string | undefined>(undefined);
@@ -203,7 +211,7 @@ export function App() {
       setFormulario({ clase: 'estado', estado, tarjetaId: tarjetaParaImportar.current });
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
-      setAviso(e instanceof ErrorEstado ? e.message : 'No pude leer este PDF.');
+      setAviso({ texto: e instanceof ErrorEstado ? e.message : 'No pude leer este PDF.', tipo: 'error' });
     } finally {
       setLeyendo(false);
     }
@@ -235,6 +243,9 @@ export function App() {
       case 'movimientos':
         return <Movimientos datos={d} alEditar={editar} />;
       case 'deudas':
+        if (detalle?.tipo === 'plan') {
+          return <PlanDeudas datos={d} ajustes={ajustes!.plan} alVolver={() => setDetalle(null)} alAbrir={abrirDeuda} />;
+        }
         if (tarjetaAbierta) {
           return (
             <DetalleTarjeta
@@ -269,6 +280,7 @@ export function App() {
             alNuevaTarjeta={() => setFormulario({ clase: 'tarjeta' })}
             alNuevoPrestamo={() => setFormulario({ clase: 'prestamo' })}
             alImportar={() => importarEstado()}
+            plan={ajustes!.plan}
           />
         );
       case 'ajustes':
@@ -307,6 +319,13 @@ export function App() {
             tarjetas={d.tarjetas}
             tarjetaInicial={f.tarjetaId}
             alCerrar={cerrar}
+            alGuardar={(m) => {
+              const c = m.tipo === 'gasto' && m.categoriaId ? d.mapaCategorias.get(m.categoriaId) : undefined;
+              if (!c?.limiteCentavos) return;
+              const antes = gastadoEnMes(d.movimientos, c.id, mesDe(m.fecha), m.id);
+              const texto = avisoLimite(c, antes, antes + m.montoCentavos);
+              if (texto) setAviso({ texto, tipo: 'info' });
+            }}
           />
         );
       case 'pago': {
@@ -394,8 +413,8 @@ export function App() {
         }}
       />
       {(leyendo || aviso) && (
-        <div className={aviso ? 'toast error' : 'toast'} role={aviso ? 'alert' : 'status'}>
-          <span>{aviso ?? 'Leyendo el estado de cuenta…'}</span>
+        <div className={aviso?.tipo === 'error' ? 'toast error' : aviso ? 'toast info' : 'toast'} role={aviso ? 'alert' : 'status'}>
+          <span>{aviso?.texto ?? 'Leyendo el estado de cuenta…'}</span>
           {aviso && (
             <button type="button" className="enlace" onClick={() => setAviso(null)}>
               Cerrar

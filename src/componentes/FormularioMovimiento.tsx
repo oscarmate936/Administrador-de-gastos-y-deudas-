@@ -13,9 +13,11 @@ interface Props {
   /** Tarjeta preseleccionada al registrar una compra desde el detalle de una tarjeta. */
   tarjetaInicial?: string;
   alCerrar: () => void;
+  /** Se llama con el movimiento guardado (para avisos de límite). */
+  alGuardar?: (m: Movimiento) => void;
 }
 
-export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarjetas, tarjetaInicial, alCerrar }: Props) {
+export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarjetas, tarjetaInicial, alCerrar, alGuardar }: Props) {
   const [tipo, setTipo] = useState<'ingreso' | 'gasto'>(movimiento?.tipo === 'ingreso' ? 'ingreso' : movimiento ? 'gasto' : tipoInicial);
   const [tarjetaId, setTarjetaId] = useState(movimiento ? movimiento.tarjetaId : tarjetaInicial);
   const [cuotas, setCuotas] = useState(String(movimiento?.cuotas ?? 1));
@@ -43,7 +45,7 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
       setError('Las cuotas deben ser un número entre 1 y 60.');
       return;
     }
-    await db.movimientos.put({
+    const guardado: Movimiento = {
       id: movimiento?.id ?? nuevoId(),
       tipo,
       montoCentavos,
@@ -54,7 +56,9 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
       cuotas: conTarjeta && numCuotas > 1 ? numCuotas : undefined,
       nota: nota.trim(),
       creadoEn: movimiento?.creadoEn ?? Date.now(),
-    });
+    };
+    await db.movimientos.put(guardado);
+    alGuardar?.(guardado);
     alCerrar();
   }
 

@@ -15,6 +15,14 @@ export function centavosATexto(centavos: number): string {
   return (centavos / 100).toFixed(2);
 }
 
+/** "12.5", "12,5" o "12.5%" -> 12.5; vacío -> null; null también si no es una tasa válida (0 a 200). */
+export function textoATasa(texto: string): number | null {
+  const limpio = texto.replace('%', '').replace(',', '.').trim();
+  if (!/^\d+(\.\d+)?$/.test(limpio)) return null;
+  const tasa = Number(limpio);
+  return tasa <= 200 ? tasa : null;
+}
+
 /**
  * Convierte lo que escribe la persona a centavos.
  * Acepta "12", "12.5", "12,50", "$1,234.56". Devuelve null si no es un monto válido.

@@ -1,7 +1,10 @@
 import type { Datos, Detalle } from '../datos';
-import { estadoPrestamo, estadoTarjeta, proximosPagos, totalPorPagar } from '../lib/deudas';
+import { costosEntre } from '../lib/costos';
+import { estadoPrestamo, estadoTarjeta, proximosPagos, sumarMeses, textoDuracion, totalPorPagar } from '../lib/deudas';
+import { deudasParaPlan, simularPlan, sumaMinimos } from '../lib/plan';
+import type { AjustesPlan } from '../lib/ajustes';
 import { formatearDinero } from '../lib/dinero';
-import { fechaCorta, hoy, mesCorto, textoFaltan } from '../lib/fechas';
+import { fechaCorta, hoy, mesCorto, mesDe, nombreMes, textoFaltan } from '../lib/fechas';
 
 interface Props {
   datos: Datos;
@@ -9,9 +12,10 @@ interface Props {
   alNuevaTarjeta: () => void;
   alNuevoPrestamo: () => void;
   alImportar: () => void;
+  plan: AjustesPlan;
 }
 
-export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImportar }: Props) {
+export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImportar, plan }: Props) {
   const { tarjetas, prestamos, movimientos } = datos;
   const fechaHoy = hoy();
 
@@ -48,6 +52,13 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImpo
   const vencidos = proximos.filter((p) => p.vencido);
   const porPagar30 = totalPorPagar(proximos, 30);
 
+  const mes = mesDe(fechaHoy);
+  const costoMes = costosEntre(datos, `${mes}-01`, fechaHoy);
+  const costoAnio = costosEntre(datos, `${fechaHoy.slice(0, 4)}-01-01`, fechaHoy);
+  const deudasPlan = deudasParaPlan(datos, fechaHoy);
+  const pagoPlan = plan.pagoMensualCentavos ?? Math.ceil((sumaMinimos(deudasPlan) * 1.25) / 1000) * 1000;
+  const resultadoPlan = deudasPlan.length > 0 ? simularPlan(deudasPlan, pagoPlan, plan.metodo) : null;
+
   return (
     <>
       <section className={vencidos.length > 0 ? 'tarjeta-principal negativo' : 'tarjeta-principal'}>
@@ -66,10 +77,73 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImpo
         📄 Importar estado de cuenta (PDF)
       </button>
 
+      {resultadoPlan && (
+        <button type="button" className="tarjeta tarjeta-accion" onClick={() => alAbrir({ tipo: 'plan' })}>
+          <span className="tarjeta-accion-icono" aria-hidden="true">
+            🎯
+          </span>
+          <span className="fila-texto">
+            <span className="fila-titulo">Plan para salir de deudas</span>
+            <span className="fila-detalle">
+              {resultadoPlan.alcanza && resultadoPlan.meses !== null
+                ? `Pagando ${formatearDinero(pagoPlan)} al mes terminas en ${mesCorto(sumarMeses(fechaHoy, resultadoPlan.meses - 1))} (${textoDuracion(resultadoPlan.meses)})`
+                : 'Calcula en qué orden pagar y cuándo terminas'}
+            </span>
+          </span>
+        </button>
+      )}
+
       {proximos.length > 0 && (
         <section className="tarjeta">
           <h2>Próximos pagos</h2>
           <ListaProximos datos={datos} alAbrir={alAbrir} limite={proximos.length} />
+        </section>
+      )}
+
+      {costoAnio.totalCentavos + costoAnio.avances.cantidad > 0 && (
+        <section className="tarjeta">
+          <h2>Lo que te cuestan tus deudas</h2>
+          <dl className="cifras">
+            <div>
+              <dt>{nombreMes(mes).split(' ')[0]}</dt>
+              <dd className={costoMes.totalCentavos > 0 ? 'texto-peligro' : ''}>{formatearDinero(costoMes.totalCentavos)}</dd>
+            </div>
+            <div>
+              <dt>En {fechaHoy.slice(0, 4)}</dt>
+              <dd className="texto-peligro">{formatearDinero(costoAnio.totalCentavos)}</dd>
+            </div>
+            <div>
+              <dt>Comisiones</dt>
+              <dd>{formatearDinero(costoAnio.comisionesCentavos)}</dd>
+            </div>
+          </dl>
+          {costoAnio.porDeuda.length > 0 && (
+            <ul className="categorias-barras">
+              {costoAnio.porDeuda.map((d) => {
+                const total = d.interesesCentavos + d.comisionesCentavos;
+                return (
+                  <li key={`${d.tipo}-${d.id}`}>
+                    <span className="categoria-nombre">{d.nombre}</span>
+                    <span className="categoria-total">{formatearDinero(total)}</span>
+                    <span className="categoria-barra">
+                      <span style={{ width: `${Math.max(3, (total / costoAnio.totalCentavos) * 100)}%`, background: 'var(--peligro)' }} />
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {costoAnio.avances.cantidad > 0 && (
+            <p className="aviso error">
+              Este año sacaste {costoAnio.avances.cantidad} {costoAnio.avances.cantidad === 1 ? 'avance' : 'avances'} de efectivo
+              por {formatearDinero(costoAnio.avances.montoCentavos)}. Cada avance cobra comisión más IVA y genera intereses desde el
+              primer día, aunque pagues el saldo de contado.
+            </p>
+          )}
+          <p className="ayuda sin-margen">
+            Intereses, comisiones e IVA de tus tarjetas (categoría “Intereses y comisiones”) y la parte de intereses de las cuotas
+            de préstamos.
+          </p>
         </section>
       )}
 
@@ -167,7 +241,7 @@ export function ListaProximos({ datos, alAbrir, limite }: PropsLista) {
     <ul className="lista">
       {lista.map((p) => (
         <li key={`${p.tipo}-${p.id}`}>
-          <button type="button" className="fila" onClick={() => alAbrir({ tipo: p.tipo, id: p.id })}>
+          <button type="button" className="fila" onClick={() => alAbrir({ tipo: p.tipo, id: p.id } as Detalle)}>
             <span className="fila-emoji" style={{ background: 'var(--superficie-2)' }}>
               {p.tipo === 'tarjeta' ? '💳' : '🏦'}
             </span>

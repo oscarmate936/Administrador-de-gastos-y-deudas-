@@ -1370,3 +1370,137 @@ button {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ---------- Plan y costos ---------- */
+
+.tarjeta-accion {
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.tarjeta-accion:active {
+  background: var(--superficie-2);
+}
+
+.tarjeta-accion .fila-detalle {
+  white-space: normal;
+}
+
+.tarjeta-accion-icono {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--primario) 14%, transparent);
+  font-size: 1.4rem;
+}
+
+.campo-dinero {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 56px;
+  padding: 0 16px;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  background: var(--superficie);
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.campo-dinero > span {
+  color: var(--tenue);
+}
+
+.campo .campo-dinero input[inputmode] {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.campo .campo-dinero input:focus {
+  outline: none;
+}
+
+.campo-dinero:focus-within {
+  border-color: var(--primario);
+}
+
+.orden-plan {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: orden;
+}
+
+.orden-plan li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--borde);
+  counter-increment: orden;
+}
+
+.orden-plan li:last-child {
+  border-bottom: 0;
+}
+
+.orden-plan li::before {
+  content: counter(orden);
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primario);
+  color: var(--sobre-primario);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.orden-fecha {
+  flex: none;
+  font-weight: 700;
+}
+
+.notas-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 18px;
+  list-style: disc;
+  color: var(--tenue);
+  font-size: 0.9rem;
+}
+
+.categorias-barras.sin-borde {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.toast.info {
+  background: var(--alerta);
+  color: #1d1300;
+}
+
+/* El campo de dinero es hijo directo de .campo: no debe tomar el estilo de etiqueta. */
+.campo > .campo-dinero {
+  margin: 0;
+  color: var(--texto);
+  font-size: 1.4rem;
+  font-weight: 700;
+}

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { BANCOS, COLORES } from '../datos';
 import { db, nuevoId, type Tarjeta } from '../db';
-import { centavosATexto, textoACentavos } from '../lib/dinero';
+import { centavosATexto, textoACentavos, textoATasa } from '../lib/dinero';
 import { fechaCorta, hoy, sumarDias } from '../lib/fechas';
 import { Hoja } from './Hoja';
 
@@ -25,6 +25,7 @@ export function FormularioTarjeta({ tarjeta, cantidad, alCerrar }: Props) {
   const [diaPago, setDiaPago] = useState(String(tarjeta?.diaPago ?? ''));
   const [saldo, setSaldo] = useState(tarjeta ? centavosATexto(tarjeta.saldoInicialCentavos) : '');
   const [pendiente, setPendiente] = useState(tarjeta ? centavosATexto(tarjeta.pendienteInicialCentavos) : '');
+  const [tasa, setTasa] = useState(tarjeta?.tasaAnual !== undefined ? String(tarjeta.tasaAnual) : '');
   const [color, setColor] = useState(tarjeta?.color ?? COLORES[(2 + cantidad * 3) % COLORES.length]);
   const [error, setError] = useState('');
 
@@ -45,6 +46,8 @@ export function FormularioTarjeta({ tarjeta, cantidad, alCerrar }: Props) {
     if (saldoCentavos === null) return setError('La deuda actual no es un monto válido.');
     if (pendienteCentavos === null) return setError('El pago de contado pendiente no es un monto válido.');
     if (pendienteCentavos > saldoCentavos) return setError('Lo pendiente del estado de cuenta no puede ser mayor que la deuda total.');
+    const tasaAnual = tasa.trim() === '' ? undefined : textoATasa(tasa);
+    if (tasaAnual === null) return setError('La tasa de interés no es válida. Escribe un número, por ejemplo 39.9');
 
     await db.tarjetas.put({
       id: tarjeta?.id ?? nuevoId(),
@@ -61,7 +64,7 @@ export function FormularioTarjeta({ tarjeta, cantidad, alCerrar }: Props) {
       color,
       creadoEn: tarjeta?.creadoEn ?? Date.now(),
       ultimos4: tarjeta?.ultimos4,
-      tasaAnual: tarjeta?.tasaAnual,
+      tasaAnual,
       ultimoEstado: tarjeta?.ultimoEstado,
     });
     alCerrar();
@@ -145,6 +148,14 @@ export function FormularioTarjeta({ tarjeta, cantidad, alCerrar }: Props) {
           <input type="text" inputMode="decimal" value={pendiente} placeholder="0.00" onChange={cambiar(setPendiente)} />
           <span className="ayuda sin-margen">
             Lo que te falta pagar de tu último estado de cuenta para no generar intereses. Si ya lo pagaste, déjalo en 0.
+          </span>
+        </label>
+
+        <label className="campo">
+          <span>Tasa de interés anual (%)</span>
+          <input type="text" inputMode="decimal" value={tasa} placeholder="Ej. 39.9" onChange={cambiar(setTasa)} />
+          <span className="ayuda sin-margen">
+            Opcional. Viene en tu estado de cuenta ("tasa de interés anual" o "interés normal"). Sirve para el plan de pago.
           </span>
         </label>
 

@@ -18,8 +18,8 @@ export type Formulario =
   | { clase: 'prestamo'; prestamo?: Prestamo }
   | { clase: 'estado'; estado: EstadoCuentaTarjeta; tarjetaId?: string };
 
-/** Tarjeta o préstamo abierto en la pestaña Deudas. */
-export type Detalle = { tipo: 'tarjeta' | 'prestamo'; id: string };
+/** Pantalla abierta dentro de la pestaña Deudas. */
+export type Detalle = { tipo: 'tarjeta' | 'prestamo'; id: string } | { tipo: 'plan' };
 
 /** Abre el formulario que corresponde para editar un movimiento ya guardado. */
 export function formularioParaEditar(m: Movimiento): Formulario {
