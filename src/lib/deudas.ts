@@ -291,6 +291,30 @@ export function estadoPrestamo(prestamo: Prestamo, movimientos: Movimiento[], ho
   };
 }
 
+/**
+ * Ajusta un préstamo a lo que dice el banco hoy (saldo, cuota, tasa y fecha de
+ * la próxima cuota) sin borrar los pagos ya registrados: el saldo inicial y la
+ * fecha de la primera cuota se recalculan para que, con esos pagos, el saldo y
+ * la próxima cuota queden como los del banco.
+ */
+export function ajustarPrestamo(
+  p: Prestamo,
+  movimientos: Movimiento[],
+  hoy: string,
+  banco: { saldoCentavos: number; cuotaCentavos?: number; tasaAnual?: number; proximaFecha?: string; montoOriginalCentavos?: number },
+): Prestamo {
+  const e = estadoPrestamo(p, movimientos, hoy);
+  const ancla = banco.proximaFecha ? aDate(banco.proximaFecha).getDate() : undefined;
+  return {
+    ...p,
+    saldoInicialCentavos: banco.saldoCentavos + e.abonadoCentavos,
+    cuotaCentavos: banco.cuotaCentavos ?? p.cuotaCentavos,
+    tasaAnual: banco.tasaAnual ?? p.tasaAnual,
+    primeraCuota: banco.proximaFecha ? sumarMeses(banco.proximaFecha, -e.cuotasPagadas, ancla) : p.primeraCuota,
+    montoOriginalCentavos: banco.montoOriginalCentavos ?? p.montoOriginalCentavos,
+  };
+}
+
 export interface AhorroAbono {
   mesesMenos: number;
   interesesAhorradosCentavos: number;

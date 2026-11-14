@@ -1837,3 +1837,16 @@ button {
   flex-direction: column;
   gap: 8px;
 }
+
+.dudas-lectura {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dudas-lectura .duda .enlace {
+  padding: 2px 0;
+  color: inherit;
+  text-decoration: underline;
+  font-weight: 700;
+}

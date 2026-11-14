@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { ActualizarPrestamo } from '../componentes/ActualizarPrestamo';
+import { BotonCapturaPrestamo } from '../componentes/LecturaCaptura';
+import type { CapturaPrestamo } from '../lib/ocr/prestamo';
 import type { Datos } from '../datos';
 import type { Movimiento, Prestamo } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
@@ -20,6 +23,7 @@ interface Props {
 
 export function DetallePrestamo({ prestamo: p, datos, alVolver, alEditarPrestamo, alPagarCuota, alAbonoExtra, alEditarMovimiento }: Props) {
   const [simulado, setSimulado] = useState('');
+  const [captura, setCaptura] = useState<CapturaPrestamo | null>(null);
   const e = estadoPrestamo(p, datos.movimientos, hoy());
   const pagos = ordenarRecientes(datos.movimientos.filter((m) => m.prestamoId === p.id));
   const abono = textoACentavos(simulado);
@@ -135,6 +139,16 @@ export function DetallePrestamo({ prestamo: p, datos, alVolver, alEditarPrestamo
           )}
         </section>
       )}
+
+      <section className="tarjeta">
+        <h2>Actualizar con el banco</h2>
+        <p className="texto-tenue">
+          Toma una captura del detalle del préstamo en la app de tu banco y la app ajusta saldo, cuota, tasa y fecha sin
+          borrar tus pagos.
+        </p>
+        <BotonCapturaPrestamo texto="📷 Actualizar con una captura" alLeer={setCaptura} />
+      </section>
+      {captura && <ActualizarPrestamo prestamo={p} movimientos={datos.movimientos} captura={captura} alCerrar={() => setCaptura(null)} />}
 
       <section className="tarjeta">
         <h2>Pagos</h2>

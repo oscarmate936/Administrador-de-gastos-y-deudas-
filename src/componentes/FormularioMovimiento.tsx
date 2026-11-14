@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { db, nuevoId, type Categoria, type Movimiento, type Tarjeta } from '../db';
 import type { Borrador } from '../datos';
-import { centavosATexto, textoACentavos } from '../lib/dinero';
+import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
 import { esFechaValida, hoy } from '../lib/fechas';
 import { primeraFecha } from '../lib/recurrentes';
 import { sugerirCategoria } from '../lib/estados/categorias';
@@ -41,28 +41,41 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
   async function leerFoto(archivo: File) {
     setLectura({ estado: 'leyendo', avance: 0 });
     try {
-      const [{ leerTextoDeImagen }, { leerTicket }] = await Promise.all([import('../lib/ocr/leer'), import('../lib/ocr/ticket')]);
-      const texto = await leerTextoDeImagen(archivo, (avance) => setLectura({ estado: 'leyendo', avance }));
-      const datos = leerTicket(texto, hoy());
+      const [{ leerTextoDeImagen }, { leerTicket }, { combinar }] = await Promise.all([
+        import('../lib/ocr/leer'),
+        import('../lib/ocr/ticket'),
+        import('../lib/ocr/combinar'),
+      ]);
+      const [textoLstm, textoClasico] = await leerTextoDeImagen(archivo, (avance) => setLectura({ estado: 'leyendo', avance }));
+      const lstm = leerTicket(textoLstm, hoy());
+      const clasico = leerTicket(textoClasico, hoy());
+      // Los números se toman del motor clásico; las palabras, del moderno.
+      const montoLeido = combinar(clasico.montoCentavos, lstm.montoCentavos);
+      const fechaLeida = combinar(clasico.fecha, lstm.fecha);
+      const comercio = lstm.comercio ?? clasico.comercio;
       const leidos: string[] = [];
-      if (datos.montoCentavos) {
-        setMonto(centavosATexto(datos.montoCentavos));
+      if (montoLeido.valor) {
+        setMonto(centavosATexto(montoLeido.valor));
         leidos.push('monto');
       }
-      if (datos.fecha) {
-        setFecha(datos.fecha);
+      if (fechaLeida.valor) {
+        setFecha(fechaLeida.valor);
         leidos.push('fecha');
       }
-      if (datos.comercio) {
-        setNota(datos.comercio);
+      if (comercio) {
+        setNota(comercio);
         leidos.push('comercio');
-        const sugerida = sugerirCategoria(datos.comercio);
+        const sugerida = sugerirCategoria(comercio);
         if (sugerida && categorias.some((c) => c.id === sugerida)) setCategoriaId(sugerida);
       }
       setError('');
+      const duda =
+        montoLeido.dudoso && montoLeido.alternativa
+          ? ` Ojo: el monto lo leí como ${formatearDinero(montoLeido.valor!)} o ${formatearDinero(montoLeido.alternativa)}; confírmalo.`
+          : '';
       setLectura(
         leidos.length > 0
-          ? { estado: 'listo', texto: `Leí ${leidos.join(', ')}. Revisa que esté bien antes de guardar.` }
+          ? { estado: duda ? 'error' : 'listo', texto: `Leí ${leidos.join(', ')}. Revisa que esté bien antes de guardar.${duda}` }
           : { estado: 'error', texto: 'No encontré datos en la imagen. Prueba con una foto más nítida o escríbelos.' },
       );
     } catch {

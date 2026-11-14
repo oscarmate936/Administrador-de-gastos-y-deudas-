@@ -5,6 +5,8 @@ import { proyectar, sumarMeses, textoDuracion } from '../lib/deudas';
 import { centavosATexto, formatearDinero, textoACentavos, textoATasa } from '../lib/dinero';
 import { aFechaTexto, esFechaValida, fechaCorta, mesCorto } from '../lib/fechas';
 import { Hoja } from './Hoja';
+import { BotonCapturaPrestamo, DudasLectura } from './LecturaCaptura';
+import type { CapturaPrestamo } from '../lib/ocr/prestamo';
 
 interface Props {
   prestamo?: Prestamo;
@@ -25,6 +27,18 @@ export function FormularioPrestamo({ prestamo, alCerrar }: Props) {
   const [cuota, setCuota] = useState(prestamo ? centavosATexto(prestamo.cuotaCentavos) : '');
   const [primeraCuota, setPrimeraCuota] = useState(prestamo?.primeraCuota ?? '');
   const [error, setError] = useState('');
+  const [captura, setCaptura] = useState<CapturaPrestamo | null>(null);
+
+  function aplicarCaptura(c: CapturaPrestamo) {
+    setCaptura(c);
+    setError('');
+    if (c.nombre && !nombre.trim()) setNombre(c.nombre);
+    if (c.saldo.valor !== undefined) setSaldo(centavosATexto(c.saldo.valor));
+    if (c.cuota.valor !== undefined) setCuota(centavosATexto(c.cuota.valor));
+    if (c.tasaAnual.valor !== undefined) setTasa(String(c.tasaAnual.valor));
+    if (c.proximaFecha.valor) setPrimeraCuota(c.proximaFecha.valor);
+    if (c.montoOriginal.valor !== undefined) setOriginal(centavosATexto(c.montoOriginal.valor));
+  }
 
   const cambiar = (set: (v: string) => void) => (e: { target: { value: string } }) => {
     set(e.target.value);
@@ -75,6 +89,32 @@ export function FormularioPrestamo({ prestamo, alCerrar }: Props) {
   return (
     <Hoja titulo={prestamo ? 'Editar préstamo' : 'Nuevo préstamo'} alCerrar={alCerrar}>
       <form onSubmit={guardar} className="formulario" noValidate>
+        {!prestamo && (
+          <>
+            <BotonCapturaPrestamo texto="📷 Llenar con una captura de la app del banco" alLeer={aplicarCaptura} />
+            {captura && (
+              <p className="aviso" role="status">
+                Llené los datos con la captura. Revísalos, elige con quién es el préstamo y guarda.
+              </p>
+            )}
+            {captura && (
+              <DudasLectura
+                dudas={[
+                  { nombre: 'Saldo', lectura: captura.saldo, formato: 'dinero', clave: 'saldo' },
+                  { nombre: 'Cuota', lectura: captura.cuota, formato: 'dinero', clave: 'cuota' },
+                  { nombre: 'Tasa', lectura: captura.tasaAnual, formato: 'tasa', clave: 'tasa' },
+                  { nombre: 'Próxima cuota', lectura: captura.proximaFecha, formato: 'fecha', clave: 'fecha' },
+                ]}
+                alElegir={(clave, v) => {
+                  if (clave === 'saldo') setSaldo(centavosATexto(v as number));
+                  if (clave === 'cuota') setCuota(centavosATexto(v as number));
+                  if (clave === 'tasa') setTasa(String(v));
+                  if (clave === 'fecha') setPrimeraCuota(v as string);
+                }}
+              />
+            )}
+          </>
+        )}
         <label className="campo">
           <span>Nombre</span>
           <input type="text" value={nombre} maxLength={30} placeholder="Ej. Préstamo personal" autoFocus={!prestamo} onChange={cambiar(setNombre)} />

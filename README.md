@@ -33,6 +33,8 @@ no hay servidor ni cuentas.
 - Préstamos: próxima cuota, tiempo restante, fecha de término, intereses,
   cuotas y abonos extra con capital e intereses, y simulador de abono.
 - Importar estados de cuenta en PDF de tarjetas de Davivienda y Banco Agrícola.
+- Préstamos desde una captura de la app del banco: se crea el préstamo o se
+  ajusta uno existente (saldo, cuota, tasa, próxima cuota) sin borrar los pagos.
 - Compras a plazos y extrafinanciamiento (Davivienda): se leen del estado de
   cuenta, se suman a la deuda total y cada corte cobra su cuota en la tarjeta.
 - Cuánto cuestan las deudas (intereses, comisiones, IVA, avances de efectivo).
@@ -97,7 +99,8 @@ conviene firmar siempre con una misma llave propia.
 - `src/lib/estados/`: lectura de estados de cuenta en PDF. `ejemplos.ts` imita la
   posición del texto de cada banco con datos inventados para las pruebas.
 - `src/lib/asistente/`: intérprete de frases del asistente.
-- `src/lib/ocr/`: lectura de tickets con Tesseract. `scripts/copiar-ocr.mjs`
+- `src/lib/ocr/`: lectura de tickets y capturas de préstamos con Tesseract. Lee
+  con dos motores (LSTM y clásico) y avisa cuando no coinciden. `scripts/copiar-ocr.mjs`
   copia el motor y los datos de español a `public/ocr` al compilar.
 - `src/lib/nativo.ts`: lo que cambia dentro del APK (botón Atrás, compartir el respaldo).
 - `android/`: proyecto de Android generado por Capacitor.
