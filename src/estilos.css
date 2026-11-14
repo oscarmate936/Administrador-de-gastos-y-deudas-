@@ -1950,6 +1950,8 @@ body {
 .contenido {
   gap: 20px;
   padding-bottom: calc(var(--alto-nav) + env(safe-area-inset-bottom) + 32px);
+  /* Las franjas que se desplazan de lado usan el margen; nada más ensancha la página. */
+  overflow-x: clip;
 }
 
 /* ---------- Barra inferior con botón + ---------- */
@@ -3096,4 +3098,162 @@ button.plastico:active {
 
 .celebracion .acciones {
   align-self: stretch;
+}
+
+/* =====================================================================
+   1.8: deslizar filas, detalle por categoría, fijos y variables, letra grande.
+   ===================================================================== */
+
+:root[data-letra='grande'] {
+  font-size: 18px;
+}
+
+.fila-deslizable {
+  position: relative;
+  overflow: hidden;
+}
+
+.fila-deslizable .fila {
+  position: relative;
+  z-index: 1;
+  background: var(--superficie);
+  touch-action: pan-y;
+  transition: transform 0.2s ease;
+}
+
+.acciones-fila {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 152px;
+  display: flex;
+  visibility: hidden;
+}
+
+.fila-deslizable.mostrando .acciones-fila {
+  visibility: visible;
+}
+
+/* Las filas que se deslizan siguen las esquinas redondeadas de su tarjeta. */
+.lista.tarjeta > .fila-deslizable:first-child {
+  border-radius: var(--radio) var(--radio) 0 0;
+}
+
+.lista.tarjeta > .fila-deslizable:last-child {
+  border-radius: 0 0 var(--radio) var(--radio);
+}
+
+.lista.tarjeta > .fila-deslizable:only-child {
+  border-radius: var(--radio);
+}
+
+.acciones-fila button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 0;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.acciones-fila svg {
+  width: 20px;
+  height: 20px;
+}
+
+.accion-editar {
+  background: #2a62b8;
+}
+
+.accion-borrar {
+  background: #b3261e;
+}
+
+.consejo {
+  text-align: center;
+}
+
+.categoria-boton {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px 12px;
+  margin: -6px -8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  box-sizing: content-box;
+}
+
+.categoria-boton:active {
+  background: var(--superficie-2);
+}
+
+.cambios {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--divisor);
+  font-size: 0.9rem;
+}
+
+.cambios li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.cambio-flecha {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
+.cambios .sube .cambio-flecha {
+  background: color-mix(in srgb, var(--alerta) 16%, transparent);
+  color: var(--alerta);
+}
+
+.cambios .baja .cambio-flecha {
+  background: color-mix(in srgb, var(--positivo) 16%, transparent);
+  color: var(--positivo);
+}
+
+.barra-doble {
+  display: flex;
+  height: 12px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: var(--serie-2);
+}
+
+.barra-doble .fijos {
+  display: block;
+  height: 100%;
+  background: var(--serie-1);
+  border-right: 2px solid var(--superficie);
+}
+
+.cifras.dos {
+  grid-template-columns: 1fr 1fr;
+}
+
+.cifras dt .muestra {
+  display: inline-block;
+  vertical-align: 1px;
+}
+
+.categorias-barras li > .categoria-boton {
+  grid-column: 1 / -1;
 }

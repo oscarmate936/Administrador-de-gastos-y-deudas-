@@ -47,6 +47,8 @@ export interface AjustesApariencia {
   tema: Tema;
   /** Vibración corta al guardar. */
   vibracion: boolean;
+  /** Tamaño de la letra de toda la app. */
+  letra: 'normal' | 'grande';
 }
 
 export type SeccionInicio = 'asistente' | 'atencion' | 'semana' | 'mes' | 'ultimos';
@@ -96,7 +98,7 @@ export const AJUSTES_INICIALES: Ajustes = {
     diasPrestamo: [3, 0],
   },
   plan: { metodo: 'avalancha' },
-  apariencia: { tema: 'sistema', vibracion: true },
+  apariencia: { tema: 'sistema', vibracion: true, letra: 'normal' },
   inicio: { orden: [...SECCIONES_INICIO], ocultas: [], primerosPasosOculto: false },
   metas: { hitos: [], prestamos: [] },
 };

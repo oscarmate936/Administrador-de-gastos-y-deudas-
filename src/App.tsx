@@ -139,6 +139,11 @@ export function App() {
     else if (tema === 'oscuro') raiz.dataset.theme = 'dark';
     else delete raiz.dataset.theme;
   }, [tema]);
+  const letra = ajustes?.apariencia.letra;
+  useEffect(() => {
+    if (letra === 'grande') document.documentElement.dataset.letra = 'grande';
+    else delete document.documentElement.dataset.letra;
+  }, [letra]);
 
   const datos = useMemo<Datos | null>(() => {
     if (!movimientos || !categorias || !tarjetas || !prestamos || !recurrentes || !historial) return null;
@@ -366,9 +371,19 @@ export function App() {
           />
         );
       case 'movimientos':
-        return <Movimientos datos={d} alEditar={editar} />;
+        return (
+          <Movimientos
+            datos={d}
+            alEditar={editar}
+            alBorrar={(m) => {
+              void db.movimientos.delete(m.id).then(() =>
+                avisarCambio(m.tipo === 'pago' ? 'Pago eliminado.' : 'Movimiento eliminado.', async () => void (await db.movimientos.put(m))),
+              );
+            }}
+          />
+        );
       case 'analisis':
-        return <Analisis datos={d} plan={ajustes!.plan} alAbrir={abrirDeuda} />;
+        return <Analisis datos={d} plan={ajustes!.plan} alAbrir={abrirDeuda} alEditar={editar} />;
       case 'deudas':
         if (tarjetaAbierta) {
           return (

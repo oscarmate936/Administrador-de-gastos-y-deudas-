@@ -174,7 +174,7 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, exporta
           <Opcion
             icono={<Insignia color="var(--alerta)" simbolo="luna" cuadrada />}
             titulo="Apariencia"
-            valor={TEMAS.find((t) => t.id === ajustes.apariencia.tema)?.nombre ?? 'Como el celular'}
+            valor={`${TEMAS.find((t) => t.id === ajustes.apariencia.tema)?.nombre ?? 'Como el celular'}${ajustes.apariencia.letra === 'grande' ? ' · letra grande' : ''}`}
             alTocar={() => setHoja('apariencia')}
           />
           <li>
@@ -237,7 +237,7 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, exporta
           alCerrar={() => setCategoria(null)}
         />
       )}
-      {hoja === 'apariencia' && <Apariencia actual={ajustes.apariencia.tema} alCerrar={() => setHoja(null)} />}
+      {hoja === 'apariencia' && <Apariencia actual={ajustes.apariencia.tema} letra={ajustes.apariencia.letra} alCerrar={() => setHoja(null)} />}
       {hoja === 'bloqueo' && <FormularioBloqueo ajustes={ajustes.bloqueo} alCerrar={() => setHoja(null)} />}
       {hoja === 'respaldo' && (
         <CrearRespaldo
@@ -397,10 +397,11 @@ function Copias({ alCerrar, alElegir }: { alCerrar: () => void; alElegir: (c: In
   );
 }
 
-function Apariencia({ actual, alCerrar }: { actual: Tema; alCerrar: () => void }) {
+function Apariencia({ actual, letra, alCerrar }: { actual: Tema; letra: 'normal' | 'grande'; alCerrar: () => void }) {
   return (
     <Hoja titulo="Apariencia" alCerrar={alCerrar}>
       <div className="formulario">
+        <h3 className="titulo-grupo">Colores</h3>
         <div className="segmentos" role="group" aria-label="Tema">
           {TEMAS.map((t) => (
             <button key={t.id} type="button" aria-pressed={actual === t.id} onClick={() => void guardarAjuste('apariencia', { tema: t.id })}>
@@ -409,6 +410,15 @@ function Apariencia({ actual, alCerrar }: { actual: Tema; alCerrar: () => void }
           ))}
         </div>
         <p className="ayuda sin-margen">«Como el celular» usa el modo claro u oscuro que tengas en Android.</p>
+        <h3 className="titulo-grupo">Tamaño de la letra</h3>
+        <div className="segmentos" role="group" aria-label="Tamaño de la letra">
+          <button type="button" aria-pressed={letra === 'normal'} onClick={() => void guardarAjuste('apariencia', { letra: 'normal' })}>
+            Normal
+          </button>
+          <button type="button" aria-pressed={letra === 'grande'} onClick={() => void guardarAjuste('apariencia', { letra: 'grande' })}>
+            <span style={{ fontSize: '1.15em' }}>Grande</span>
+          </button>
+        </div>
       </div>
     </Hoja>
   );

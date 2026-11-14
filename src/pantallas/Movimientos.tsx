@@ -12,9 +12,10 @@ import { agruparPorDia, ordenarRecientes, totalesDelMes } from '../lib/resumen';
 interface Props {
   datos: Datos;
   alEditar: (m: Movimiento) => void;
+  alBorrar: (m: Movimiento) => void;
 }
 
-export function Movimientos({ datos, alEditar }: Props) {
+export function Movimientos({ datos, alEditar, alBorrar }: Props) {
   const [mes, setMes] = useState(() => mesDe(hoy()));
   const [busqueda, setBusqueda] = useState('');
   const [filtro, setFiltro] = useState<Filtro>('todos');
@@ -90,6 +91,8 @@ export function Movimientos({ datos, alEditar }: Props) {
         </>
       )}
 
+      {dias.length > 0 && <p className="ayuda sin-margen consejo">Desliza un movimiento a la izquierda para editarlo o borrarlo.</p>}
+
       {dias.length === 0 ? (
         <p className="sin-datos">{buscando || filtro !== 'todos' ? 'No hay movimientos que coincidan.' : 'No hay movimientos en este mes.'}</p>
       ) : (
@@ -101,7 +104,7 @@ export function Movimientos({ datos, alEditar }: Props) {
             </h3>
             <ul className="lista tarjeta">
               {lista.map((m) => (
-                <FilaMovimiento key={m.id} movimiento={m} datos={datos} alTocar={alEditar} />
+                <FilaMovimiento key={m.id} movimiento={m} datos={datos} alTocar={alEditar} alBorrar={alBorrar} />
               ))}
             </ul>
           </section>
