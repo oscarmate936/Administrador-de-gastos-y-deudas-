@@ -1,15 +1,16 @@
 {
   "name": "mis-finanzas",
   "private": true,
-  "version": "0.7.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev": "npm run preparar && vite",
+    "build": "npm run preparar && tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "build:android": "tsc --noEmit && vite build --mode android && cap sync android",
-    "apk": "npm run build:android && cd android && ./gradlew assembleDebug"
+    "build:android": "npm run preparar && tsc --noEmit && vite build --mode android && cap sync android",
+    "apk": "npm run build:android && cd android && ./gradlew assembleDebug",
+    "preparar": "node scripts/copiar-ocr.mjs"
   },
   "dependencies": {
     "@capacitor-community/privacy-screen": "8.0.0",
@@ -20,11 +21,13 @@
     "@capacitor/local-notifications": "8.3.1",
     "@capacitor/share": "^8.0.3",
     "@capgo/capacitor-native-biometric": "8.9.1",
+    "@tesseract.js-data/spa": "1.0.0",
     "dexie": "^4.4.7",
     "dexie-react-hooks": "^4.4.0",
     "pdfjs-dist": "6.4.299",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "tesseract.js": "7.0.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.6.2",

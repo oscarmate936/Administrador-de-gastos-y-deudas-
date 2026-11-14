@@ -18,7 +18,16 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         // Incluye el lector de PDF (.mjs, ~1.3 MB) para importar estados de cuenta sin conexión.
         globPatterns: ['**/*.{js,mjs,css,html,png,svg,webmanifest}'],
+        // El lector de tickets (~6 MB) no se precarga: se guarda la primera vez que se usa.
+        globIgnores: ['ocr/**'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.includes('/ocr/'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'lector-tickets', expiration: { maxEntries: 5 } },
+          },
+        ],
       },
       includeAssets: ['icono.svg', 'apple-touch-icon.png'],
       manifest: {

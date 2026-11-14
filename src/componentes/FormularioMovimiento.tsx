@@ -1,8 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { db, nuevoId, type Categoria, type Movimiento, type Tarjeta } from '../db';
 import { centavosATexto, textoACentavos } from '../lib/dinero';
 import { esFechaValida, hoy } from '../lib/fechas';
 import { primeraFecha } from '../lib/recurrentes';
+import { sugerirCategoria } from '../lib/estados/categorias';
+import { marcarSalidaPropia } from '../lib/nativo';
 import { Hoja } from './Hoja';
 
 interface Props {
@@ -28,6 +30,40 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
   const [esPago, setEsPago] = useState(movimiento?.esPago ?? true);
   const [nota, setNota] = useState(movimiento?.nota ?? '');
   const [repetir, setRepetir] = useState(false);
+  const [lectura, setLectura] = useState<{ estado: 'leyendo'; avance: number } | { estado: 'listo' | 'error'; texto: string } | null>(null);
+  const entradaFoto = useRef<HTMLInputElement>(null);
+
+  async function leerFoto(archivo: File) {
+    setLectura({ estado: 'leyendo', avance: 0 });
+    try {
+      const [{ leerTextoDeImagen }, { leerTicket }] = await Promise.all([import('../lib/ocr/leer'), import('../lib/ocr/ticket')]);
+      const texto = await leerTextoDeImagen(archivo, (avance) => setLectura({ estado: 'leyendo', avance }));
+      const datos = leerTicket(texto, hoy());
+      const leidos: string[] = [];
+      if (datos.montoCentavos) {
+        setMonto(centavosATexto(datos.montoCentavos));
+        leidos.push('monto');
+      }
+      if (datos.fecha) {
+        setFecha(datos.fecha);
+        leidos.push('fecha');
+      }
+      if (datos.comercio) {
+        setNota(datos.comercio);
+        leidos.push('comercio');
+        const sugerida = sugerirCategoria(datos.comercio);
+        if (sugerida && categorias.some((c) => c.id === sugerida)) setCategoriaId(sugerida);
+      }
+      setError('');
+      setLectura(
+        leidos.length > 0
+          ? { estado: 'listo', texto: `Leí ${leidos.join(', ')}. Revisa que esté bien antes de guardar.` }
+          : { estado: 'error', texto: 'No encontré datos en la imagen. Prueba con una foto más nítida o escríbelos.' },
+      );
+    } catch {
+      setLectura({ estado: 'error', texto: 'No pude leer la imagen.' });
+    }
+  }
   const [error, setError] = useState('');
 
   async function guardar(e: FormEvent) {
@@ -98,6 +134,40 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
             Ingreso
           </button>
         </div>
+
+        {tipo === 'gasto' && !movimiento && (
+          <>
+            <button
+              type="button"
+              className="boton boton-foto"
+              disabled={lectura?.estado === 'leyendo'}
+              onClick={() => {
+                marcarSalidaPropia();
+                entradaFoto.current?.click();
+              }}
+            >
+              {lectura?.estado === 'leyendo'
+                ? `Leyendo la imagen… ${Math.round(lectura.avance * 100)}%`
+                : '📷 Leer ticket o captura'}
+            </button>
+            <input
+              ref={entradaFoto}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const archivo = e.target.files?.[0];
+                e.target.value = '';
+                if (archivo) void leerFoto(archivo);
+              }}
+            />
+            {lectura && lectura.estado !== 'leyendo' && (
+              <p className={lectura.estado === 'listo' ? 'aviso' : 'aviso error'} role="status">
+                {lectura.texto}
+              </p>
+            )}
+          </>
+        )}
 
         <label className="campo-monto">
           <span className="solo-lectores">Monto</span>

@@ -50,6 +50,12 @@ const PESTANAS: Array<{ id: Pestana; nombre: string; Icono: () => React.JSX.Elem
   { id: 'ajustes', nombre: 'Ajustes', Icono: IconoAjustes },
 ];
 
+const fmtHoy = new Intl.DateTimeFormat('es-SV', { weekday: 'long', day: 'numeric', month: 'long' });
+const fechaDeHoy = () => {
+  const t = fmtHoy.format(new Date());
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
+
 export function App() {
   const [pestana, setPestana] = useState<Pestana>('inicio');
   const [detalle, setDetalle] = useState<Detalle | null>(null);
@@ -426,6 +432,7 @@ export function App() {
       {bloqueado && <Bloqueo ajustes={ajustes.bloqueo} alDesbloquear={() => setBloqueado(false)} />}
       <header className="cabecera">
         <h1>{titulo}</h1>
+        {pestana === 'inicio' && <p className="fecha-cabecera">{fechaDeHoy()}</p>}
       </header>
 
       <main className="contenido">{datos && contenido(datos)}</main>

@@ -23,14 +23,14 @@ una versión instalable que se actualiza encima de la anterior sin borrar datos.
 
 ## Resumen
 
-| Fase | Versión | Contenido | Tamaño | Depende de |
-|---|---|---|---|---|
-| 1 | 0.4 | Proteger tus datos: llave fija, respaldo automático, huella o PIN, historial de saldos | Grande | Secretos en GitHub (tú) |
-| 2 | 0.5 | Recordatorios en el celular | Mediano | Fase 1 |
-| 3 | 0.6 | Más estados de cuenta: tarjeta Davivienda, préstamos, compras a plazos | Mediano | Tus PDF de ejemplo |
-| 4 | 0.7 | Costo de las deudas, plan para salir de deudas, límites por categoría | Grande | Fase 1 |
-| 5 | 0.8 | Gastos recurrentes, gráficas, búsqueda, exportar | Mediano | Fase 1 (historial) |
-| 6 | 0.9 | Fotos de tickets y capturas | Mediano | — |
+| Fase | Contenido | Estado |
+|---|---|---|
+| 1 | Proteger tus datos: llave fija, respaldo automático, huella o PIN, historial de saldos | Hecho (0.4) |
+| 2 | Recordatorios en el celular | Hecho (0.5) |
+| 3 | Más estados de cuenta: tarjeta Davivienda, préstamos, compras a plazos | Pendiente: faltan PDF de ejemplo |
+| 4 | Costo de las deudas, plan para salir de deudas, límites por categoría | Hecho (0.6) |
+| 5 | Gastos recurrentes, gráficas, búsqueda, exportar | Hecho (0.7) |
+| 6 | Fotos de tickets y capturas | Hecho (1.0) |
 
 La fase 3 puede adelantarse en cuanto lleguen los PDF; no depende de las demás.
 

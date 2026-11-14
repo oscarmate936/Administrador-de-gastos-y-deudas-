@@ -1713,3 +1713,37 @@ button {
   font-size: 0.78rem;
   font-weight: 650;
 }
+
+/* ---------- Pulido ---------- */
+
+.fecha-cabecera {
+  margin-top: 2px;
+  color: var(--tenue);
+  font-size: 0.9rem;
+}
+
+.fila-detalle.envolver {
+  white-space: normal;
+  overflow: visible;
+}
+
+@media (max-width: 360px) {
+  .cifras dd {
+    font-size: 0.94rem;
+  }
+  .cifras dt {
+    font-size: 0.72rem;
+  }
+  .monto-grande {
+    font-size: 2.1rem;
+  }
+  .contenido {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+.boton-foto {
+  width: 100%;
+  border-style: dashed;
+}

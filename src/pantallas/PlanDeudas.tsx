@@ -146,7 +146,7 @@ export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
                       </span>
                       <span className="fila-texto">
                         <span className="fila-titulo">{d.nombre}</span>
-                        <span className="fila-detalle">
+                        <span className="fila-detalle envolver">
                           {montoCentavos > d.minimoCentavos
                             ? `Mínimo ${formatearDinero(d.minimoCentavos)} + ${formatearDinero(montoCentavos - d.minimoCentavos)} extra`
                             : 'Solo el mínimo'}
@@ -169,7 +169,7 @@ export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
                   <li key={id}>
                     <span className="fila-texto">
                       <span className="fila-titulo">{d.nombre}</span>
-                      <span className="fila-detalle">
+                      <span className="fila-detalle envolver">
                         {formatearDinero(d.saldoCentavos)} · {d.tasaConocida ? `${d.tasaAnual}% anual` : 'tasa sin registrar'}
                       </span>
                     </span>

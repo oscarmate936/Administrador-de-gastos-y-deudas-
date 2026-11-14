@@ -12,39 +12,45 @@ El mismo código sale en dos formas:
 En ambas funciona sin conexión y **los datos se guardan solo en el dispositivo**;
 no hay servidor ni cuentas.
 
-## Qué hace hoy
+## Qué hace
 
-- Registrar pagos recibidos (sin día fijo) y otros ingresos.
-- Registrar gastos por categoría; el disponible se va restando.
-- Resumen "desde tu último pago": gastado, porcentaje del pago, promedio por día
-  y gasto por categoría.
-- Historial por mes, con edición y borrado.
-- Categorías personalizables.
-- Tarjetas de crédito: fecha de corte y último día de pago, saldo, crédito
-  disponible, pago de contado pendiente, estimado del próximo estado de cuenta,
-  compras en cuotas y pagos.
-- Préstamos: saldo, próxima cuota, tiempo restante, fecha de término, intereses
-  por pagar, cuotas y abonos extra con separación de capital e intereses, y
-  simulador de abono extra.
-- Próximos pagos de tarjetas y préstamos, y cuánto queda libre después de
-  apartar lo que vence en 15 días.
-- Importar estados de cuenta en PDF de tarjetas de Davivienda y Banco Agrícola:
-  lee el resumen (corte, último día de pago, pago de contado, pago mínimo,
-  saldo, límite, disponible, tasa) y los movimientos, comprueba que sumen lo
-  mismo que los totales del banco, detecta los ya registrados y sugiere
-  categorías. La lectura ocurre en el dispositivo con PDF.js; el archivo no se
-  envía a ningún servidor.
-- Respaldo: exportar todos los datos a un archivo y restaurarlos.
+**Día a día**
+- Pagos recibidos sin día fijo, otros ingresos y gastos por categoría.
+- Disponible, lo que queda libre después de apartar los pagos de los próximos
+  15 días, y resumen desde el último pago.
+- Gastos que se repiten cada mes, propuestos en Inicio para confirmar.
+- Límites de gasto por categoría con avisos al 80% y al 100%.
+- Leer tickets y capturas de la app del banco con la cámara (en el dispositivo,
+  sin internet) para llenar el gasto.
+
+**Deudas**
+- Tarjetas de crédito: corte, último día de pago, saldo, crédito disponible,
+  pago de contado y mínimo, próximo estado de cuenta, compras en cuotas y pagos.
+- Préstamos: próxima cuota, tiempo restante, fecha de término, intereses,
+  cuotas y abonos extra con capital e intereses, y simulador de abono.
+- Importar estados de cuenta en PDF de tarjetas de Davivienda y Banco Agrícola.
+- Cuánto cuestan las deudas (intereses, comisiones, IVA, avances de efectivo).
+- Plan para salir de deudas (avalancha o bola de nieve) comparado con pagar
+  solo los mínimos.
+
+**Avisos y análisis**
+- Recordatorios en el celular: último día de pago, cuotas, corte, estado de
+  cuenta listo y respaldo.
+- Gráficas de ingresos y salidas, deuda total por mes y gasto por categoría.
+- Búsqueda y filtros en todos los movimientos; exportar a CSV (Excel).
+
+**Seguridad y respaldo**
+- Bloqueo con PIN y huella; contenido oculto en las apps recientes.
+- Respaldo cifrado con contraseña, copia automática diaria y aviso semanal.
 
 Las compras con tarjeta aumentan la deuda de la tarjeta y no bajan el
 disponible; el disponible baja cuando se registra el pago de la tarjeta.
 
 ## Plan
 
-Hecho: base, ingresos y gastos, tarjetas, préstamos e importación de estados de
-cuenta de tarjetas en PDF. Lo que sigue (proteger los datos, recordatorios, más
-estados de cuenta, costo de las deudas y plan de pago, comodidad y fotos) está
-en [docs/PLAN.md](docs/PLAN.md).
+Todas las fases de [docs/PLAN.md](docs/PLAN.md) están hechas, salvo la parte de
+la fase 3 que depende de estados de cuenta de ejemplo (préstamos y compras a
+plazos).
 
 ## Desarrollo
 
@@ -54,7 +60,7 @@ Requiere Node 22.
 npm install
 npm run dev      # servidor de desarrollo
 npm test         # pruebas de la lógica
-npm run build    # revisa tipos y genera dist/
+npm run build    # copia el lector de tickets, revisa tipos y genera dist/
 npm run preview  # sirve dist/ para probar la app instalable
 ```
 
@@ -84,6 +90,8 @@ conviene firmar siempre con una misma llave propia.
 - `src/componentes/`: formularios y piezas compartidas.
 - `src/lib/estados/`: lectura de estados de cuenta en PDF. `ejemplos.ts` imita la
   posición del texto de cada banco con datos inventados para las pruebas.
+- `src/lib/ocr/`: lectura de tickets con Tesseract. `scripts/copiar-ocr.mjs`
+  copia el motor y los datos de español a `public/ocr` al compilar.
 - `src/lib/nativo.ts`: lo que cambia dentro del APK (botón Atrás, compartir el respaldo).
 - `android/`: proyecto de Android generado por Capacitor.
 

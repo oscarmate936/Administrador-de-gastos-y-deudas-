@@ -8,3 +8,6 @@ dev-dist
 *.jks
 *.keystore
 *.p12
+
+# Archivos del lector de tickets (se copian de node_modules al compilar)
+public/ocr
