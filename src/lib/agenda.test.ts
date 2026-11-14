@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Prestamo, Recurrente, Tarjeta } from '../db';
-import { agenda } from './agenda';
+import { agenda, quitarYaAvisados } from './agenda';
 
 const tarjeta: Tarjeta = {
   id: 'visa',
@@ -58,5 +58,17 @@ describe('agenda', () => {
   it('un recurrente pausado no aparece', () => {
     const lista = agenda({ ...base, recurrentes: [{ ...netflix, activo: false }] }, '2026-11-14', '2026-11-21', '2026-11-14');
     expect(lista.some((e) => e.tipo === 'repite')).toBe(false);
+  });
+  it('no repite lo que ya está en «Requiere atención», pero deja los cortes', () => {
+    const lista = agenda(base, '2026-11-18', '2026-11-28', '2026-11-18');
+    const visibles = quitarYaAvisados(lista, [{ tipo: 'prestamo', id: 'p1' }], [{ id: 'r1', proxima: '2026-11-18' }]);
+    expect(lista.map((e) => e.tipo)).toEqual(['repite', 'corte', 'cuota']);
+    expect(visibles.map((e) => `${e.fecha} ${e.tipo}`)).toEqual(['2026-11-20 corte']);
+  });
+  it('un recurrente por confirmar solo quita esa fecha, no las siguientes', () => {
+    const lista = agenda(base, '2026-11-18', '2026-12-31', '2026-11-18');
+    const visibles = quitarYaAvisados(lista, [], [{ id: 'r1', proxima: '2026-11-18' }]);
+    expect(visibles.filter((e) => e.tipo === 'repite').map((e) => e.fecha)).toEqual(['2026-12-18']);
+    expect(visibles.filter((e) => e.tipo === 'pago')).toHaveLength(lista.filter((e) => e.tipo === 'pago').length);
   });
 });

@@ -34,10 +34,10 @@ no hay servidor ni cuentas.
 - Límites de gasto por categoría con avisos al 80% y al 100%.
 - Leer tickets y capturas de la app del banco con la cámara (en el dispositivo,
   sin internet) para llenar el gasto.
-- Asistente en Inicio (sin IA, con reglas, en el dispositivo): se le escribe o
-  dicta "gasté 12.50 en almuerzo con la Visa ayer", "pagué 100 a la
-  Mastercard" o "me pagaron 450", y preguntas como "¿cuánto debo?", "¿cuándo
-  pago la Visa?" o "¿cuánto gasté en comida este mes?".
+- Asistente en Inicio (sin IA, con reglas, en el dispositivo) para registrar con
+  una frase escrita o dictada: "gasté 12.50 en almuerzo con la Visa ayer",
+  "pagué 100 a la Mastercard" o "me pagaron 450". Si se le escribe una pregunta
+  ("¿cuánto debo?") también la responde.
 
 **Más rápido y más claro (1.5 a 1.9)**
 - Teclado propio para el monto, con sumas; categorías y tarjetas ordenadas por uso, y
@@ -46,7 +46,8 @@ no hay servidor ni cuentas.
 - Atajos al mantener presionado el ícono (gasto, ticket, pago) y widget de Android
   con lo libre para gastar.
 - Inicio: cuánto puedes gastar por día, hasta cuándo te alcanza, gráfica de ritmo,
-  próximos 7 días, primeros pasos y secciones que se pueden ocultar u ordenar.
+  próximos 7 días, primeros pasos y secciones que se pueden ocultar u ordenar. Lo que
+  ya está en «Requiere atención» no se repite en los próximos 7 días.
 - Deudas: camino a «libre de deudas» con metas, calendario de pagos, cuánto ahorras
   pagando un poco más, costo de pagar solo el mínimo y explicación de cada término.
 - Análisis: comparación con el mes anterior, gastos fijos y variables, y el detalle

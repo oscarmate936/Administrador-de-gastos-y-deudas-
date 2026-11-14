@@ -7,7 +7,7 @@ import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { Hoja } from '../componentes/Hoja';
 import { IconoAnterior, IconoFlecha, IconoSiguiente } from '../componentes/Iconos';
 import { Insignia, InsigniaCategoria, Simbolo } from '../componentes/Simbolo';
-import { agenda, type Evento } from '../lib/agenda';
+import { agenda, quitarYaAvisados, type Evento } from '../lib/agenda';
 import { guardarAjuste, ordenInicio, type Ajustes, type SeccionInicio } from '../lib/ajustes';
 import { proximosPagos, totalPorPagar, type ProximoPago } from '../lib/deudas';
 import { formatearDinero } from '../lib/dinero';
@@ -107,8 +107,11 @@ export function Inicio(props: Props) {
   const gastado = suma(delMes.filter((m) => m.tipo === 'gasto'));
   const aDeudas = suma(delMes.filter((m) => m.tipo === 'pago'));
 
-  const eventos = agenda(datos, fechaHoy, sumarDias(fechaHoy, DIAS_SEMANA - 1), fechaHoy);
   const hayAtencion = atender.length > 0 || porConfirmar.length > 0 || limites.length > 0 || pedirRespaldo;
+  const semana = agenda(datos, fechaHoy, sumarDias(fechaHoy, DIAS_SEMANA - 1), fechaHoy);
+  // Lo que ya está en «Requiere atención» no se repite en la franja (salvo que esa sección esté oculta).
+  const atencionVisible = !ajustes.inicio.ocultas.includes('atencion');
+  const eventos = atencionVisible ? quitarYaAvisados(semana, atender, porConfirmar) : semana;
 
   const secciones: Record<SeccionInicio, ReactNode> = {
     asistente: (
@@ -197,7 +200,9 @@ export function Inicio(props: Props) {
       <section className="grupo" key="semana">
         <h2 className="cabecera-grupo">Próximos 7 días</h2>
         {eventos.length === 0 ? (
-          <p className="tarjeta texto-tenue">Nada vence ni corta esta semana.</p>
+          <p className="tarjeta texto-tenue">
+            {semana.length > 0 ? 'Lo de esta semana está en «Requiere atención».' : 'Nada vence ni corta esta semana.'}
+          </p>
         ) : (
           <ul className="franja" aria-label="Lo que viene en los próximos 7 días">
             {eventos.map((e) => (
@@ -291,8 +296,6 @@ export function Inicio(props: Props) {
 // ---------- Ritmo en el héroe ----------
 
 function HeroeRitmo({ ritmo: r, hoy: fechaHoy }: { ritmo: Ritmo; hoy: string }) {
-  const real = r.acumulado[r.acumulado.length - 1] ?? 0;
-  const diferencia = real - r.idealHoyCentavos;
   const estimado = r.intervalo.supuesto ? ' (estimado)' : '';
   let alcance: string;
   if (r.porDiaCentavos === null) alcance = 'No queda libre';
@@ -317,13 +320,6 @@ function HeroeRitmo({ ritmo: r, hoy: fechaHoy }: { ritmo: Ritmo; hoy: string }) 
           {r.pagoAtrasado
             ? 'Tu pago suele llegar antes de hoy'
             : `Próximo pago ${fechaCorta(r.proximoPago)}${estimado} · ${textoFaltan(diasEntre(fechaHoy, r.proximoPago))}`}
-        </span>
-        <span>
-          {Math.abs(diferencia) < 100
-            ? 'Vas al ritmo parejo'
-            : diferencia > 0
-              ? `${formatearDinero(diferencia)} arriba del ritmo parejo`
-              : `${formatearDinero(-diferencia)} abajo del ritmo parejo`}
         </span>
       </p>
     </>

@@ -393,7 +393,7 @@ export function App() {
           />
         );
       case 'analisis':
-        return <Analisis datos={d} plan={ajustes!.plan} alAbrir={abrirDeuda} alEditar={editar} />;
+        return <Analisis datos={d} alEditar={editar} />;
       case 'deudas':
         if (tarjetaAbierta) {
           return (
