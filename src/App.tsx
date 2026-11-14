@@ -17,6 +17,7 @@ import { IconoAnalisis, IconoAnterior, IconoDeudas, IconoInicio, IconoLista, Ico
 import { Agregar } from './componentes/Agregar';
 import { Hoja } from './componentes/Hoja';
 import { deudaTotalActual, hitosNuevos, prestamosSaldados, progresoDeudas } from './lib/progreso';
+import { resumenWidget } from './lib/widget';
 import { Insignia, InsigniaCategoria, Simbolo } from './componentes/Simbolo';
 import { ErrorEstado, leerEstadoTarjeta } from './lib/estados/leer';
 import { extraerPaginas } from './lib/estados/pdf';
@@ -33,6 +34,7 @@ import {
   consumirSalidaPropia,
   escucharBotonAtras,
   escucharNotificaciones,
+  actualizarWidget,
   escucharAtajos,
   escucharPrimerPlano,
   marcarSalidaPropia,
@@ -245,6 +247,14 @@ export function App() {
     setAviso({ texto, tipo: 'info', deshacer });
     if (ajustesActuales.current?.apariencia.vibracion !== false) void vibrar();
   };
+
+  // El widget de Android muestra la misma cifra que Inicio (oculta si hay bloqueo).
+  const conBloqueo = ajustes?.bloqueo.activo;
+  useEffect(() => {
+    if (!datos || conBloqueo === undefined) return;
+    const t = setTimeout(() => void actualizarWidget({ ...resumenWidget(datos, hoy(), new Date()), oculto: conBloqueo }), 1000);
+    return () => clearTimeout(t);
+  }, [datos, conBloqueo]);
 
   // Metas del camino a «libre de deudas»: se celebran una sola vez.
   const [celebracion, setCelebracion] = useState<{ titulo: string; texto: string } | null>(null);

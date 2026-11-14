@@ -11,7 +11,7 @@ import { leerCopia, listarCopias, type InfoCopia } from '../lib/copias';
 import { descifrar, type Sobre } from '../lib/cripto';
 import { formatearDinero } from '../lib/dinero';
 import { aFechaTexto, haceCuanto, hoy } from '../lib/fechas';
-import { entregarArchivo, marcarSalidaPropia } from '../lib/nativo';
+import { entregarArchivo, esNativo, marcarSalidaPropia } from '../lib/nativo';
 import {
   crearRespaldo,
   leerRespaldo,
@@ -177,6 +177,18 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, exporta
             valor={`${TEMAS.find((t) => t.id === ajustes.apariencia.tema)?.nombre ?? 'Como el celular'}${ajustes.apariencia.letra === 'grande' ? ' · letra grande' : ''}`}
             alTocar={() => setHoja('apariencia')}
           />
+          {esNativo && (
+            <li className="fila-info">
+              <Insignia color="var(--primario)" simbolo="celular" cuadrada />
+              <span className="fila-texto">
+                <span className="fila-titulo">Widget en tu pantalla</span>
+                <span className="fila-detalle envolver">
+                  Mantén presionado un espacio vacío de tu pantalla principal, toca Widgets y elige Mis Finanzas. Muestra lo libre
+                  para gastar y un botón para registrar gastos.
+                </span>
+              </span>
+            </li>
+          )}
           <li>
             <label className="interruptor interruptor-fila">
               <span>

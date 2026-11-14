@@ -39,6 +39,20 @@ no hay servidor ni cuentas.
   Mastercard" o "me pagaron 450", y preguntas como "¿cuánto debo?", "¿cuándo
   pago la Visa?" o "¿cuánto gasté en comida este mes?".
 
+**Más rápido y más claro (1.5 a 1.9)**
+- Teclado propio para el monto, con sumas; categorías y tarjetas ordenadas por uso, y
+  la app recuerda la categoría y la tarjeta de cada comercio.
+- Deshacer al guardar, editar o borrar; deslizar un movimiento para editarlo o borrarlo.
+- Atajos al mantener presionado el ícono (gasto, ticket, pago) y widget de Android
+  con lo libre para gastar.
+- Inicio: cuánto puedes gastar por día, hasta cuándo te alcanza, gráfica de ritmo,
+  próximos 7 días, primeros pasos y secciones que se pueden ocultar u ordenar.
+- Deudas: camino a «libre de deudas» con metas, calendario de pagos, cuánto ahorras
+  pagando un poco más, costo de pagar solo el mínimo y explicación de cada término.
+- Análisis: comparación con el mes anterior, gastos fijos y variables, y el detalle
+  de cada categoría.
+- Letra grande y vibración opcionales.
+
 **Deudas**
 - Tarjetas de crédito: corte, último día de pago, saldo, crédito disponible,
   pago de contado y mínimo, próximo estado de cuenta, compras en cuotas y pagos.

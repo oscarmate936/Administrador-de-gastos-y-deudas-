@@ -10,4 +10,10 @@
     <string name="atajo_ticket_largo">Leer un ticket con la cámara</string>
     <string name="atajo_pago">Registrar pago</string>
     <string name="atajo_pago_largo">Registrar el pago de una deuda</string>
+    <string name="widget_nombre">Libre para gastar</string>
+    <string name="widget_descripcion">Cuánto te queda para gastar y un botón para registrar un gasto</string>
+    <string name="widget_etiqueta">Libre para gastar</string>
+    <string name="widget_gasto">+ Gasto</string>
+    <string name="widget_gasto_descripcion">Registrar un gasto</string>
+    <string name="widget_detalle_inicial">Abre la app una vez para ver tu saldo</string>
 </resources>

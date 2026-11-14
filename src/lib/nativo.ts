@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 
 // Lo que cambia cuando la app corre instalada como APK (Capacitor) en vez de
 // en el navegador. Los plugins se cargan solo en ese caso.
@@ -283,4 +283,23 @@ export function escucharAtajos(alAtajo: (a: Atajo) => void): () => void {
     cancelado = true;
     quitar?.();
   };
+}
+
+// ---------- Widget de la pantalla principal ----------
+
+interface PluginWidget {
+  actualizar(datos: { etiqueta: string; monto: string; detalle: string; oculto: boolean }): Promise<void>;
+}
+
+/** Complemento propio del APK (android/.../WidgetPlugin.java). */
+const Widget = registerPlugin<PluginWidget>('Widget');
+
+/** Manda al widget la cifra de Inicio. Con bloqueo, el widget la oculta. */
+export async function actualizarWidget(datos: { etiqueta: string; monto: string; detalle: string; oculto: boolean }): Promise<void> {
+  if (!esNativo) return;
+  try {
+    await Widget.actualizar(datos);
+  } catch {
+    // Un APK sin el widget (o un error al guardar) no debe afectar a la app.
+  }
 }

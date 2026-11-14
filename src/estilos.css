@@ -3257,3 +3257,14 @@ button.plastico:active {
 .categorias-barras li > .categoria-boton {
   grid-column: 1 / -1;
 }
+
+/* =====================================================================
+   1.9: fila informativa (sin acción) en Ajustes.
+   ===================================================================== */
+
+.fila-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+}
