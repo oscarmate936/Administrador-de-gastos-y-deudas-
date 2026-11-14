@@ -2,9 +2,9 @@ import type { Datos } from '../datos';
 import type { Movimiento, Tarjeta } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { IconoAnterior } from '../componentes/Iconos';
-import { estadoTarjeta } from '../lib/deudas';
+import { estadoTarjeta, sumarMeses } from '../lib/deudas';
 import { formatearDinero } from '../lib/dinero';
-import { fechaCorta, hoy, textoFaltan } from '../lib/fechas';
+import { fechaCorta, hoy, mesCorto, textoFaltan } from '../lib/fechas';
 import { ordenarRecientes } from '../lib/resumen';
 
 interface Props {
@@ -40,6 +40,18 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
         <p className="nota-principal">
           Crédito disponible {formatearDinero(e.creditoDisponibleCentavos)} de {formatearDinero(t.limiteCentavos)}
         </p>
+        {e.planesCentavos > 0 && (
+          <dl className="cifras-heroe">
+            <div>
+              <dt>Plazos y extrafinanciamiento</dt>
+              <dd>{formatearDinero(e.planesCentavos)}</dd>
+            </div>
+            <div>
+              <dt>Deuda total</dt>
+              <dd>{formatearDinero(e.deudaTotalCentavos)}</dd>
+            </div>
+          </dl>
+        )}
       </section>
 
       <section className="tarjeta">
@@ -103,6 +115,38 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
           </button>
         </div>
       </section>
+
+      {e.planes.length > 0 && (
+        <section className="tarjeta">
+          <h2>Compras a plazos y extrafinanciamiento</h2>
+          <ul className="lista-planes">
+            {e.planes.map((p, i) => {
+              const fin = sumarMeses(e.corteAnterior, p.restantes);
+              return (
+                <li key={i}>
+                  <div className="item-cabecera">
+                    <span className="item-nombre">
+                      <strong>{p.descripcion}</strong>
+                    </span>
+                    <span className="item-monto">{formatearDinero(p.saldoCentavos)}</span>
+                  </div>
+                  <span className="barra" aria-hidden="true">
+                    <span className="barra-relleno" style={{ width: `${Math.round((p.cuotaActual / p.cuotasTotales) * 100)}%` }} />
+                  </span>
+                  <span className="item-pie">
+                    Cuota {p.cuotaActual} de {p.cuotasTotales} · {formatearDinero(p.cuotaCentavos)} al mes
+                    {p.tasaMensual > 0 ? ` · ${p.tasaMensual}% mensual` : ' · sin intereses'} · última en {mesCorto(fin)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="ayuda sin-margen">
+            Lo que falta no está en el saldo de la tarjeta: cada corte se cobra una cuota. Cifras proyectadas desde tu último
+            estado de cuenta.
+          </p>
+        </section>
+      )}
 
       <section className="tarjeta">
         <h2>Compras y pagos</h2>

@@ -27,7 +27,7 @@ una versión instalable que se actualiza encima de la anterior sin borrar datos.
 |---|---|---|
 | 1 | Proteger tus datos: llave fija, respaldo automático, huella o PIN, historial de saldos | Hecho (0.4) |
 | 2 | Recordatorios en el celular | Hecho (0.5) |
-| 3 | Más estados de cuenta: tarjeta Davivienda, préstamos, compras a plazos | Pendiente: faltan PDF de ejemplo |
+| 3 | Más estados de cuenta: tarjeta Davivienda, préstamos, compras a plazos | Tarjetas y compras a plazos de Davivienda hechas (1.2); faltan préstamos |
 | 4 | Costo de las deudas, plan para salir de deudas, límites por categoría | Hecho (0.6) |
 | 5 | Gastos recurrentes, gráficas, búsqueda, exportar | Hecho (0.7) |
 | 6 | Fotos de tickets y capturas | Hecho (1.0) |

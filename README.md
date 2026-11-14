@@ -33,6 +33,8 @@ no hay servidor ni cuentas.
 - Préstamos: próxima cuota, tiempo restante, fecha de término, intereses,
   cuotas y abonos extra con capital e intereses, y simulador de abono.
 - Importar estados de cuenta en PDF de tarjetas de Davivienda y Banco Agrícola.
+- Compras a plazos y extrafinanciamiento (Davivienda): se leen del estado de
+  cuenta, se suman a la deuda total y cada corte cobra su cuota en la tarjeta.
 - Cuánto cuestan las deudas (intereses, comisiones, IVA, avances de efectivo).
 - Plan para salir de deudas (avalancha o bola de nieve) comparado con pagar
   solo los mínimos.

@@ -15,6 +15,8 @@ export interface DeudaPlan {
   minimoCentavos: number;
   /** true si el mínimo es un cálculo de la app y no el del estado de cuenta. */
   minimoEstimado: boolean;
+  /** Tarjeta o préstamo a abrir al tocarla (las compras a plazos abren su tarjeta). */
+  abrir: { tipo: 'tarjeta' | 'prestamo'; id: string };
 }
 
 export type Metodo = 'avalancha' | 'bola';
@@ -47,9 +49,25 @@ export function deudasParaPlan(
   const lista: DeudaPlan[] = [];
   for (const t of datos.tarjetas) {
     const e = estadoTarjeta(t, datos.movimientos, hoy);
+    // Cada compra a plazos o extrafinanciamiento es una deuda con su propia cuota.
+    e.planes.forEach((p, i) =>
+      lista.push({
+        tipo: 'tarjeta',
+        id: `${t.id}:plan:${i}`,
+        nombre: `${t.nombre} · ${p.descripcion}`,
+        saldoCentavos: p.saldoCentavos,
+        tasaAnual: Math.round(p.tasaMensual * 12 * 100) / 100,
+        tasaConocida: true,
+        minimoCentavos: Math.min(p.saldoCentavos, p.cuotaCentavos),
+        minimoEstimado: false,
+        abrir: { tipo: 'tarjeta', id: t.id },
+      }),
+    );
     if (e.saldoCentavos <= 0) continue;
     const tasa = t.tasaAnual ?? 0;
-    const delEstado = t.ultimoEstado?.pagoMinimoCentavos;
+    // El mínimo del banco incluye la cuota del extrafinanciamiento, que ya va aparte.
+    const cuotasConInteres = (t.ultimoEstado?.planes ?? []).filter((p) => p.tasaMensual > 0).reduce((s, p) => s + p.cuotaCentavos, 0);
+    const delEstado = t.ultimoEstado?.pagoMinimoCentavos !== undefined ? t.ultimoEstado.pagoMinimoCentavos - cuotasConInteres : undefined;
     // El mínimo de un estado de cuenta sin intereses puede ser muy bajo; los
     // siguientes los incluirán, así que nunca se toma menos que intereses + 1%.
     const piso = interesMensual(e.saldoCentavos, tasa) + Math.round(e.saldoCentavos * 0.01);
@@ -60,8 +78,9 @@ export function deudasParaPlan(
       saldoCentavos: e.saldoCentavos,
       tasaAnual: tasa,
       tasaConocida: t.tasaAnual !== undefined,
-      minimoCentavos: Math.min(e.saldoCentavos, delEstado ? Math.max(delEstado, piso) : minimoEstimado(e.saldoCentavos, tasa)),
-      minimoEstimado: !delEstado,
+      minimoCentavos: Math.min(e.saldoCentavos, delEstado !== undefined ? Math.max(delEstado, piso) : minimoEstimado(e.saldoCentavos, tasa)),
+      minimoEstimado: delEstado === undefined,
+      abrir: { tipo: 'tarjeta', id: t.id },
     });
   }
   for (const p of datos.prestamos) {
@@ -76,6 +95,7 @@ export function deudasParaPlan(
       tasaConocida: p.tasaAnual > 0,
       minimoCentavos: Math.min(p.cuotaCentavos, e.saldoCentavos + interesMensual(e.saldoCentavos, p.tasaAnual)),
       minimoEstimado: false,
+      abrir: { tipo: 'prestamo', id: p.id },
     });
   }
   return lista;

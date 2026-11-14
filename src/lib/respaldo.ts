@@ -115,6 +115,23 @@ function leerUltimoEstado(v: unknown): UltimoEstado | undefined {
     saldoCentavos: v.saldoCentavos,
     disponibleCentavos:
       typeof v.disponibleCentavos === 'number' && Number.isSafeInteger(v.disponibleCentavos) ? v.disponibleCentavos : undefined,
+    planes: Array.isArray(v.planes)
+      ? v.planes
+          .filter(esObjeto)
+          .filter(
+            (p) =>
+              esCentavos(p.cuotaCentavos) && esCentavos(p.saldoCentavos) && typeof p.tasaMensual === 'number' &&
+              Number.isInteger(p.cuotaActual) && Number.isInteger(p.cuotasTotales),
+          )
+          .map((p) => ({
+            descripcion: typeof p.descripcion === 'string' ? p.descripcion : 'Compra a plazos',
+            tasaMensual: p.tasaMensual as number,
+            cuotaActual: p.cuotaActual as number,
+            cuotasTotales: p.cuotasTotales as number,
+            cuotaCentavos: p.cuotaCentavos as number,
+            saldoCentavos: p.saldoCentavos as number,
+          }))
+      : undefined,
   };
 }
 

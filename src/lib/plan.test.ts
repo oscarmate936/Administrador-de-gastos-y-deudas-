@@ -5,6 +5,7 @@ import { deudasParaPlan, minimoEstimado, simularPlan, sumaMinimos, type DeudaPla
 
 const deuda = (id: string, saldo: number, tasa: number, minimo: number): DeudaPlan => ({
   tipo: 'tarjeta', id, nombre: id, saldoCentavos: saldo, tasaAnual: tasa, tasaConocida: true, minimoCentavos: minimo, minimoEstimado: false,
+  abrir: { tipo: 'tarjeta', id },
 });
 
 describe('plan para salir de deudas', () => {
@@ -30,12 +31,12 @@ describe('plan para salir de deudas', () => {
     expect(minimos.interesesCentavos).toBeGreaterThan(plan.interesesCentavos);
   });
 
-  it('se parece al aviso del banco: $1,225.07 al 47% pagando $79.58 fijos', () => {
-    // Davivienda imprime en su estado de cuenta: 23 meses y $1,784.93 en total.
-    const r = simularPlan([deuda('d', 122507, 47, 7958)], 7958, 'avalancha', { reinvertir: false });
-    expect(r.meses).toBe(23);
-    const total = 122507 + r.interesesCentavos;
-    expect(Math.abs(total - 178493)).toBeLessThan(2000);
+  it('cada mes primero se abona y después se cobran intereses sobre lo que queda', () => {
+    // 100.00 al 12% anual (1% al mes) pagando 50.00 fijos:
+    // mes 1: 100 - 50 = 50, +0.50 de interés; mes 2: 50.50 - 50 = 0.50, +0.01; mes 3: paga 0.51.
+    const r = simularPlan([deuda('d', 10000, 12, 5000)], 5000, 'avalancha', { reinvertir: false });
+    expect(r.meses).toBe(3);
+    expect(r.interesesCentavos).toBe(51);
   });
 
   it('avisa cuando el pago no alcanza para los mínimos', () => {
@@ -47,23 +48,23 @@ describe('plan para salir de deudas', () => {
   });
 
   it('estima el mínimo sin estado de cuenta', () => {
-    expect(minimoEstimado(122507, 47)).toBe(4798 + 3063);
+    expect(minimoEstimado(131040, 47)).toBe(5132 + 3276);
     expect(minimoEstimado(20000, 0)).toBe(1000);
     expect(minimoEstimado(500, 30)).toBe(500);
   });
 
   it('arma las deudas desde las tarjetas y préstamos registrados', () => {
     const t: Tarjeta = {
-      id: 't', nombre: 'Visa', banco: '', limiteCentavos: 60000, diaCorte: 6, diaPago: 1, saldoInicialCentavos: 38113,
-      pendienteInicialCentavos: 38113, fechaSaldo: '2026-11-06', color: '', creadoEn: 0, tasaAnual: 39.9,
-      ultimoEstado: { fechaCorte: '2026-11-06', fechaLimite: '2026-12-01', pagoContadoCentavos: 38113, pagoMinimoCentavos: 747, saldoCentavos: 38113 },
+      id: 't', nombre: 'Visa', banco: '', limiteCentavos: 60000, diaCorte: 6, diaPago: 1, saldoInicialCentavos: 41250,
+      pendienteInicialCentavos: 41250, fechaSaldo: '2026-11-06', color: '', creadoEn: 0, tasaAnual: 39.9,
+      ultimoEstado: { fechaCorte: '2026-11-06', fechaLimite: '2026-12-01', pagoContadoCentavos: 41250, pagoMinimoCentavos: 820, saldoCentavos: 41250 },
     };
     const vacia: Tarjeta = { ...t, id: 'v', saldoInicialCentavos: 0, ultimoEstado: undefined, tasaAnual: undefined };
     const p: Prestamo = { id: 'p', nombre: 'Personal', acreedor: '', saldoInicialCentavos: 100000, tasaAnual: 12, cuotaCentavos: 10000, primeraCuota: '2026-11-30', creadoEn: 0 };
     expect(deudasParaPlan({ tarjetas: [t, vacia], prestamos: [p], movimientos: [] }, '2026-11-14')).toEqual([
-      // El mínimo del estado (7.47) no cubre ni los intereses: se usa intereses + 1%.
-      { tipo: 'tarjeta', id: 't', nombre: 'Visa', saldoCentavos: 38113, tasaAnual: 39.9, tasaConocida: true, minimoCentavos: 1267 + 381, minimoEstimado: false },
-      { tipo: 'prestamo', id: 'p', nombre: 'Personal', saldoCentavos: 100000, tasaAnual: 12, tasaConocida: true, minimoCentavos: 10000, minimoEstimado: false },
+      // El mínimo del estado (8.20) no cubre ni los intereses: se usa intereses + 1%.
+      { tipo: 'tarjeta', id: 't', nombre: 'Visa', saldoCentavos: 41250, tasaAnual: 39.9, tasaConocida: true, minimoCentavos: 1372 + 413, minimoEstimado: false, abrir: { tipo: 'tarjeta', id: 't' } },
+      { tipo: 'prestamo', id: 'p', nombre: 'Personal', saldoCentavos: 100000, tasaAnual: 12, tasaConocida: true, minimoCentavos: 10000, minimoEstimado: false, abrir: { tipo: 'prestamo', id: 'p' } },
     ]);
   });
 });

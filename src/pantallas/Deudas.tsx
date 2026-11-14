@@ -46,7 +46,7 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImpo
   const estadosT = tarjetas.map((t) => ({ t, e: estadoTarjeta(t, movimientos, fechaHoy) }));
   const estadosP = prestamos.map((p) => ({ p, e: estadoPrestamo(p, movimientos, fechaHoy) }));
   const deudaTotal =
-    estadosT.reduce((s, { e }) => s + Math.max(0, e.saldoCentavos), 0) +
+    estadosT.reduce((s, { e }) => s + e.deudaTotalCentavos, 0) +
     estadosP.reduce((s, { e }) => s + e.saldoCentavos, 0);
   const proximos = proximosPagos(tarjetas, prestamos, movimientos, fechaHoy);
   const vencidos = proximos.filter((p) => p.vencido);
@@ -169,7 +169,7 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImpo
                         <strong>{t.nombre}</strong>
                         {t.banco && <span className="texto-tenue"> · {t.banco}</span>}
                       </span>
-                      <span className="item-monto">{formatearDinero(e.saldoCentavos)}</span>
+                      <span className="item-monto">{formatearDinero(e.deudaTotalCentavos)}</span>
                     </span>
                     <span className="barra" aria-hidden="true">
                       <span className="barra-relleno" style={{ width: `${uso}%`, background: t.color }} />
@@ -179,6 +179,7 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImpo
                         ? `${e.vencido ? 'Vencido: ' : ''}pagar ${formatearDinero(e.pendienteCentavos)} ${e.vencido ? 'desde el' : 'antes del'} ${fechaCorta(e.fechaLimite)}`
                         : `Al día · corte el ${fechaCorta(e.proximoCorte)}`}
                       {' · '}disponible {formatearDinero(e.creditoDisponibleCentavos)}
+                      {e.planesCentavos > 0 && ` · incluye ${formatearDinero(e.planesCentavos)} en plazos`}
                     </span>
                   </button>
                 </li>

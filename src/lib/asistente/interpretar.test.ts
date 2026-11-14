@@ -9,12 +9,12 @@ const HOY = '2026-11-13';
 
 const visa: Tarjeta = {
   id: 'visa', nombre: 'Visa Clásica', banco: 'Banco Agrícola', limiteCentavos: 60000, diaCorte: 6, diaPago: 1,
-  saldoInicialCentavos: 38113, pendienteInicialCentavos: 38113, fechaSaldo: '2026-11-06', color: '', creadoEn: 1, ultimos4: '5678',
-  ultimoEstado: { fechaCorte: '2026-11-06', fechaLimite: '2026-12-01', pagoContadoCentavos: 38113, pagoMinimoCentavos: 747, saldoCentavos: 38113 },
+  saldoInicialCentavos: 41250, pendienteInicialCentavos: 41250, fechaSaldo: '2026-11-06', color: '', creadoEn: 1, ultimos4: '5678',
+  ultimoEstado: { fechaCorte: '2026-11-06', fechaLimite: '2026-12-01', pagoContadoCentavos: 41250, pagoMinimoCentavos: 820, saldoCentavos: 41250 },
 };
 const master: Tarjeta = {
   id: 'master', nombre: 'Mastercard Clasica', banco: 'Davivienda', limiteCentavos: 120000, diaCorte: 8, diaPago: 3,
-  saldoInicialCentavos: 122507, pendienteInicialCentavos: 122507, fechaSaldo: '2026-11-08', color: '', creadoEn: 2,
+  saldoInicialCentavos: 131040, pendienteInicialCentavos: 131040, fechaSaldo: '2026-11-08', color: '', creadoEn: 2,
 };
 const prestamo: Prestamo = {
   id: 'p1', nombre: 'Préstamo personal', acreedor: 'Davivienda', saldoInicialCentavos: 350000, tasaAnual: 16.5,
@@ -132,14 +132,14 @@ describe('preguntas', () => {
   });
 
   it('cuánto debo', () => {
-    expect(titulo('¿cuánto debo?')).toBe('Debes $5,136.20 en total');
-    expect(titulo('cuanto debo en la visa')).toBe('Debes $411.13 en Visa Clásica');
+    expect(titulo('¿cuánto debo?')).toBe('Debes $5,252.90 en total');
+    expect(titulo('cuanto debo en la visa')).toBe('Debes $442.50 en Visa Clásica');
   });
 
   it('cuándo pago', () => {
     expect(titulo('¿cuándo pago la Mastercard?')).toBe('Mastercard Clasica');
-    expect(lineas('¿cuándo pago la visa?')[0]).toBe('Pago de contado: $381.13 antes del 1 dic (faltan 18 días).');
-    expect(lineas('¿cuándo pago la visa?')[1]).toBe('Pago mínimo: $7.47.');
+    expect(lineas('¿cuándo pago la visa?')[0]).toBe('Pago de contado: $412.50 antes del 1 dic (faltan 18 días).');
+    expect(lineas('¿cuándo pago la visa?')[1]).toBe('Pago mínimo: $8.20.');
     expect(titulo('¿qué tengo que pagar?')).toBe('Tus próximos pagos');
   });
 
@@ -147,7 +147,7 @@ describe('preguntas', () => {
     expect(titulo('¿cuánto tengo disponible?')).toBe('Tienes $833.50 disponibles');
     expect(lineas('¿cuánto me falta del préstamo?')).toEqual(['Préstamo personal: debes $3,500.00; te faltan 3 años, terminas en oct 2029.']);
     expect(titulo('¿cuánto pagué de intereses este mes?')).toBe('Pagaste $41.87 en intereses y comisiones este mes');
-    expect(lineas('¿cuál es el mínimo de la visa?')).toEqual(['Visa Clásica: $7.47 antes del 1 dic.']);
+    expect(lineas('¿cuál es el mínimo de la visa?')).toEqual(['Visa Clásica: $8.20 antes del 1 dic.']);
   });
 
   it('pregunta que no entiende', () => {

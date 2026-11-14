@@ -11,7 +11,7 @@ describe('actualizar desde versiones anteriores', () => {
     await vieja.table('categorias').add({ id: 'comida', nombre: 'Comida', emoji: '🍽️', color: '#e07a3f', orden: 1 });
     await vieja.table('tarjetas').add({
       id: 't', nombre: 'Visa', banco: 'Banco Agrícola', limiteCentavos: 60000, diaCorte: 6, diaPago: 1,
-      saldoInicialCentavos: 38113, pendienteInicialCentavos: 38113, fechaSaldo: '2026-11-06', color: '#000', creadoEn: 1,
+      saldoInicialCentavos: 41250, pendienteInicialCentavos: 41250, fechaSaldo: '2026-11-06', color: '#000', creadoEn: 1,
     });
     await vieja.table('prestamos').add({
       id: 'p', nombre: 'Personal', acreedor: '', saldoInicialCentavos: 100000, tasaAnual: 12, cuotaCentavos: 10000, primeraCuota: '2026-11-30', creadoEn: 2,

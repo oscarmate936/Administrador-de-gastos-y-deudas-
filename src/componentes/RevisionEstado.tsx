@@ -101,9 +101,23 @@ export function RevisionEstado({ estado, datos, tarjetaPreferida, alCerrar, alGu
             </div>
           )}
           <div>
-            <dt>Deuda total al corte</dt>
+            <dt>Saldo de la tarjeta al corte</dt>
             <dd>{formatearDinero(estado.saldoCentavos)}</dd>
           </div>
+          {estado.planes.map((p, i) => (
+            <div key={i}>
+              <dt>
+                {p.descripcion} · cuota {p.cuotaActual} de {p.cuotasTotales}
+              </dt>
+              <dd>{formatearDinero(p.saldoCentavos)}</dd>
+            </div>
+          ))}
+          {estado.planes.length > 0 && (
+            <div>
+              <dt>Deuda total con plazos</dt>
+              <dd>{formatearDinero(estado.saldoCentavos + estado.planes.reduce((t, p) => t + p.saldoCentavos, 0))}</dd>
+            </div>
+          )}
           {estado.limiteCentavos !== null && (
             <div>
               <dt>Límite de crédito</dt>

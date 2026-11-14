@@ -1,4 +1,5 @@
 import type { Movimiento, Prestamo, Tarjeta } from '../db';
+import type { PlanCuotas } from './estados/tipos';
 import { aDate, aFechaTexto, diasEntre } from './fechas';
 
 // ---------- Fechas que se repiten cada mes ----------
@@ -63,9 +64,51 @@ export function montoFacturado(montoCentavos: number, cuotas: number, cuotasFact
   return Math.floor(montoCentavos / cuotas) * cuotasFacturadas;
 }
 
+/** Cortes que hubo después de `desde` hasta `hasta` (fechas de corte), por meses. */
+export function cortesEntre(desde: string, hasta: string): number {
+  if (hasta <= desde) return 0;
+  const a = aDate(desde);
+  const b = aDate(hasta);
+  return Math.max(0, (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()));
+}
+
+export interface PlanProyectado extends PlanCuotas {
+  /** Cuotas que faltan por cobrar. */
+  restantes: number;
+}
+
+/**
+ * Cómo va un plan después de `cortes` cortes desde el estado de cuenta: cada
+ * corte cobra una cuota en la tarjeta. En el extrafinanciamiento la cuota
+ * incluye intereses sobre lo que falta.
+ */
+export function proyectarPlan(p: PlanCuotas, cortes: number): { plan: PlanProyectado; cobradoCentavos: number } {
+  let saldo = p.saldoCentavos;
+  let restantes = Math.max(0, p.cuotasTotales - p.cuotaActual);
+  let cobrado = 0;
+  for (let i = 0; i < cortes && restantes > 0 && saldo > 0; i++) {
+    const interes = Math.round((saldo * p.tasaMensual) / 100);
+    const cuota = restantes === 1 ? saldo + interes : Math.min(p.cuotaCentavos, saldo + interes);
+    saldo = Math.max(0, saldo + interes - cuota);
+    cobrado += cuota;
+    restantes--;
+  }
+  if (restantes === 0) saldo = 0;
+  return {
+    plan: { ...p, saldoCentavos: saldo, restantes, cuotaActual: p.cuotasTotales - restantes },
+    cobradoCentavos: cobrado,
+  };
+}
+
 export interface EstadoTarjeta {
-  /** Deuda total de la tarjeta hoy, incluidas las cuotas que aún no se facturan. */
+  /** Saldo de la tarjeta hoy, incluidas las cuotas de compras registradas en la app. */
   saldoCentavos: number;
+  /** Compras a plazos y extrafinanciamientos del estado de cuenta, proyectados a hoy. */
+  planes: PlanProyectado[];
+  /** Lo que falta de esos planes (aparte del saldo). */
+  planesCentavos: number;
+  /** Saldo más planes: todo lo que se debe por esta tarjeta. */
+  deudaTotalCentavos: number;
   creditoDisponibleCentavos: number;
   /** Último corte que ya pasó (o es hoy). */
   corteAnterior: string;
@@ -93,12 +136,16 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
   const gastos = movimientos.filter((m) => m.tipo === 'gasto' && posterior(m));
   const pagos = movimientos.filter((m) => m.tipo === 'pago' && posterior(m));
   const pagado = sumar(pagos);
-  const saldoCentavos = tarjeta.saldoInicialCentavos + sumar(gastos) - pagado;
-  const deuda = Math.max(0, saldoCentavos);
+  const ue = tarjeta.ultimoEstado;
+
+  // Planes (compras a plazos, extrafinanciamiento) del estado de cuenta que dio
+  // los saldos: cada corte posterior cobra una cuota en la tarjeta.
+  const planesBase = ue && ue.fechaCorte === tarjeta.fechaSaldo ? (ue.planes ?? []) : [];
+  const cobradoHasta = (corte: string) =>
+    planesBase.reduce((t, p) => t + proyectarPlan(p, cortesEntre(ue!.fechaCorte, corte)).cobradoCentavos, 0);
 
   // Si el banco corrió el corte unos días (fin de semana, feriado), manda la
   // fecha del estado de cuenta importado.
-  const ue = tarjeta.ultimoEstado;
   const corteCalculado = ultimoDiaHasta(tarjeta.diaCorte, hoy);
   const segunEstado = ue !== undefined && ue.fechaCorte <= hoy && Math.abs(diasEntre(ue.fechaCorte, corteCalculado)) <= 5;
   const corteAnterior = segunEstado ? ue.fechaCorte : corteCalculado;
@@ -106,14 +153,23 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
   const proximoCorte = fechaConDia(d.getFullYear(), d.getMonth() + 1, tarjeta.diaCorte);
   const fechaLimite = segunEstado ? ue.fechaLimite : primerDiaDespues(tarjeta.diaPago, corteAnterior);
 
+  const saldoCentavos = tarjeta.saldoInicialCentavos + sumar(gastos) - pagado + cobradoHasta(corteAnterior);
+  const deuda = Math.max(0, saldoCentavos);
+  const planes = planesBase
+    .map((p) => proyectarPlan(p, cortesEntre(ue!.fechaCorte, corteAnterior)).plan)
+    .filter((p) => p.saldoCentavos > 0);
+  const planesCentavos = planes.reduce((t, p) => t + p.saldoCentavos, 0);
+
   /** Lo que queda por pagar del estado de cuenta de ese corte, si es posterior a `fechaSaldo`. */
   const pendienteDelCorte = (corte: string): number => {
     const facturado = gastos.reduce(
       (t, g) =>
         t + montoFacturado(g.montoCentavos, g.cuotas ?? 1, cortesFacturados(tarjeta.diaCorte, g.fecha, corte)),
-      tarjeta.saldoInicialCentavos,
+      tarjeta.saldoInicialCentavos + cobradoHasta(corte),
     );
-    return Math.min(deuda, Math.max(0, facturado - pagado));
+    // Las cuotas de planes que se cobren en ese corte todavía no están en el saldo de hoy.
+    const tope = deuda + Math.max(0, cobradoHasta(corte) - cobradoHasta(corteAnterior));
+    return Math.min(tope, Math.max(0, facturado - pagado));
   };
 
   // Si el último corte no es posterior a `fechaSaldo`, la app no armó ese estado
@@ -129,6 +185,9 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
 
   return {
     saldoCentavos,
+    planes,
+    planesCentavos,
+    deudaTotalCentavos: deuda + planesCentavos,
     // Si los saldos vienen del estado de cuenta, parte del disponible que dio el banco.
     creditoDisponibleCentavos:
       ue?.disponibleCentavos !== undefined && ue.fechaCorte === tarjeta.fechaSaldo

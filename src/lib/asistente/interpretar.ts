@@ -213,8 +213,13 @@ function responder(t: string, datos: Datos, hoy: string): Intencion {
       const e = estadoTarjeta(tarjeta, datos.movimientos, hoy);
       return {
         tipo: 'respuesta',
-        titulo: `Debes ${formatearDinero(Math.max(0, e.saldoCentavos))} en ${tarjeta.nombre}`,
-        lineas: [`Crédito disponible: ${formatearDinero(e.creditoDisponibleCentavos)}.`],
+        titulo: `Debes ${formatearDinero(e.deudaTotalCentavos)} en ${tarjeta.nombre}`,
+        lineas: [
+          ...(e.planesCentavos > 0
+            ? [`Saldo de la tarjeta: ${formatearDinero(Math.max(0, e.saldoCentavos))}.`, `Compras a plazos y extrafinanciamiento: ${formatearDinero(e.planesCentavos)}.`]
+            : []),
+          `Crédito disponible: ${formatearDinero(e.creditoDisponibleCentavos)}.`,
+        ],
         destino: { tipo: 'tarjeta', id: tarjeta.id },
       };
     }
@@ -223,7 +228,7 @@ function responder(t: string, datos: Datos, hoy: string): Intencion {
       return { tipo: 'respuesta', titulo: `Debes ${formatearDinero(e.saldoCentavos)} de ${prestamo.nombre}`, lineas: [], destino: { tipo: 'prestamo', id: prestamo.id } };
     }
     const partes = [
-      ...datos.tarjetas.map((x) => ({ nombre: x.nombre, saldo: Math.max(0, estadoTarjeta(x, datos.movimientos, hoy).saldoCentavos) })),
+      ...datos.tarjetas.map((x) => ({ nombre: x.nombre, saldo: estadoTarjeta(x, datos.movimientos, hoy).deudaTotalCentavos })),
       ...datos.prestamos.map((x) => ({ nombre: x.nombre, saldo: estadoPrestamo(x, datos.movimientos, hoy).saldoCentavos })),
     ].filter((p) => p.saldo > 0);
     const total = partes.reduce((s, p) => s + p.saldo, 0);

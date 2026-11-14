@@ -140,7 +140,7 @@ export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
                 const d = nombre(id);
                 return (
                   <li key={id}>
-                    <button type="button" className="fila" onClick={() => alAbrir({ tipo: d.tipo, id: d.id })}>
+                    <button type="button" className="fila" onClick={() => alAbrir(d.abrir)}>
                       <span className="fila-emoji" style={{ background: 'var(--superficie-2)' }}>
                         {d.tipo === 'tarjeta' ? '💳' : '🏦'}
                       </span>

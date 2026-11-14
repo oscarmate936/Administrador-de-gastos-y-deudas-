@@ -72,6 +72,15 @@ describe('Davivienda', () => {
     ]);
   });
 
+  it('lee las compras a plazos y el extrafinanciamiento sin guardar el nombre del cliente', () => {
+    expect(e.planes).toEqual([
+      { descripcion: 'TIENDA DE PRUEBA', tasaMensual: 0, cuotaActual: 2, cuotasTotales: 12, cuotaCentavos: 1000, saldoCentavos: 10000 },
+      { descripcion: 'Extrafinanciamiento', tasaMensual: 1.5, cuotaActual: 5, cuotasTotales: 48, cuotaCentavos: 2550, saldoCentavos: 78700 },
+    ]);
+    expect(JSON.stringify(e.planes)).not.toContain('CLIENTE');
+    expect(leerEstadoTarjeta(ejemploBancoAgricola()).planes).toEqual([]);
+  });
+
   it('avisa si los movimientos no cuadran con los totales', () => {
     const paginas = ejemploDavivienda();
     paginas[0].items = paginas[0].items.filter((i) => i.texto !== 'PIZZA HUT');

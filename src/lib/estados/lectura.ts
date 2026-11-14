@@ -147,6 +147,45 @@ export function columnasMovimientos(items: Item[]): Columnas | null {
   };
 }
 
+/**
+ * Tabla "RESUMEN DE EXTRAFINANCIAMIENTO Y/O COMPRA A PLAZOS" (Davivienda):
+ * REFERENCIA · DESCRIPCION · %MENSUAL · CUOTA/PLAZO · RECARGOS · COMISIONES ·
+ * INTERESES · CAPITAL · CUOTA · SALDO AL CORTE.
+ */
+export function leerPlanes(items: Item[]) {
+  const cabecera = items.find((i) => normalizar(i.texto) === 'CUOTA/PLAZO');
+  if (!cabecera) return [];
+  const planes: Array<{ descripcion: string; tasaMensual: number; cuotaActual: number; cuotasTotales: number; cuotaCentavos: number; saldoCentavos: number }> = [];
+  for (const r of renglones(items.filter((i) => i.y < cabecera.y - 2))) {
+    const plazoItem = r.items.find((i) => /^\d{1,3}\/\d{1,3}$/.test(i.texto.trim()));
+    if (!plazoItem) {
+      // La tabla termina en el primer renglón sin "n/m" que tenga texto.
+      if (r.items.some((i) => /[A-Z]{3}/i.test(i.texto))) break;
+      continue;
+    }
+    const [actual, total] = plazoItem.texto.trim().split('/').map(Number);
+    const despues = r.items.filter((i) => i.x > plazoItem.x).map((i) => leerMonto(i.texto)).filter((m): m is number => m !== null);
+    const antes = r.items.filter((i) => i.x < plazoItem.x);
+    const tasa = antes.length > 0 ? Number(antes[antes.length - 1].texto.replace(',', '.')) : NaN;
+    if (despues.length < 2 || !Number.isFinite(tasa) || total < actual) continue;
+    const descripcion = antes
+      .slice(0, -1)
+      .filter((i) => !/^\d{6,}$/.test(i.texto.trim()))
+      .map((i) => i.texto.trim())
+      .join(' ');
+    planes.push({
+      // En el extrafinanciamiento el banco pone el nombre de la persona: no se guarda.
+      descripcion: tasa > 0 ? 'Extrafinanciamiento' : descripcion || 'Compra a plazos',
+      tasaMensual: tasa,
+      cuotaActual: actual,
+      cuotasTotales: total,
+      cuotaCentavos: despues[despues.length - 2],
+      saldoCentavos: despues[despues.length - 1],
+    });
+  }
+  return planes;
+}
+
 const FIN_DE_TABLA = /^(RESUMEN DE|TOTAL TRANSACCIONES|DESGLOSE|-{5,})/;
 
 /** Lee las filas de la tabla de movimientos que hay debajo del encabezado. */

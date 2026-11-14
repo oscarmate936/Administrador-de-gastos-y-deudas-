@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie';
 import { sumarDias } from './lib/fechas';
+import type { PlanCuotas } from './lib/estados/tipos';
 
 /**
  * - ingreso: dinero que entra al disponible.
@@ -71,6 +72,8 @@ export interface UltimoEstado {
   saldoCentavos: number;
   /** Crédito disponible según el banco (algunos no descuentan los intereses del límite). */
   disponibleCentavos?: number;
+  /** Compras a plazos y extrafinanciamientos al corte (aparte del saldo). */
+  planes?: PlanCuotas[];
 }
 
 export interface Prestamo {

@@ -1,6 +1,7 @@
 import {
   buscarValor,
   columnasMovimientos,
+  leerPlanes,
   leerFecha,
   leerMonto,
   leerMovimientos,
@@ -93,6 +94,7 @@ export function leerEstadoTarjeta(paginas: Pagina[]): EstadoCuentaTarjeta {
     pagoMinimoCentavos: pagoMinimo,
     tasaAnual: tasa,
     movimientos,
+    planes: paginas.flatMap((p) => leerPlanes(p.items)).filter((p) => p.saldoCentavos > 0),
     totalesCuadran: comprobarTotales(paginas, banco, movimientos),
   };
 }

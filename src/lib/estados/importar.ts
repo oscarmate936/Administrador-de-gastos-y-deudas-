@@ -108,6 +108,7 @@ export function tarjetaDesdeEstado(
       pagoMinimoCentavos: estado.pagoMinimoCentavos ?? undefined,
       saldoCentavos: saldo,
       disponibleCentavos: estado.disponibleCentavos ?? undefined,
+      planes: estado.planes.length > 0 ? estado.planes : undefined,
     },
   };
 }

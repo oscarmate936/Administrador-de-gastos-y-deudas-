@@ -154,8 +154,8 @@ describe('estadoTarjeta', () => {
 describe('tarjeta con estado de cuenta importado', () => {
   const tarjeta: Tarjeta = {
     id: 't1', nombre: 'Visa', banco: 'Banco Agrícola', limiteCentavos: 60000, diaCorte: 6, diaPago: 1,
-    saldoInicialCentavos: 38113, pendienteInicialCentavos: 38113, fechaSaldo: '2026-11-06', color: '#000', creadoEn: 0,
-    ultimoEstado: { fechaCorte: '2026-11-06', fechaLimite: '2026-12-01', pagoContadoCentavos: 38113, pagoMinimoCentavos: 747, saldoCentavos: 38113 },
+    saldoInicialCentavos: 41250, pendienteInicialCentavos: 41250, fechaSaldo: '2026-11-06', color: '#000', creadoEn: 0,
+    ultimoEstado: { fechaCorte: '2026-11-06', fechaLimite: '2026-12-01', pagoContadoCentavos: 41250, pagoMinimoCentavos: 820, saldoCentavos: 41250 },
   };
 
   it('usa las cifras del estado de cuenta y descuenta los pagos posteriores', () => {
@@ -163,12 +163,12 @@ describe('tarjeta con estado de cuenta importado', () => {
     expect(e.segunEstado).toBe(true);
     expect(e.corteAnterior).toBe('2026-11-06');
     expect(e.fechaLimite).toBe('2026-12-01');
-    expect(e.pendienteCentavos).toBe(38113);
-    expect(e.pagoMinimoCentavos).toBe(747);
+    expect(e.pendienteCentavos).toBe(41250);
+    expect(e.pagoMinimoCentavos).toBe(820);
     const abono = mov({ tipo: 'pago', montoCentavos: 500, fecha: '2026-11-10', tarjetaId: 't1' });
     const e2 = estadoTarjeta(tarjeta, [abono], '2026-11-13');
-    expect(e2.pagoMinimoCentavos).toBe(247);
-    expect(e2.pendienteCentavos).toBe(37613);
+    expect(e2.pagoMinimoCentavos).toBe(320);
+    expect(e2.pendienteCentavos).toBe(40750);
   });
 
   it('si el banco corrió el corte unos días, manda la fecha del estado de cuenta', () => {
@@ -176,7 +176,7 @@ describe('tarjeta con estado de cuenta importado', () => {
     const e = estadoTarjeta(corrido, [], '2026-11-13');
     expect(e.corteAnterior).toBe('2026-11-07');
     expect(e.proximoCorte).toBe('2026-12-08');
-    expect(e.pendienteCentavos).toBe(38113);
+    expect(e.pendienteCentavos).toBe(41250);
   });
 
   it('pasado el siguiente corte vuelve a calcular y ya no hay pago mínimo conocido', () => {

@@ -1825,3 +1825,15 @@ button {
 .asistente-respuesta .acciones .boton {
   flex: 1;
 }
+
+.lista-planes {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lista-planes li {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

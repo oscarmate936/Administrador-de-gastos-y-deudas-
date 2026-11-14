@@ -42,8 +42,16 @@ export function ejemploDavivienda(): Pagina[] {
     ...fila(426.1, '25/10/2026', 'NETFLIX.COM', '20.00'),
     it('08/11/2026', 35.3, 418.2), it('08/11/2026', 95.9, 418.2), it('INTERES SOBRE SALDO', 229.9, 418.2), it('$', 462.8, 418.2), it('20.00', 485.1, 418.2),
     it('RESUMEN DE EXTRAFINANCIAMIENTO Y/O COMPRA A PLAZOS', 162.9, 276),
+    it('REFERENCIA', 19.4, 260.2), it('DESCRIPCION', 95.9, 260.2), it('%MENSUAL', 242.7, 260.2), it('CUOTA/PLAZO', 277.8, 260.2),
+    it('RECARGOS', 322.4, 260.2), it('COMISIONES', 363.9, 260.2), it('INTERESES', 408.6, 260.2), it('CAPITAL', 456.4, 260.2),
+    it('CUOTA', 504.3, 260.2), it('SALDO AL CORTE', 529.8, 260.2),
+    it('100000000000000000001', 16.2, 252), it('TIENDA DE PRUEBA', 95.9, 252), it('0.00', 258.6, 252), it('2/12', 290.5, 252),
+    it('0.00', 328.8, 252), it('0.00', 376.7, 252), it('0.00', 424.5, 252), it('10.00', 469.2, 252), it('10.00', 517, 252), it('100.00', 561.7, 252),
+    it('900000001', 16.2, 244), it('CLIENTE DE PRUEBA', 95.9, 244), it('1.50', 258.6, 244), it('5/48', 290.5, 244),
+    it('0.00', 328.8, 244), it('0.50', 376.7, 244), it('12.00', 421.3, 244), it('13.00', 472.4, 244), it('25.50', 517, 244), it('787.00', 558, 244),
+    it('SE LE RECUERDA QUE SI DESEA REALIZAR UN ABONO PARCIAL', 67.2, 228.6),
     // Una fila con fecha debajo de otra tabla no debe leerse como movimiento.
-    ...fila(250, '01/11/2026', 'NO ES UN MOVIMIENTO', '99.00'),
+    ...fila(200, '01/11/2026', 'NO ES UN MOVIMIENTO', '99.00'),
   ];
   const p2: Item[] = [
     it('FECHA DE', 32, 743.6), it('CONCEPTO', 325.1, 739.6), it('CARGOS', 481.9, 739.6), it('ABONOS', 551.1, 739.6),

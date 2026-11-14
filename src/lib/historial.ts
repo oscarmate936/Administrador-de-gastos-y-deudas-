@@ -13,7 +13,7 @@ export function fotoDeHoy(
       tipo: 'tarjeta' as const,
       id: t.id,
       nombre: t.nombre,
-      saldoCentavos: Math.max(0, estadoTarjeta(t, datos.movimientos, hoy).saldoCentavos),
+      saldoCentavos: estadoTarjeta(t, datos.movimientos, hoy).deudaTotalCentavos,
     })),
     ...datos.prestamos.map((p) => ({
       tipo: 'prestamo' as const,
