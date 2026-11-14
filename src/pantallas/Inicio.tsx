@@ -1,4 +1,5 @@
-import type { Datos, Detalle } from '../datos';
+import type { Datos, Detalle, Formulario } from '../datos';
+import { Asistente } from '../componentes/Asistente';
 import type { Movimiento } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { proximosPagos, totalPorPagar } from '../lib/deudas';
@@ -29,12 +30,13 @@ interface Props {
   /** Días desde el último respaldo externo; null si nunca se hizo. */
   diasSinRespaldo: number | null;
   alRespaldar: () => void;
+  alAbrirFormulario: (f: Formulario) => void;
 }
 
 /** Cada cuántos días se recuerda hacer un respaldo. */
 const DIAS_ENTRE_RESPALDOS = 7;
 
-export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVerTodos, alVerDeudas, alAbrirDeuda, diasSinRespaldo, alRespaldar }: Props) {
+export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVerTodos, alVerDeudas, alAbrirDeuda, diasSinRespaldo, alRespaldar, alAbrirFormulario }: Props) {
   const { movimientos, mapaCategorias, tarjetas, prestamos } = datos;
   const fechaHoy = hoy();
 
@@ -104,6 +106,12 @@ export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVe
           </p>
         )}
       </section>
+
+      <Asistente
+        datos={datos}
+        alAbrirFormulario={alAbrirFormulario}
+        alAbrir={(d) => (d === 'movimientos' ? alVerTodos() : alAbrirDeuda(d))}
+      />
 
       {porConfirmar.length > 0 && (
         <section className="tarjeta">

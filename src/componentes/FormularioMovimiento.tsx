@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { db, nuevoId, type Categoria, type Movimiento, type Tarjeta } from '../db';
+import type { Borrador } from '../datos';
 import { centavosATexto, textoACentavos } from '../lib/dinero';
 import { esFechaValida, hoy } from '../lib/fechas';
 import { primeraFecha } from '../lib/recurrentes';
@@ -15,20 +16,24 @@ interface Props {
   tarjetas: Tarjeta[];
   /** Tarjeta preseleccionada al registrar una compra desde el detalle de una tarjeta. */
   tarjetaInicial?: string;
+  /** Valores iniciales de un movimiento nuevo. */
+  borrador?: Borrador;
   alCerrar: () => void;
   /** Se llama con el movimiento guardado (para avisos de límite). */
   alGuardar?: (m: Movimiento) => void;
 }
 
-export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarjetas, tarjetaInicial, alCerrar, alGuardar }: Props) {
+export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarjetas, tarjetaInicial, borrador, alCerrar, alGuardar }: Props) {
   const [tipo, setTipo] = useState<'ingreso' | 'gasto'>(movimiento?.tipo === 'ingreso' ? 'ingreso' : movimiento ? 'gasto' : tipoInicial);
-  const [tarjetaId, setTarjetaId] = useState(movimiento ? movimiento.tarjetaId : tarjetaInicial);
+  const [tarjetaId, setTarjetaId] = useState(movimiento ? movimiento.tarjetaId : (borrador?.tarjetaId ?? tarjetaInicial));
   const [cuotas, setCuotas] = useState(String(movimiento?.cuotas ?? 1));
-  const [monto, setMonto] = useState(movimiento ? centavosATexto(movimiento.montoCentavos) : '');
-  const [fecha, setFecha] = useState(movimiento?.fecha ?? hoy());
-  const [categoriaId, setCategoriaId] = useState(movimiento?.categoriaId);
-  const [esPago, setEsPago] = useState(movimiento?.esPago ?? true);
-  const [nota, setNota] = useState(movimiento?.nota ?? '');
+  const [monto, setMonto] = useState(
+    movimiento ? centavosATexto(movimiento.montoCentavos) : borrador?.montoCentavos ? centavosATexto(borrador.montoCentavos) : '',
+  );
+  const [fecha, setFecha] = useState(movimiento?.fecha ?? borrador?.fecha ?? hoy());
+  const [categoriaId, setCategoriaId] = useState(movimiento ? movimiento.categoriaId : borrador?.categoriaId);
+  const [esPago, setEsPago] = useState(movimiento?.esPago ?? borrador?.esPago ?? true);
+  const [nota, setNota] = useState(movimiento?.nota ?? borrador?.nota ?? '');
   const [repetir, setRepetir] = useState(false);
   const [lectura, setLectura] = useState<{ estado: 'leyendo'; avance: number } | { estado: 'listo' | 'error'; texto: string } | null>(null);
   const entradaFoto = useRef<HTMLInputElement>(null);

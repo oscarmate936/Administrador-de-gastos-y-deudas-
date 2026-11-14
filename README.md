@@ -22,6 +22,10 @@ no hay servidor ni cuentas.
 - Límites de gasto por categoría con avisos al 80% y al 100%.
 - Leer tickets y capturas de la app del banco con la cámara (en el dispositivo,
   sin internet) para llenar el gasto.
+- Asistente en Inicio (sin IA, con reglas, en el dispositivo): se le escribe o
+  dicta "gasté 12.50 en almuerzo con la Visa ayer", "pagué 100 a la
+  Mastercard" o "me pagaron 450", y preguntas como "¿cuánto debo?", "¿cuándo
+  pago la Visa?" o "¿cuánto gasté en comida este mes?".
 
 **Deudas**
 - Tarjetas de crédito: corte, último día de pago, saldo, crédito disponible,
@@ -90,6 +94,7 @@ conviene firmar siempre con una misma llave propia.
 - `src/componentes/`: formularios y piezas compartidas.
 - `src/lib/estados/`: lectura de estados de cuenta en PDF. `ejemplos.ts` imita la
   posición del texto de cada banco con datos inventados para las pruebas.
+- `src/lib/asistente/`: intérprete de frases del asistente.
 - `src/lib/ocr/`: lectura de tickets con Tesseract. `scripts/copiar-ocr.mjs`
   copia el motor y los datos de español a `public/ocr` al compilar.
 - `src/lib/nativo.ts`: lo que cambia dentro del APK (botón Atrás, compartir el respaldo).

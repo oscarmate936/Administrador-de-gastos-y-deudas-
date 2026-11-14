@@ -12,10 +12,20 @@ export interface Datos {
   historial: Foto[];
 }
 
+/** Valores para empezar un movimiento nuevo (por ejemplo, desde el asistente). */
+export interface Borrador {
+  montoCentavos?: number;
+  categoriaId?: string;
+  tarjetaId?: string;
+  fecha?: string;
+  nota?: string;
+  esPago?: boolean;
+}
+
 /** Formulario abierto en una hoja inferior. */
 export type Formulario =
-  | { clase: 'movimiento'; tipo: 'ingreso' | 'gasto'; movimiento?: Movimiento; tarjetaId?: string }
-  | { clase: 'pago'; tarjetaId?: string; prestamoId?: string; movimiento?: Movimiento; extra?: boolean }
+  | { clase: 'movimiento'; tipo: 'ingreso' | 'gasto'; movimiento?: Movimiento; tarjetaId?: string; borrador?: Borrador }
+  | { clase: 'pago'; tarjetaId?: string; prestamoId?: string; movimiento?: Movimiento; extra?: boolean; monto?: number; fecha?: string }
   | { clase: 'tarjeta'; tarjeta?: Tarjeta }
   | { clase: 'prestamo'; prestamo?: Prestamo }
   | { clase: 'estado'; estado: EstadoCuentaTarjeta; tarjetaId?: string };

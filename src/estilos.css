@@ -1764,3 +1764,64 @@ button {
 .botones-confirmar {
   margin-left: auto;
 }
+
+/* ---------- Asistente ---------- */
+
+.asistente {
+  gap: 10px;
+}
+
+.asistente-entrada {
+  display: flex;
+  gap: 8px;
+}
+
+.asistente-entrada input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  background: var(--superficie-2);
+}
+
+.asistente-entrada input:focus {
+  border-color: var(--primario);
+  outline: none;
+}
+
+.asistente-entrada .boton {
+  flex: none;
+  width: 48px;
+  min-height: 48px;
+  padding: 0;
+  font-size: 1.1rem;
+}
+
+.asistente-respuesta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--superficie-2);
+}
+
+.asistente-respuesta ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 18px;
+  list-style: disc;
+  font-size: 0.92rem;
+}
+
+.asistente-respuesta .acciones {
+  width: 100%;
+}
+
+.asistente-respuesta .acciones .boton {
+  flex: 1;
+}

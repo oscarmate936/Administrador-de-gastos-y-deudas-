@@ -14,10 +14,12 @@ interface Props {
   movimiento?: Movimiento;
   /** Al crear un pago de préstamo: empezar en "Abono extra". */
   extraInicial?: boolean;
+  montoInicial?: number;
+  fechaInicial?: string;
   alCerrar: () => void;
 }
 
-export function FormularioPago({ tarjeta, prestamo, movimientos, movimiento, extraInicial, alCerrar }: Props) {
+export function FormularioPago({ tarjeta, prestamo, movimientos, movimiento, extraInicial, montoInicial, fechaInicial, alCerrar }: Props) {
   const fechaHoy = hoy();
   // Al editar, los cálculos parten de cómo estaba la deuda sin este pago.
   const otros = movimiento ? movimientos.filter((m) => m.id !== movimiento.id) : movimientos;
@@ -28,6 +30,7 @@ export function FormularioPago({ tarjeta, prestamo, movimientos, movimiento, ext
   const [esExtra, setEsExtra] = useState(movimiento?.esExtra ?? extraInicial ?? false);
   const [monto, setMonto] = useState(() => {
     if (movimiento) return centavosATexto(movimiento.montoCentavos);
+    if (montoInicial) return centavosATexto(montoInicial);
     if (ePrestamo && !extraInicial && ePrestamo.proximaCuotaCentavos > 0) return centavosATexto(ePrestamo.proximaCuotaCentavos);
     if (eTarjeta && eTarjeta.pendienteCentavos > 0) return centavosATexto(eTarjeta.pendienteCentavos);
     return '';
@@ -37,7 +40,7 @@ export function FormularioPago({ tarjeta, prestamo, movimientos, movimiento, ext
     movimiento?.capitalCentavos !== undefined ? centavosATexto(movimiento.capitalCentavos) : '',
   );
   const [capitalEditado, setCapitalEditado] = useState(movimiento !== undefined);
-  const [fecha, setFecha] = useState(movimiento?.fecha ?? fechaHoy);
+  const [fecha, setFecha] = useState(movimiento?.fecha ?? fechaInicial ?? fechaHoy);
   const [nota, setNota] = useState(movimiento?.nota ?? '');
   const [error, setError] = useState('');
 

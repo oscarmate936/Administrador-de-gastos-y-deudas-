@@ -263,6 +263,7 @@ export function App() {
             alAbrirDeuda={abrirDeuda}
             diasSinRespaldo={diasSinRespaldo}
             alRespaldar={() => irA('ajustes')}
+            alAbrirFormulario={setFormulario}
           />
         );
       case 'movimientos':
@@ -378,6 +379,7 @@ export function App() {
             categorias={d.categorias}
             tarjetas={d.tarjetas}
             tarjetaInicial={f.tarjetaId}
+            borrador={f.borrador}
             alCerrar={cerrar}
             alGuardar={(m) => {
               const c = m.tipo === 'gasto' && m.categoriaId ? d.mapaCategorias.get(m.categoriaId) : undefined;
@@ -399,6 +401,8 @@ export function App() {
             movimientos={d.movimientos}
             movimiento={f.movimiento}
             extraInicial={f.extra}
+            montoInicial={f.monto}
+            fechaInicial={f.fecha}
             alCerrar={cerrar}
           />
         );
