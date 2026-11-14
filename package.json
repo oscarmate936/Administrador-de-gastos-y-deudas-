@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "build:android": "npm run preparar && tsc --noEmit && vite build --mode android && cap sync android",
-    "apk": "npm run build:android && cd android && ./gradlew assembleDebug",
+    "apk": "npm run build:android && cd android && ./gradlew --init-script espejo-maven.gradle assembleDebug",
     "preparar": "node scripts/copiar-ocr.mjs"
   },
   "dependencies": {

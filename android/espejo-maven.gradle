@@ -1,0 +1,22 @@
+// Script de inicio de Gradle: busca primero en el espejo de Maven Central que
+// mantiene Google. Maven Central a veces responde 429 (demasiadas solicitudes)
+// a las máquinas compartidas de GitHub y de la nube; con esto las compilaciones
+// no dependen de él. Uso: ./gradlew --init-script espejo-maven.gradle ...
+def espejo = 'https://maven-central.storage-download.googleapis.com/maven2/'
+
+beforeSettings { settings ->
+    settings.pluginManagement.repositories {
+        maven { url espejo }
+    }
+}
+
+allprojects {
+    buildscript {
+        repositories {
+            maven { url espejo }
+        }
+    }
+    repositories {
+        maven { url espejo }
+    }
+}

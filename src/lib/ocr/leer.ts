@@ -24,7 +24,8 @@ export async function leerTextoDeImagen(archivo: File, alAvanzar?: (fraccion: nu
     workerPath: `${base}worker.min.js`,
     corePath: `${base}tesseract-core-simd-lstm.wasm.js`,
     langPath: base.replace(/\/$/, ''),
-    gzip: true,
+    // Los datos van sin comprimir (ver scripts/copiar-ocr.mjs).
+    gzip: false,
     workerBlobURL: false,
     cacheMethod: 'none',
     logger: (m: { status: string; progress: number }) => {

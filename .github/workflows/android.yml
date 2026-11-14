@@ -40,6 +40,8 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+          # Guarda las dependencias de Gradle entre compilaciones.
+          cache: gradle
 
       - run: npm ci
       - run: npm test
@@ -55,7 +57,15 @@ jobs:
         env:
           ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/firma.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-        run: ./gradlew assembleRelease --no-daemon
+        # Usa el espejo de Maven Central de Google (Maven Central responde 429 a
+        # veces) y reintenta si falla por red.
+        run: |
+          for intento in 1 2 3; do
+            ./gradlew --init-script espejo-maven.gradle assembleRelease --no-daemon && exit 0
+            echo "::warning::Intento $intento falló; reintentando en 30 s"
+            sleep 30
+          done
+          exit 1
 
       - name: Borrar la llave temporal
         if: always()
