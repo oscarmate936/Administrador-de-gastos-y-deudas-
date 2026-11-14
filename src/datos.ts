@@ -1,4 +1,4 @@
-import type { Categoria, Movimiento, Prestamo, Tarjeta } from './db';
+import type { Categoria, Foto, Movimiento, Prestamo, Recurrente, Tarjeta } from './db';
 import type { EstadoCuentaTarjeta } from './lib/estados/tipos';
 
 /** Todo lo que las pantallas leen de la base de datos. */
@@ -8,6 +8,8 @@ export interface Datos {
   mapaCategorias: Map<string, Categoria>;
   tarjetas: Tarjeta[];
   prestamos: Prestamo[];
+  recurrentes: Recurrente[];
+  historial: Foto[];
 }
 
 /** Formulario abierto en una hoja inferior. */

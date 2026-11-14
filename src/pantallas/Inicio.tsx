@@ -11,6 +11,8 @@ import {
   resumenDesdeUltimoPago,
 } from '../lib/resumen';
 import { estadoLimites } from '../lib/limites';
+import { omitirRecurrente, pendientes, registrarRecurrente } from '../lib/recurrentes';
+import { db } from '../db';
 import { ListaProximos } from './Deudas';
 
 /** Días hacia adelante que se apartan para pagos al calcular lo "libre". */
@@ -66,6 +68,7 @@ export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVe
   const proximos = proximosPagos(tarjetas, prestamos, movimientos, fechaHoy);
   const porApartar = totalPorPagar(proximos, DIAS_A_APARTAR);
   const limites = estadoLimites(movimientos, datos.categorias, mesDe(fechaHoy));
+  const porConfirmar = pendientes(datos.recurrentes, fechaHoy);
   const libre = disponible - porApartar;
 
   // Por categoría cuenta todo lo comprado desde el pago, también con tarjeta.
@@ -101,6 +104,41 @@ export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVe
           </p>
         )}
       </section>
+
+      {porConfirmar.length > 0 && (
+        <section className="tarjeta">
+          <h2>Por confirmar</h2>
+          <p className="texto-tenue">Movimientos que se repiten cada mes y ya tocaban.</p>
+          <ul className="lista-confirmar">
+            {porConfirmar.map((r) => {
+              const c = r.categoriaId ? mapaCategorias.get(r.categoriaId) : undefined;
+              const titulo = r.nota || (r.tipo === 'ingreso' ? (r.esPago ? 'Mi pago' : 'Otro ingreso') : (c?.nombre ?? 'Gasto'));
+              return (
+                <li key={r.id}>
+                  <span className="fila-emoji" style={{ background: 'var(--superficie-2)' }}>
+                    {r.tipo === 'ingreso' ? '💵' : (c?.emoji ?? '🔁')}
+                  </span>
+                  <span className="fila-texto">
+                    <span className="fila-titulo">{titulo}</span>
+                    <span className="fila-detalle">
+                      {r.tipo === 'ingreso' ? '+' : '−'}
+                      {formatearDinero(r.montoCentavos)} · tocaba {fechaCorta(r.proxima)}
+                    </span>
+                  </span>
+                  <span className="botones-confirmar">
+                    <button type="button" className="boton chico" onClick={() => void omitirRecurrente(db, r)}>
+                      Omitir
+                    </button>
+                    <button type="button" className="boton chico primario" onClick={() => void registrarRecurrente(db, r)}>
+                      Registrar
+                    </button>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {(diasSinRespaldo === null || diasSinRespaldo >= DIAS_ENTRE_RESPALDOS) && (
         <section className="tarjeta aviso-tarjeta">

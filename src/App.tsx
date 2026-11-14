@@ -8,6 +8,9 @@ import { FormularioPrestamo } from './componentes/FormularioPrestamo';
 import { FormularioTarjeta } from './componentes/FormularioTarjeta';
 import { Bloqueo } from './componentes/Bloqueo';
 import { FormularioRecordatorios } from './componentes/FormularioRecordatorios';
+import { FormularioRecurrente } from './componentes/FormularioRecurrente';
+import { movimientosACsv } from './lib/csv';
+import type { Recurrente } from './db';
 import { Opcion } from './componentes/Opcion';
 import { RevisionEstado } from './componentes/RevisionEstado';
 import { IconoAjustes, IconoDeudas, IconoInicio, IconoLista, IconoMas } from './componentes/Iconos';
@@ -16,11 +19,13 @@ import { extraerPaginas } from './lib/estados/pdf';
 import { useAjustes } from './lib/ajustes';
 import { copiarSiToca } from './lib/copias';
 import { hoy, mesDe } from './lib/fechas';
+import { formatearDinero } from './lib/dinero';
 import { fotoDeHoy, guardarFoto } from './lib/historial';
 import { generarRecordatorios } from './lib/recordatorios';
 import { avisoLimite, gastadoEnMes } from './lib/limites';
 import {
   agendarNotificaciones,
+  entregarArchivo,
   consumirSalidaPropia,
   escucharBotonAtras,
   escucharNotificaciones,
@@ -64,6 +69,8 @@ export function App() {
   const categorias = useLiveQuery(() => db.categorias.orderBy('orden').toArray(), []);
   const tarjetas = useLiveQuery(() => db.tarjetas.toArray(), []);
   const prestamos = useLiveQuery(() => db.prestamos.toArray(), []);
+  const recurrentes = useLiveQuery(() => db.recurrentes.toArray(), []);
+  const historial = useLiveQuery(() => db.historial.toArray(), []);
 
   const ajustes = useAjustes();
   // null hasta saber si hay bloqueo, para no mostrar nada antes de tiempo.
@@ -93,15 +100,17 @@ export function App() {
   }, [bloqueoActivo]);
 
   const datos = useMemo<Datos | null>(() => {
-    if (!movimientos || !categorias || !tarjetas || !prestamos) return null;
+    if (!movimientos || !categorias || !tarjetas || !prestamos || !recurrentes || !historial) return null;
     return {
       movimientos,
       categorias,
       mapaCategorias: new Map(categorias.map((c) => [c.id, c])),
       tarjetas: [...tarjetas].sort((a, b) => a.creadoEn - b.creadoEn),
       prestamos: [...prestamos].sort((a, b) => a.creadoEn - b.creadoEn),
+      recurrentes: [...recurrentes].sort((a, b) => a.creadoEn - b.creadoEn),
+      historial,
     };
-  }, [movimientos, categorias, tarjetas, prestamos]);
+  }, [movimientos, categorias, tarjetas, prestamos, recurrentes, historial]);
 
   // Foto mensual de deudas y disponible para las gráficas, y copia diaria.
   useEffect(() => {
@@ -148,6 +157,16 @@ export function App() {
     [],
   );
   const [verRecordatorios, setVerRecordatorios] = useState(false);
+  const [recurrenteAbierto, setRecurrenteAbierto] = useState<Recurrente | null>(null);
+
+  async function exportarCsv(d: Datos) {
+    try {
+      await entregarArchivo(`mis-finanzas-movimientos-${hoy()}.csv`, movimientosACsv(d.movimientos, d), 'text/csv');
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      setAviso({ texto: 'No se pudo exportar.', tipo: 'error' });
+    }
+  }
 
   // Botón Atrás de Android: cierra el formulario abierto, luego el detalle,
   // luego vuelve a Inicio y solo entonces deja que la app se minimice.
@@ -302,6 +321,41 @@ export function App() {
                 />
               </ul>
             </section>
+            <section className="tarjeta">
+              <h2>Se repiten cada mes</h2>
+              {d.recurrentes.length === 0 ? (
+                <p className="texto-tenue">
+                  Al registrar un gasto o ingreso, activa “Se repite cada mes” y la app te lo propondrá cada mes.
+                </p>
+              ) : (
+                <ul className="lista">
+                  {d.recurrentes.map((r) => {
+                    const c = r.categoriaId ? d.mapaCategorias.get(r.categoriaId) : undefined;
+                    return (
+                      <Opcion
+                        key={r.id}
+                        icono={r.tipo === 'ingreso' ? '💵' : (c?.emoji ?? '🔁')}
+                        titulo={r.nota || c?.nombre || (r.tipo === 'ingreso' ? 'Ingreso' : 'Gasto')}
+                        detalle={r.activo ? `El día ${r.dia} de cada mes` : 'En pausa'}
+                        valor={formatearDinero(r.montoCentavos)}
+                        alTocar={() => setRecurrenteAbierto(r)}
+                      />
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+            <section className="tarjeta">
+              <h2>Exportar</h2>
+              <ul className="lista">
+                <Opcion
+                  icono="📊"
+                  titulo="Movimientos a Excel (CSV)"
+                  detalle={`${d.movimientos.length} movimientos, para abrir en Excel o Google Sheets`}
+                  alTocar={() => void exportarCsv(d)}
+                />
+              </ul>
+            </section>
           </Ajustes>
         );
     }
@@ -397,6 +451,14 @@ export function App() {
       </nav>
 
       {formulario && datos && hoja(formulario, datos)}
+      {recurrenteAbierto && datos && (
+        <FormularioRecurrente
+          recurrente={recurrenteAbierto}
+          categorias={datos.categorias}
+          tarjetas={datos.tarjetas}
+          alCerrar={() => setRecurrenteAbierto(null)}
+        />
+      )}
       {verRecordatorios && datos && (
         <FormularioRecordatorios ajustes={ajustes} datos={datos} alCerrar={() => setVerRecordatorios(false)} />
       )}

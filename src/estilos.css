@@ -1504,3 +1504,212 @@ button {
   font-size: 1.4rem;
   font-weight: 700;
 }
+
+/* ---------- Movimientos: búsqueda, filtros y resumen ---------- */
+
+.buscador input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  background: var(--superficie);
+}
+
+.chips.desplazable {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  margin: 0 -16px;
+  padding: 0 16px 2px;
+  scrollbar-width: none;
+}
+
+.chips.desplazable::-webkit-scrollbar {
+  display: none;
+}
+
+.chips.desplazable .chip {
+  flex: none;
+}
+
+.lista-confirmar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lista-confirmar li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.botones-confirmar {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+
+.boton.chico {
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 11px;
+  font-size: 0.86rem;
+}
+
+/* ---------- Gráficas ---------- */
+
+:root {
+  --serie-1: #2a78d6;
+  --serie-2: #eb6834;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --serie-1: #3987e5;
+    --serie-2: #d95926;
+  }
+}
+
+.grafica {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+
+.grafica-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 28px;
+  font-size: 0.86rem;
+}
+
+.leyenda {
+  display: flex;
+  gap: 14px;
+  color: var(--tenue);
+  font-size: 0.86rem;
+}
+
+.leyenda span,
+.grafica-detalle dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.muestra {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.muestra.serie-1 {
+  background: var(--serie-1);
+}
+
+.muestra.serie-2 {
+  background: var(--serie-2);
+}
+
+.grafica-svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  touch-action: pan-y;
+}
+
+.grafica-svg .serie-1 {
+  fill: var(--serie-1);
+}
+
+.grafica-svg .serie-2 {
+  fill: var(--serie-2);
+}
+
+.grafica-svg .rejilla {
+  stroke: var(--borde);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+.grafica-svg .eje {
+  stroke: var(--borde);
+  stroke-width: 1;
+}
+
+.grafica-svg .marca-eje {
+  fill: var(--tenue);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.grafica-svg .banda-elegida {
+  fill: var(--superficie-2);
+}
+
+.grafica-svg .zona-toque {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.grafica-svg .linea-deuda {
+  fill: none;
+  stroke: var(--primario);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.grafica-svg .area-deuda {
+  fill: color-mix(in srgb, var(--primario) 12%, transparent);
+}
+
+.grafica-svg .punto-deuda {
+  fill: var(--primario);
+  stroke: var(--superficie);
+  stroke-width: 2;
+}
+
+.grafica-svg .cruz {
+  stroke: var(--tenue);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+
+.grafica-valor {
+  display: flex;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+
+
+.tabla-grafica {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabla-grafica th,
+.tabla-grafica td {
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--borde);
+  text-align: right;
+}
+
+.tabla-grafica th:first-child {
+  text-align: left;
+  font-weight: 600;
+}
+
+.tabla-grafica thead th {
+  color: var(--tenue);
+  font-size: 0.78rem;
+  font-weight: 650;
+}

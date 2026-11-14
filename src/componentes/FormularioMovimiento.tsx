@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { db, nuevoId, type Categoria, type Movimiento, type Tarjeta } from '../db';
 import { centavosATexto, textoACentavos } from '../lib/dinero';
 import { esFechaValida, hoy } from '../lib/fechas';
+import { primeraFecha } from '../lib/recurrentes';
 import { Hoja } from './Hoja';
 
 interface Props {
@@ -26,6 +27,7 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
   const [categoriaId, setCategoriaId] = useState(movimiento?.categoriaId);
   const [esPago, setEsPago] = useState(movimiento?.esPago ?? true);
   const [nota, setNota] = useState(movimiento?.nota ?? '');
+  const [repetir, setRepetir] = useState(false);
   const [error, setError] = useState('');
 
   async function guardar(e: FormEvent) {
@@ -58,6 +60,20 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
       creadoEn: movimiento?.creadoEn ?? Date.now(),
     };
     await db.movimientos.put(guardado);
+    if (repetir && !movimiento) {
+      await db.recurrentes.add({
+        id: nuevoId(),
+        tipo,
+        montoCentavos,
+        categoriaId: guardado.categoriaId,
+        tarjetaId: guardado.tarjetaId,
+        esPago: guardado.esPago,
+        nota: guardado.nota,
+        ...primeraFecha(fecha),
+        activo: true,
+        creadoEn: Date.now(),
+      });
+    }
     alGuardar?.(guardado);
     alCerrar();
   }
@@ -184,6 +200,16 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
             onChange={(e) => setNota(e.target.value)}
           />
         </label>
+
+        {!movimiento && (
+          <label className="interruptor">
+            <span>
+              <strong>Se repite cada mes</strong>
+              <span className="texto-tenue">Te lo propone el mismo día del próximo mes para confirmarlo con un toque.</span>
+            </span>
+            <input type="checkbox" role="switch" checked={repetir} onChange={(e) => setRepetir(e.target.checked)} />
+          </label>
+        )}
 
         <div className="acciones">
           {movimiento && (
