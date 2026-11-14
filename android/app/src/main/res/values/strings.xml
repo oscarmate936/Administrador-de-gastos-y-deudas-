@@ -4,4 +4,10 @@
     <string name="title_activity_main">Mis Finanzas</string>
     <string name="package_name">sv.misfinanzas.app</string>
     <string name="custom_url_scheme">sv.misfinanzas.app</string>
+    <string name="atajo_gasto">Nuevo gasto</string>
+    <string name="atajo_gasto_largo">Registrar un gasto</string>
+    <string name="atajo_ticket">Foto de ticket</string>
+    <string name="atajo_ticket_largo">Leer un ticket con la cámara</string>
+    <string name="atajo_pago">Registrar pago</string>
+    <string name="atajo_pago_largo">Registrar el pago de una deuda</string>
 </resources>

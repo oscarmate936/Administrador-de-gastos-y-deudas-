@@ -13,11 +13,13 @@ interface Props {
   /** Abre un formulario (la hoja de Agregar se cierra antes). */
   alAbrir: (f: Formulario) => void;
   alImportarPdf: () => void;
+  /** Abrir directo en la lista de deudas para pagar (atajo del ícono). */
+  empezarEnPago?: boolean;
 }
 
 /** Todo lo que se puede agregar, desde el botón + del centro. */
-export function Agregar({ datos, alCerrar, alAbrir, alImportarPdf }: Props) {
-  const [elegirDeuda, setElegirDeuda] = useState(false);
+export function Agregar({ datos, alCerrar, alAbrir, alImportarPdf, empezarEnPago }: Props) {
+  const [elegirDeuda, setElegirDeuda] = useState(empezarEnPago ?? false);
   const fechaHoy = hoy();
 
   if (elegirDeuda) {

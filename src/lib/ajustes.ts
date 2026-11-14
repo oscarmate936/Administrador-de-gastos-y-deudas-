@@ -45,6 +45,8 @@ export type Tema = 'sistema' | 'claro' | 'oscuro';
 
 export interface AjustesApariencia {
   tema: Tema;
+  /** Vibración corta al guardar. */
+  vibracion: boolean;
 }
 
 export interface Ajustes {
@@ -69,7 +71,7 @@ export const AJUSTES_INICIALES: Ajustes = {
     diasPrestamo: [3, 0],
   },
   plan: { metodo: 'avalancha' },
-  apariencia: { tema: 'sistema' },
+  apariencia: { tema: 'sistema', vibracion: true },
 };
 
 export type ClaveAjuste = keyof Ajustes;

@@ -226,3 +226,61 @@ export function escucharNotificaciones(alTocar: (extra: { destino: unknown; paga
     quitar?.();
   };
 }
+
+// ---------- Vibración ----------
+
+/** Vibración corta para confirmar algo sin mirar (guardar, pagar). En el navegador no hace nada. */
+export async function vibrar(tipo: 'ligera' | 'exito' = 'ligera'): Promise<void> {
+  if (!esNativo) return;
+  try {
+    const { Haptics, ImpactStyle, NotificationType } = await import('@capacitor/haptics');
+    if (tipo === 'exito') await Haptics.notification({ type: NotificationType.Success });
+    else await Haptics.impact({ style: ImpactStyle.Light });
+  } catch {
+    // Sin vibrador o sin el complemento, no pasa nada.
+  }
+}
+
+// ---------- Atajos del ícono ----------
+
+export type Atajo = 'gasto' | 'ticket' | 'pago';
+
+/** "misfinanzas://agregar/gasto" o "?atajo=gasto" → 'gasto'. */
+export function atajoDeUrl(url: string): Atajo | null {
+  const m = /^misfinanzas:\/\/agregar\/(gasto|ticket|pago)\/?$/.exec(url) ?? /[?&]atajo=(gasto|ticket|pago)(?:&|$)/.exec(url);
+  return m ? (m[1] as Atajo) : null;
+}
+
+/**
+ * Atajos al mantener presionado el ícono de la app (Android) o del acceso
+ * directo de la versión web. Llama `alAtajo` con el que se eligió, también si
+ * la app se abrió con él.
+ */
+export function escucharAtajos(alAtajo: (a: Atajo) => void): () => void {
+  if (!esNativo) {
+    const a = atajoDeUrl(location.search);
+    if (a) {
+      alAtajo(a);
+      // Que recargar la página no repita el atajo.
+      history.replaceState(null, '', location.pathname + location.hash);
+    }
+    return () => {};
+  }
+  let cancelado = false;
+  let quitar: (() => void) | undefined;
+  void import('@capacitor/app').then(async ({ App }) => {
+    const inicio = await App.getLaunchUrl();
+    const a = inicio?.url ? atajoDeUrl(inicio.url) : null;
+    if (a && !cancelado) alAtajo(a);
+    const escucha = await App.addListener('appUrlOpen', ({ url }) => {
+      const b = atajoDeUrl(url);
+      if (b) alAtajo(b);
+    });
+    if (cancelado) void escucha.remove();
+    else quitar = () => void escucha.remove();
+  });
+  return () => {
+    cancelado = true;
+    quitar?.();
+  };
+}

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Atajos al mantener presionado el ícono de Mis Finanzas. Abren la app con
+     misfinanzas://agregar/... y la app decide qué formulario mostrar. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="gasto"
+        android:enabled="true"
+        android:icon="@drawable/atajo_gasto"
+        android:shortcutShortLabel="@string/atajo_gasto"
+        android:shortcutLongLabel="@string/atajo_gasto_largo">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="sv.misfinanzas.app"
+            android:targetClass="sv.misfinanzas.app.MainActivity"
+            android:data="misfinanzas://agregar/gasto" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="ticket"
+        android:enabled="true"
+        android:icon="@drawable/atajo_ticket"
+        android:shortcutShortLabel="@string/atajo_ticket"
+        android:shortcutLongLabel="@string/atajo_ticket_largo">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="sv.misfinanzas.app"
+            android:targetClass="sv.misfinanzas.app.MainActivity"
+            android:data="misfinanzas://agregar/ticket" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="pago"
+        android:enabled="true"
+        android:icon="@drawable/atajo_pago"
+        android:shortcutShortLabel="@string/atajo_pago"
+        android:shortcutLongLabel="@string/atajo_pago_largo">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="sv.misfinanzas.app"
+            android:targetClass="sv.misfinanzas.app.MainActivity"
+            android:data="misfinanzas://agregar/pago" />
+    </shortcut>
+</shortcuts>

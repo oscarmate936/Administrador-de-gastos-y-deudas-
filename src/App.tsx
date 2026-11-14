@@ -31,9 +31,12 @@ import {
   consumirSalidaPropia,
   escucharBotonAtras,
   escucharNotificaciones,
+  escucharAtajos,
   escucharPrimerPlano,
   marcarSalidaPropia,
   pantallaPrivada,
+  vibrar,
+  type Atajo,
 } from './lib/nativo';
 import { Ajustes } from './pantallas/Ajustes';
 import { Analisis } from './pantallas/Analisis';
@@ -78,12 +81,13 @@ export function App() {
   const [pestana, setPestana] = useState<Pestana>('inicio');
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const [formulario, setFormulario] = useState<Formulario | null>(null);
-  const [agregando, setAgregando] = useState(false);
-  const [aviso, setAviso] = useState<{ texto: string; tipo: 'error' | 'info' } | null>(null);
+  // La hoja del botón +; 'pago' abre directo la lista de deudas (atajo del ícono).
+  const [agregando, setAgregando] = useState<false | 'inicio' | 'pago'>(false);
+  const [aviso, setAviso] = useState<{ texto: string; tipo: 'error' | 'info'; deshacer?: () => Promise<void> } | null>(null);
   // Los avisos informativos se cierran solos; los errores esperan a que se lean.
   useEffect(() => {
     if (aviso?.tipo !== 'info') return;
-    const t = setTimeout(() => setAviso(null), 7000);
+    const t = setTimeout(() => setAviso(null), aviso.deshacer ? 8000 : 7000);
     return () => clearTimeout(t);
   }, [aviso]);
   const [leyendo, setLeyendo] = useState(false);
@@ -227,6 +231,28 @@ export function App() {
       }),
     [],
   );
+
+  /** Aviso tras guardar o borrar, con Deshacer y una vibración corta. */
+  const avisarCambio = (texto: string, deshacer: () => Promise<void>) => {
+    setAviso({ texto, tipo: 'info', deshacer });
+    if (ajustesActuales.current?.apariencia.vibracion !== false) void vibrar();
+  };
+
+  // Atajos del ícono de la app. Con bloqueo, esperan a que se desbloquee.
+  const [atajo, setAtajo] = useState<Atajo | null>(null);
+  useEffect(() => escucharAtajos(setAtajo), []);
+  useEffect(() => {
+    if (!atajo || bloqueado !== false || !datos) return;
+    setAtajo(null);
+    setDetalle(null);
+    if (atajo === 'pago') {
+      setFormulario(null);
+      setAgregando('pago');
+    } else {
+      setAgregando(false);
+      setFormulario({ clase: 'movimiento', tipo: 'gasto', leer: atajo === 'ticket' });
+    }
+  }, [atajo, bloqueado, datos]);
 
   const irA = (id: Pestana) => {
     setPestana(id);
@@ -410,15 +436,25 @@ export function App() {
             tarjetas={d.tarjetas}
             tarjetaInicial={f.tarjetaId}
             borrador={f.borrador}
+            movimientos={d.movimientos}
             alCerrar={cerrar}
             leerAlAbrir={f.leer}
-            alGuardar={(m) => {
+            alGuardar={(m, { anterior, recurrenteId }) => {
               const c = m.tipo === 'gasto' && m.categoriaId ? d.mapaCategorias.get(m.categoriaId) : undefined;
-              if (!c?.limiteCentavos) return;
-              const antes = gastadoEnMes(d.movimientos, c.id, mesDe(m.fecha), m.id);
-              const texto = avisoLimite(c, antes, antes + m.montoCentavos);
-              if (texto) setAviso({ texto, tipo: 'info' });
+              let limite = '';
+              if (c?.limiteCentavos) {
+                const antes = gastadoEnMes(d.movimientos, c.id, mesDe(m.fecha), m.id);
+                limite = avisoLimite(c, antes, antes + m.montoCentavos) ?? '';
+              }
+              const que = m.tipo === 'ingreso' ? 'Ingreso' : 'Gasto';
+              const texto = anterior ? 'Cambios guardados.' : `${que} de ${formatearDinero(m.montoCentavos)} guardado.`;
+              avisarCambio(limite ? `${texto} ${limite}` : texto, async () => {
+                if (anterior) await db.movimientos.put(anterior);
+                else await db.movimientos.delete(m.id);
+                if (recurrenteId) await db.recurrentes.delete(recurrenteId);
+              });
             }}
+            alEliminar={(m) => avisarCambio('Movimiento eliminado.', async () => void (await db.movimientos.put(m)))}
           />
         );
       case 'pago': {
@@ -435,6 +471,16 @@ export function App() {
             montoInicial={f.monto}
             fechaInicial={f.fecha}
             alCerrar={cerrar}
+            alGuardar={(m, anterior) =>
+              avisarCambio(
+                anterior ? 'Pago actualizado.' : `Pago de ${formatearDinero(m.montoCentavos)} a ${tarjeta?.nombre ?? prestamo?.nombre} guardado.`,
+                async () => {
+                  if (anterior) await db.movimientos.put(anterior);
+                  else await db.movimientos.delete(m.id);
+                },
+              )
+            }
+            alEliminar={(m) => avisarCambio('Pago eliminado.', async () => void (await db.movimientos.put(m)))}
           />
         );
       }
@@ -500,7 +546,7 @@ export function App() {
       <nav className="navegacion" aria-label="Secciones">
         {IZQUIERDA.map(({ id, Icono }) => boton(id, Icono))}
         <span className="hueco-agregar">
-          <button type="button" className="boton-agregar" onClick={() => setAgregando(true)} aria-label="Agregar">
+          <button type="button" className="boton-agregar" onClick={() => setAgregando('inicio')} aria-label="Agregar">
             <IconoMas />
           </button>
         </span>
@@ -510,6 +556,7 @@ export function App() {
       {agregando && datos && (
         <Agregar
           datos={datos}
+          empezarEnPago={agregando === 'pago'}
           alCerrar={() => setAgregando(false)}
           alAbrir={(f) => {
             setAgregando(false);
@@ -546,8 +593,24 @@ export function App() {
         }}
       />
       {(leyendo || aviso) && (
-        <div className={aviso?.tipo === 'error' ? 'toast error' : aviso ? 'toast info' : 'toast'} role={aviso ? 'alert' : 'status'}>
+        <div className={aviso?.tipo === 'error' ? 'toast error' : aviso ? 'toast info' : 'toast'} role={aviso?.tipo === 'error' ? 'alert' : 'status'}>
           <span>{aviso?.texto ?? 'Leyendo el estado de cuenta…'}</span>
+          {aviso?.deshacer && (
+            <button
+              type="button"
+              className="enlace toast-accion"
+              onClick={() => {
+                const deshacer = aviso.deshacer!;
+                setAviso(null);
+                void deshacer().then(
+                  () => setAviso({ texto: 'Listo, se deshizo.', tipo: 'info' }),
+                  () => setAviso({ texto: 'No se pudo deshacer.', tipo: 'error' }),
+                );
+              }}
+            >
+              Deshacer
+            </button>
+          )}
           {aviso && (
             <button type="button" className="enlace" onClick={() => setAviso(null)}>
               Cerrar

@@ -17,9 +17,14 @@ interface Props {
   montoInicial?: number;
   fechaInicial?: string;
   alCerrar: () => void;
+  /** Se llama con el pago guardado y, al editar, cómo estaba antes (para Deshacer). */
+  alGuardar?: (m: Movimiento, anterior?: Movimiento) => void;
+  /** Se llama con el pago eliminado (para Deshacer). */
+  alEliminar?: (m: Movimiento) => void;
 }
 
-export function FormularioPago({ tarjeta, prestamo, movimientos, movimiento, extraInicial, montoInicial, fechaInicial, alCerrar }: Props) {
+export function FormularioPago(props: Props) {
+  const { tarjeta, prestamo, movimientos, movimiento, extraInicial, montoInicial, fechaInicial, alCerrar, alGuardar, alEliminar } = props;
   const fechaHoy = hoy();
   // Al editar, los cálculos parten de cómo estaba la deuda sin este pago.
   const otros = movimiento ? movimientos.filter((m) => m.id !== movimiento.id) : movimientos;
@@ -77,7 +82,7 @@ export function FormularioPago({ tarjeta, prestamo, movimientos, movimiento, ext
         return;
       }
     }
-    await db.movimientos.put({
+    const pago: Movimiento = {
       id: movimiento?.id ?? nuevoId(),
       tipo: 'pago',
       montoCentavos,
@@ -88,14 +93,17 @@ export function FormularioPago({ tarjeta, prestamo, movimientos, movimiento, ext
       esExtra: prestamo ? esExtra : undefined,
       nota: nota.trim(),
       creadoEn: movimiento?.creadoEn ?? Date.now(),
-    });
+    };
+    await db.movimientos.put(pago);
+    alGuardar?.(pago, movimiento);
     alCerrar();
   }
 
+  // Sin pregunta de confirmación: el aviso que aparece ofrece Deshacer.
   async function eliminar() {
     if (!movimiento) return;
-    if (!window.confirm('¿Eliminar este pago? La deuda vuelve a subir por ese monto.')) return;
     await db.movimientos.delete(movimiento.id);
+    alEliminar?.(movimiento);
     alCerrar();
   }
 

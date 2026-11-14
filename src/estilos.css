@@ -13,6 +13,7 @@
   --peligro: #c2362b;
   --alerta: #b45309;
   --info: #2a62b8;
+  --toast-accion: #7fe0bf;
   --heroe-1: #12755c;
   --heroe-2: #0a4e3d;
   --sombra: 0 1px 2px rgb(16 40 30 / 6%);
@@ -51,6 +52,7 @@
     --peligro: #f08a80;
     --alerta: #f0a95a;
     --info: #7fb0f0;
+    --toast-accion: #0f6b54;
     --heroe-1: #14705a;
     --heroe-2: #0b4336;
     --sombra: none;
@@ -76,6 +78,7 @@
   --peligro: #f08a80;
   --alerta: #f0a95a;
   --info: #7fb0f0;
+  --toast-accion: #0f6b54;
   --heroe-1: #14705a;
   --heroe-2: #0b4336;
   --sombra: none;
@@ -1533,8 +1536,8 @@ button {
 }
 
 .toast.info {
-  background: var(--alerta);
-  color: #1d1300;
+  background: var(--texto);
+  color: var(--fondo);
 }
 
 /* El campo de dinero es hijo directo de .campo: no debe tomar el estilo de etiqueta. */
@@ -2582,4 +2585,124 @@ button.plastico:active {
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
   background: color-mix(in srgb, var(--texto) 7%, var(--fondo));
+}
+
+/* =====================================================================
+   1.5: teclado del monto, Deshacer y botón de guardar siempre visible.
+   ===================================================================== */
+
+.toast .toast-accion {
+  margin-left: auto;
+  color: var(--toast-accion);
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.toast .toast-accion + .enlace {
+  margin-left: 0;
+}
+
+.monto-teclado {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pantalla-monto {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--borde);
+  border-radius: 16px;
+  background: var(--superficie-2);
+  color: var(--texto);
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.pantalla-monto[aria-expanded='true'] {
+  border-color: var(--primario);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primario) 18%, transparent);
+}
+
+.pantalla-monto.invalido {
+  border-color: var(--peligro);
+}
+
+.pantalla-moneda {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--tenue);
+}
+
+.pantalla-texto {
+  font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.pantalla-texto.vacio {
+  color: var(--tenue);
+  font-weight: 600;
+}
+
+.pantalla-resultado {
+  flex-basis: 100%;
+  color: var(--primario);
+  font-weight: 700;
+}
+
+.teclado {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tecla-monto {
+  min-height: 52px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 14px;
+  background: var(--superficie-2);
+  color: var(--texto);
+  font-size: 1.35rem;
+  font-weight: 650;
+  touch-action: manipulation;
+}
+
+.tecla-monto:active {
+  background: color-mix(in srgb, var(--texto) 14%, var(--superficie-2));
+}
+
+.tecla-monto.operacion {
+  background: var(--primario-suave);
+  color: var(--primario);
+}
+
+.tecla-monto.listo {
+  background: var(--primario);
+  color: var(--sobre-primario);
+  font-size: 1rem;
+  font-weight: 750;
+}
+
+/* El botón Guardar queda siempre a la vista al final de la hoja. */
+.hoja .formulario > .acciones:last-child {
+  position: sticky;
+  bottom: calc(-18px - env(safe-area-inset-bottom));
+  z-index: 1;
+  margin: 0 -18px calc(-18px - env(safe-area-inset-bottom));
+  padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+  background: var(--superficie);
+  border-top: 1px solid var(--divisor);
+}
+
+.interruptor-fila {
+  padding: 12px 16px;
 }

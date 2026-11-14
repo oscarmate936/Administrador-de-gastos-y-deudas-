@@ -177,6 +177,20 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, exporta
             valor={TEMAS.find((t) => t.id === ajustes.apariencia.tema)?.nombre ?? 'Como el celular'}
             alTocar={() => setHoja('apariencia')}
           />
+          <li>
+            <label className="interruptor interruptor-fila">
+              <span>
+                <strong>Vibrar al guardar</strong>
+                <span className="texto-tenue">Una vibración corta confirma que se guardó.</span>
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                checked={ajustes.apariencia.vibracion}
+                onChange={(e) => void guardarAjuste('apariencia', { vibracion: e.target.checked })}
+              />
+            </label>
+          </li>
         </ul>
       </section>
 

@@ -46,6 +46,12 @@ export default defineConfig(({ mode }) => ({
           { src: 'icono-512.png', sizes: '512x512', type: 'image/png' },
           { src: 'icono-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
+        // Atajos al mantener presionado el ícono de la app instalada desde el navegador.
+        shortcuts: [
+          { name: 'Nuevo gasto', short_name: 'Gasto', url: './?atajo=gasto', icons: [{ src: 'icono-192.png', sizes: '192x192' }] },
+          { name: 'Foto de ticket', short_name: 'Ticket', url: './?atajo=ticket', icons: [{ src: 'icono-192.png', sizes: '192x192' }] },
+          { name: 'Registrar pago', short_name: 'Pago', url: './?atajo=pago', icons: [{ src: 'icono-192.png', sizes: '192x192' }] },
+        ],
       },
     }),
   ],

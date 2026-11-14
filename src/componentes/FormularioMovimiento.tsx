@@ -1,13 +1,24 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { db, nuevoId, type Categoria, type Movimiento, type Tarjeta } from '../db';
 import type { Borrador } from '../datos';
-import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
+import { evaluarMonto } from '../lib/calculo';
+import { centavosATexto, formatearDinero } from '../lib/dinero';
+import { notasRecientes, ordenarPorUso, recordarComercio } from '../lib/frecuentes';
 import { esFechaValida, hoy } from '../lib/fechas';
 import { primeraFecha } from '../lib/recurrentes';
 import { sugerirCategoria } from '../lib/estados/categorias';
 import { marcarSalidaPropia } from '../lib/nativo';
 import { Hoja } from './Hoja';
 import { MarcaCategoria, Simbolo } from './Simbolo';
+import { TecladoMonto } from './TecladoMonto';
+
+/** Lo que cambió al guardar, para poder deshacerlo. */
+export interface Cambio {
+  /** El movimiento como estaba antes de editarlo. */
+  anterior?: Movimiento;
+  /** Plantilla mensual creada junto con el movimiento. */
+  recurrenteId?: string;
+}
 
 interface Props {
   /** Si viene, se edita ese movimiento; si no, se crea uno nuevo. */
@@ -15,18 +26,23 @@ interface Props {
   tipoInicial: 'ingreso' | 'gasto';
   categorias: Categoria[];
   tarjetas: Tarjeta[];
+  /** Todos los movimientos: para ordenar por uso y recordar comercios. */
+  movimientos: Movimiento[];
   /** Tarjeta preseleccionada al registrar una compra desde el detalle de una tarjeta. */
   tarjetaInicial?: string;
   /** Valores iniciales de un movimiento nuevo. */
   borrador?: Borrador;
   alCerrar: () => void;
-  /** Se llama con el movimiento guardado (para avisos de límite). */
-  alGuardar?: (m: Movimiento) => void;
+  /** Se llama con el movimiento guardado (avisos de límite y Deshacer). */
+  alGuardar?: (m: Movimiento, cambio: Cambio) => void;
+  /** Se llama con el movimiento eliminado (para Deshacer). */
+  alEliminar?: (m: Movimiento) => void;
   /** Abre la cámara o la galería en cuanto aparece el formulario. */
   leerAlAbrir?: boolean;
 }
 
-export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarjetas, tarjetaInicial, borrador, alCerrar, alGuardar, leerAlAbrir }: Props) {
+export function FormularioMovimiento(props: Props) {
+  const { movimiento, tipoInicial, categorias, tarjetas, movimientos, tarjetaInicial, borrador, alCerrar, alGuardar, alEliminar, leerAlAbrir } = props;
   const [tipo, setTipo] = useState<'ingreso' | 'gasto'>(movimiento?.tipo === 'ingreso' ? 'ingreso' : movimiento ? 'gasto' : tipoInicial);
   const [tarjetaId, setTarjetaId] = useState(movimiento ? movimiento.tarjetaId : (borrador?.tarjetaId ?? tarjetaInicial));
   const [cuotas, setCuotas] = useState(String(movimiento?.cuotas ?? 1));
@@ -38,6 +54,42 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
   const [esPago, setEsPago] = useState(movimiento?.esPago ?? borrador?.esPago ?? true);
   const [nota, setNota] = useState(movimiento?.nota ?? borrador?.nota ?? '');
   const [repetir, setRepetir] = useState(false);
+  // El teclado del monto aparece abierto al registrar algo nuevo.
+  const [tecladoAbierto, setTecladoAbierto] = useState(!movimiento && !leerAlAbrir);
+  // Si la persona ya eligió categoría o forma de pago, la nota no las cambia.
+  const categoriaTocada = useRef(movimiento !== undefined || borrador?.categoriaId !== undefined);
+  const tarjetaTocada = useRef(movimiento !== undefined || borrador?.tarjetaId !== undefined || tarjetaInicial !== undefined);
+  const [recordado, setRecordado] = useState('');
+  const fechaHoy = hoy();
+  const categoriasOrdenadas = useMemo(() => ordenarPorUso(categorias, movimientos, fechaHoy, 'categoriaId'), [categorias, movimientos, fechaHoy]);
+  const tarjetasOrdenadas = useMemo(() => ordenarPorUso(tarjetas, movimientos, fechaHoy, 'tarjetaId'), [tarjetas, movimientos, fechaHoy]);
+  const sugerencias = useMemo(() => notasRecientes(movimientos), [movimientos]);
+
+  /** Al escribir una nota conocida, propone la categoría y la tarjeta de la última vez. */
+  function cambiarNota(texto: string) {
+    setNota(texto);
+    if (tipo !== 'gasto') return;
+    const recuerdo = recordarComercio(movimientos, texto, movimiento?.id);
+    if (recuerdo) {
+      const aplicados: string[] = [];
+      if (!categoriaTocada.current && recuerdo.categoriaId && categorias.some((c) => c.id === recuerdo.categoriaId)) {
+        setCategoriaId(recuerdo.categoriaId);
+        aplicados.push('la categoría');
+      }
+      const tarjetaExiste = recuerdo.tarjetaId === undefined || tarjetas.some((t) => t.id === recuerdo.tarjetaId);
+      if (!tarjetaTocada.current && tarjetaExiste && tarjetas.length > 0) {
+        setTarjetaId(recuerdo.tarjetaId);
+        aplicados.push('la forma de pago');
+      }
+      setRecordado(aplicados.length ? `Elegí ${aplicados.join(' y ')} de la última vez. Puedes cambiarlo.` : '');
+      return;
+    }
+    setRecordado('');
+    if (!categoriaTocada.current) {
+      const sugerida = sugerirCategoria(texto);
+      if (sugerida && categorias.some((c) => c.id === sugerida)) setCategoriaId(sugerida);
+    }
+  }
   const [lectura, setLectura] = useState<{ estado: 'leyendo'; avance: number } | { estado: 'listo' | 'error'; texto: string } | null>(null);
   const entradaFoto = useRef<HTMLInputElement>(null);
   const yaAbierta = useRef(false);
@@ -73,10 +125,8 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
         leidos.push('fecha');
       }
       if (comercio) {
-        setNota(comercio);
+        cambiarNota(comercio);
         leidos.push('comercio');
-        const sugerida = sugerirCategoria(comercio);
-        if (sugerida && categorias.some((c) => c.id === sugerida)) setCategoriaId(sugerida);
       }
       setError('');
       const duda =
@@ -96,9 +146,10 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
 
   async function guardar(e: FormEvent) {
     e.preventDefault();
-    const montoCentavos = textoACentavos(monto);
+    const montoCentavos = evaluarMonto(monto);
     if (!montoCentavos) {
       setError('Escribe un monto mayor que cero, por ejemplo 12.50');
+      setTecladoAbierto(true);
       return;
     }
     if (!esFechaValida(fecha)) {
@@ -124,9 +175,11 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
       creadoEn: movimiento?.creadoEn ?? Date.now(),
     };
     await db.movimientos.put(guardado);
+    let recurrenteId: string | undefined;
     if (repetir && !movimiento) {
+      recurrenteId = nuevoId();
       await db.recurrentes.add({
-        id: nuevoId(),
+        id: recurrenteId,
         tipo,
         montoCentavos,
         categoriaId: guardado.categoriaId,
@@ -138,14 +191,15 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
         creadoEn: Date.now(),
       });
     }
-    alGuardar?.(guardado);
+    alGuardar?.(guardado, { anterior: movimiento, recurrenteId });
     alCerrar();
   }
 
+  // Sin pregunta de confirmación: el aviso que aparece ofrece Deshacer.
   async function eliminar() {
     if (!movimiento) return;
-    if (!window.confirm('¿Eliminar este movimiento? No se puede deshacer.')) return;
     await db.movimientos.delete(movimiento.id);
+    alEliminar?.(movimiento);
     alCerrar();
   }
 
@@ -201,39 +255,60 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
           </>
         )}
 
-        <label className="campo-monto">
-          <span className="solo-lectores">Monto</span>
-          <span aria-hidden="true">$</span>
-          <input
-            inputMode="decimal"
-            autoComplete="off"
-            placeholder="0.00"
-            value={monto}
-            autoFocus={!movimiento}
-            aria-invalid={error !== ''}
-            onChange={(e) => {
-              setMonto(e.target.value);
-              setError('');
-            }}
-          />
-        </label>
+        <TecladoMonto
+          valor={monto}
+          alCambiar={(v) => {
+            setMonto(v);
+            setError('');
+          }}
+          abierto={tecladoAbierto}
+          alAbrir={() => setTecladoAbierto(true)}
+          alCerrar={() => setTecladoAbierto(false)}
+          invalido={error !== ''}
+        />
         {error && (
           <p className="error" role="alert">
             {error}
           </p>
         )}
 
+        <label className="campo">
+          <span>{tipo === 'gasto' ? '¿En qué? (opcional)' : 'Nota (opcional)'}</span>
+          <input
+            type="text"
+            value={nota}
+            maxLength={80}
+            list={tipo === 'gasto' ? 'notas-anteriores' : undefined}
+            autoComplete="off"
+            placeholder={tipo === 'gasto' ? 'Ej. almuerzo, Super Selectos' : 'Ej. quincena'}
+            onFocus={() => setTecladoAbierto(false)}
+            onChange={(e) => cambiarNota(e.target.value)}
+          />
+          {recordado && <span className="ayuda sin-margen">{recordado}</span>}
+        </label>
+        {tipo === 'gasto' && (
+          <datalist id="notas-anteriores">
+            {sugerencias.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
+        )}
+
         {tipo === 'gasto' ? (
           <fieldset className="campo">
             <legend>Categoría</legend>
             <div className="chips">
-              {categorias.map((c) => (
+              {categoriasOrdenadas.map((c) => (
                 <button
                   key={c.id}
                   type="button"
                   className="chip"
                   aria-pressed={categoriaId === c.id}
-                  onClick={() => setCategoriaId(categoriaId === c.id ? undefined : c.id)}
+                  onClick={() => {
+                    categoriaTocada.current = true;
+                    setRecordado('');
+                    setCategoriaId(categoriaId === c.id ? undefined : c.id);
+                  }}
                 >
                   <MarcaCategoria categoria={c} /> {c.nombre}
                 </button>
@@ -263,11 +338,28 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
           <fieldset className="campo">
             <legend>¿Con qué pagaste?</legend>
             <div className="chips">
-              <button type="button" className="chip" aria-pressed={tarjetaId === undefined} onClick={() => setTarjetaId(undefined)}>
+              <button
+                type="button"
+                className="chip"
+                aria-pressed={tarjetaId === undefined}
+                onClick={() => {
+                  tarjetaTocada.current = true;
+                  setTarjetaId(undefined);
+                }}
+              >
                 <Simbolo nombre="dinero" tamano={16} /> Efectivo o débito
               </button>
-              {tarjetas.map((t) => (
-                <button key={t.id} type="button" className="chip" aria-pressed={tarjetaId === t.id} onClick={() => setTarjetaId(t.id)}>
+              {tarjetasOrdenadas.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className="chip"
+                  aria-pressed={tarjetaId === t.id}
+                  onClick={() => {
+                    tarjetaTocada.current = true;
+                    setTarjetaId(t.id);
+                  }}
+                >
                   <span className="marca-categoria" style={{ color: t.color }}><Simbolo nombre="tarjeta" tamano={16} /></span> {t.nombre}
                 </button>
               ))}
@@ -290,17 +382,6 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
         <label className="campo">
           <span>Fecha</span>
           <input type="date" value={fecha} max="2099-12-31" onChange={(e) => setFecha(e.target.value)} />
-        </label>
-
-        <label className="campo">
-          <span>Nota (opcional)</span>
-          <input
-            type="text"
-            value={nota}
-            maxLength={80}
-            placeholder={tipo === 'gasto' ? 'Ej. almuerzo, gasolina' : 'Ej. quincena'}
-            onChange={(e) => setNota(e.target.value)}
-          />
         </label>
 
         {!movimiento && (
