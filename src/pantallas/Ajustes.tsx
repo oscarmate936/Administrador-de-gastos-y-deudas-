@@ -3,8 +3,10 @@ import { db, type Categoria } from '../db';
 import { FormularioBloqueo } from '../componentes/FormularioBloqueo';
 import { FormularioCategoria } from '../componentes/FormularioCategoria';
 import { Hoja } from '../componentes/Hoja';
+import { IconoFlecha } from '../componentes/Iconos';
 import { Opcion } from '../componentes/Opcion';
-import { guardarAjuste, type Ajustes as AjustesApp } from '../lib/ajustes';
+import { Insignia, InsigniaCategoria } from '../componentes/Simbolo';
+import { guardarAjuste, type Ajustes as AjustesApp, type Tema } from '../lib/ajustes';
 import { leerCopia, listarCopias, type InfoCopia } from '../lib/copias';
 import { descifrar, type Sobre } from '../lib/cripto';
 import { formatearDinero } from '../lib/dinero';
@@ -24,16 +26,26 @@ interface Props {
   categorias: Categoria[];
   totalMovimientos: number;
   ajustes: AjustesApp;
-  /** Secciones de fases posteriores (recordatorios, recurrentes, exportar). */
-  children?: React.ReactNode;
+  /** Filas del grupo Avisos (recordatorios). */
+  avisos: React.ReactNode;
+  /** Fila para exportar, dentro de Tus datos. */
+  exportar: React.ReactNode;
+  /** Sección de movimientos que se repiten. */
+  recurrentes: React.ReactNode;
 }
 
 type Aviso = { tipo: 'ok' | 'error'; texto: string };
-type Hojas = 'bloqueo' | 'respaldo' | 'copias' | null;
+type Hojas = 'bloqueo' | 'respaldo' | 'copias' | 'apariencia' | null;
+
+const TEMAS: Array<{ id: Tema; nombre: string }> = [
+  { id: 'sistema', nombre: 'Como el celular' },
+  { id: 'claro', nombre: 'Claro' },
+  { id: 'oscuro', nombre: 'Oscuro' },
+];
 
 const fechaHora = new Intl.DateTimeFormat('es-SV', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 
-export function Ajustes({ categorias, totalMovimientos, ajustes, children }: Props) {
+export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, exportar, recurrentes }: Props) {
   const [categoria, setCategoria] = useState<Categoria | 'nueva' | null>(null);
   const [hoja, setHoja] = useState<Hojas>(null);
   const [aviso, setAviso] = useState<Aviso | null>(null);
@@ -72,11 +84,11 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, children }: Pro
 
   return (
     <>
-      <section className="tarjeta">
-        <h2>Seguridad</h2>
-        <ul className="lista">
+      <section className="grupo">
+        <h2 className="cabecera-grupo">Seguridad</h2>
+        <ul className="lista tarjeta">
           <Opcion
-            icono="🔒"
+            icono={<Insignia color="var(--primario)" simbolo="candado" cuadrada />}
             titulo="Bloqueo con PIN"
             detalle={ajustes.bloqueo.activo ? (ajustes.bloqueo.huella ? 'PIN y huella' : 'PIN') : 'Cualquiera con tu celular puede abrir la app'}
             valor={ajustes.bloqueo.activo ? 'Activado' : 'Desactivado'}
@@ -85,18 +97,25 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, children }: Pro
         </ul>
       </section>
 
-      <section className="tarjeta">
-        <h2>Respaldo</h2>
-        <p className={atrasado && totalMovimientos > 0 ? 'aviso error' : 'texto-tenue'}>
-          {ultimo
-            ? `Último respaldo guardado fuera del celular: ${haceCuanto(aFechaTexto(new Date(ultimo)))}.`
-            : 'Aún no guardas un respaldo fuera del celular.'}{' '}
-          Tus datos viven solo en este dispositivo: guarda un respaldo en Drive o en otro lugar cada semana.
-        </p>
-        <ul className="lista">
-          <Opcion icono="📤" titulo="Crear respaldo" detalle="Compártelo a Drive, a tu correo o a WhatsApp" alTocar={() => setHoja('respaldo')} />
+      <section className="grupo">
+        <h2 className="cabecera-grupo">Tus datos</h2>
+        {atrasado && totalMovimientos > 0 && (
+          <p className="aviso error">
+            {ultimo
+              ? `Tu último respaldo fuera del celular fue ${haceCuanto(aFechaTexto(new Date(ultimo)))}.`
+              : 'Aún no guardas un respaldo fuera del celular.'}{' '}
+            Tus datos viven solo en este dispositivo: guarda uno en Drive o en otro lugar cada semana.
+          </p>
+        )}
+        <ul className="lista tarjeta">
           <Opcion
-            icono="📥"
+            icono={<Insignia color="var(--info)" simbolo="subir" cuadrada />}
+            titulo="Crear respaldo"
+            detalle={ultimo ? `Último: ${haceCuanto(aFechaTexto(new Date(ultimo)))} · compártelo a Drive o WhatsApp` : 'Compártelo a Drive, a tu correo o a WhatsApp'}
+            alTocar={() => setHoja('respaldo')}
+          />
+          <Opcion
+            icono={<Insignia color="var(--info)" simbolo="bajar" cuadrada />}
             titulo="Restaurar desde un archivo"
             detalle="Reemplaza los datos de este dispositivo"
             alTocar={() => {
@@ -105,15 +124,16 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, children }: Pro
             }}
           />
           <Opcion
-            icono="🕘"
+            icono={<Insignia color="var(--info)" simbolo="reloj" cuadrada />}
             titulo="Copias automáticas"
             detalle={
               ajustes.respaldo.ultimaCopia
-                ? `La app guarda una copia diaria en el celular. Última: ${fechaHora.format(new Date(ajustes.respaldo.ultimaCopia))}`
+                ? `Una al día en el celular. Última: ${fechaHora.format(new Date(ajustes.respaldo.ultimaCopia))}`
                 : 'La app guarda una copia diaria en el celular'
             }
             alTocar={() => setHoja('copias')}
           />
+          {exportar}
         </ul>
         <input
           ref={entradaArchivo}
@@ -143,27 +163,42 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, children }: Pro
         )}
       </section>
 
-      {children}
+      <section className="grupo">
+        <h2 className="cabecera-grupo">Avisos</h2>
+        <ul className="lista tarjeta">{avisos}</ul>
+      </section>
 
-      <section className="tarjeta">
-        <div className="cabecera-seccion">
-          <h2>Categorías de gasto</h2>
+      <section className="grupo">
+        <h2 className="cabecera-grupo">Personalizar</h2>
+        <ul className="lista tarjeta">
+          <Opcion
+            icono={<Insignia color="var(--alerta)" simbolo="luna" cuadrada />}
+            titulo="Apariencia"
+            valor={TEMAS.find((t) => t.id === ajustes.apariencia.tema)?.nombre ?? 'Como el celular'}
+            alTocar={() => setHoja('apariencia')}
+          />
+        </ul>
+      </section>
+
+      <section className="grupo">
+        <div className="cabecera-grupo">
+          <h2>Categorías y límites</h2>
           <button type="button" className="enlace" onClick={() => setCategoria('nueva')}>
             Agregar
           </button>
         </div>
-        <ul className="lista">
+        <ul className="lista tarjeta">
           {categorias.map((c) => (
             <li key={c.id}>
               <button type="button" className="fila" onClick={() => setCategoria(c)}>
-                <span className="fila-emoji" style={{ background: `color-mix(in srgb, ${c.color} 18%, transparent)` }}>
-                  {c.emoji}
-                </span>
+                <InsigniaCategoria categoria={c} />
                 <span className="fila-texto">
                   <span className="fila-titulo">{c.nombre}</span>
-                  {c.limiteCentavos && <span className="fila-detalle">Límite {formatearDinero(c.limiteCentavos)} al mes</span>}
+                  <span className="fila-detalle">{c.limiteCentavos ? `Límite ${formatearDinero(c.limiteCentavos)} al mes` : 'Sin límite'}</span>
                 </span>
-                <span className="texto-tenue">Editar</span>
+                <span className="opcion-flecha" aria-hidden="true">
+                  <IconoFlecha />
+                </span>
               </button>
             </li>
           ))}
@@ -171,7 +206,15 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, children }: Pro
         {categorias.length === 0 && <p className="texto-tenue">No tienes categorías. Agrega una.</p>}
       </section>
 
-      <p className="pie">Mis Finanzas · versión {__VERSION__}</p>
+      {recurrentes}
+
+      <section className="grupo">
+        <h2 className="cabecera-grupo">Acerca de</h2>
+        <div className="tarjeta acerca">
+          <span className="fila-titulo">Mis Finanzas</span>
+          <span className="texto-tenue">Versión {__VERSION__} · tus datos no salen del celular</span>
+        </div>
+      </section>
 
       {categoria && (
         <FormularioCategoria
@@ -180,6 +223,7 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, children }: Pro
           alCerrar={() => setCategoria(null)}
         />
       )}
+      {hoja === 'apariencia' && <Apariencia actual={ajustes.apariencia.tema} alCerrar={() => setHoja(null)} />}
       {hoja === 'bloqueo' && <FormularioBloqueo ajustes={ajustes.bloqueo} alCerrar={() => setHoja(null)} />}
       {hoja === 'respaldo' && (
         <CrearRespaldo
@@ -330,10 +374,27 @@ function Copias({ alCerrar, alElegir }: { alCerrar: () => void; alElegir: (c: In
         ) : (
           <ul className="lista">
             {copias.map((c) => (
-              <Opcion key={c.id} icono="🗂️" titulo={fechaHora.format(new Date(c.creadaEn))} detalle="Toca para restaurar" alTocar={() => alElegir(c)} />
+              <Opcion key={c.id} icono={<Insignia color="var(--info)" simbolo="reloj" cuadrada />} titulo={fechaHora.format(new Date(c.creadaEn))} detalle="Toca para restaurar" alTocar={() => alElegir(c)} />
             ))}
           </ul>
         )}
+      </div>
+    </Hoja>
+  );
+}
+
+function Apariencia({ actual, alCerrar }: { actual: Tema; alCerrar: () => void }) {
+  return (
+    <Hoja titulo="Apariencia" alCerrar={alCerrar}>
+      <div className="formulario">
+        <div className="segmentos" role="group" aria-label="Tema">
+          {TEMAS.map((t) => (
+            <button key={t.id} type="button" aria-pressed={actual === t.id} onClick={() => void guardarAjuste('apariencia', { tema: t.id })}>
+              {t.nombre}
+            </button>
+          ))}
+        </div>
+        <p className="ayuda sin-margen">«Como el celular» usa el modo claro u oscuro que tengas en Android.</p>
       </div>
     </Hoja>
   );

@@ -2,13 +2,12 @@ import { useState } from 'react';
 import type { Datos } from '../datos';
 import type { Movimiento } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
-import { GraficaDeuda, GraficaFlujo } from '../componentes/Graficas';
 import { IconoAnterior, IconoSiguiente } from '../componentes/Iconos';
+import { Simbolo } from '../componentes/Simbolo';
 import { formatearDinero } from '../lib/dinero';
 import { fechaRelativa, hoy, mesDe, moverMes, nombreMes } from '../lib/fechas';
 import { coincide, FILTROS, pasaFiltro, type Filtro } from '../lib/filtros';
-import { deudaPorMes, flujoPorMes } from '../lib/graficas';
-import { agruparPorDia, gastosPorCategoria, ordenarRecientes, totalesDelMes } from '../lib/resumen';
+import { agruparPorDia, ordenarRecientes, totalesDelMes } from '../lib/resumen';
 
 interface Props {
   datos: Datos;
@@ -16,7 +15,6 @@ interface Props {
 }
 
 export function Movimientos({ datos, alEditar }: Props) {
-  const [vista, setVista] = useState<'lista' | 'resumen'>('lista');
   const [mes, setMes] = useState(() => mesDe(hoy()));
   const [busqueda, setBusqueda] = useState('');
   const [filtro, setFiltro] = useState<Filtro>('todos');
@@ -33,62 +31,6 @@ export function Movimientos({ datos, alEditar }: Props) {
     </div>
   );
 
-  const pestanas = (
-    <div className="segmentos" role="group" aria-label="Vista">
-      <button type="button" aria-pressed={vista === 'lista'} onClick={() => setVista('lista')}>
-        Lista
-      </button>
-      <button type="button" aria-pressed={vista === 'resumen'} onClick={() => setVista('resumen')}>
-        Resumen
-      </button>
-    </div>
-  );
-
-  if (vista === 'resumen') {
-    const totales = totalesDelMes(datos.movimientos, mes);
-    const gastosMes = totales.movimientos.filter((m) => m.tipo === 'gasto');
-    const porCategoria = gastosPorCategoria(gastosMes, new Set(datos.mapaCategorias.keys()));
-    const mayor = porCategoria[0]?.totalCentavos ?? 0;
-    return (
-      <>
-        {pestanas}
-        <section className="tarjeta">
-          <h2>Ingresos y salidas</h2>
-          <GraficaFlujo meses={flujoPorMes(datos.movimientos, mesDe(hoy()))} />
-        </section>
-        <section className="tarjeta">
-          <h2>Deuda total por mes</h2>
-          <GraficaDeuda puntos={deudaPorMes(datos.historial)} />
-        </section>
-        {selector}
-        <section className="tarjeta">
-          <h2>En qué gastaste</h2>
-          {porCategoria.length === 0 ? (
-            <p className="texto-tenue">No hay gastos en este mes.</p>
-          ) : (
-            <ul className="categorias-barras sin-borde">
-              {porCategoria.map(({ categoriaId, totalCentavos }) => {
-                const c = categoriaId ? datos.mapaCategorias.get(categoriaId) : undefined;
-                return (
-                  <li key={categoriaId ?? 'sin'}>
-                    <span className="categoria-nombre">
-                      <span aria-hidden="true">{c?.emoji ?? '📦'}</span> {c?.nombre ?? 'Sin categoría'}
-                    </span>
-                    <span className="categoria-total">{formatearDinero(totalCentavos)}</span>
-                    <span className="categoria-barra">
-                      <span style={{ width: `${Math.max(3, (totalCentavos / mayor) * 100)}%`, background: c?.color ?? 'var(--tenue)' }} />
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <p className="ayuda sin-margen">Incluye las compras con tarjeta.</p>
-        </section>
-      </>
-    );
-  }
-
   const buscando = busqueda.trim() !== '';
   // Al buscar se recorren todos los meses; si no, solo el elegido.
   const base = buscando ? ordenarRecientes(datos.movimientos) : totalesDelMes(datos.movimientos, mes).movimientos;
@@ -98,8 +40,9 @@ export function Movimientos({ datos, alEditar }: Props) {
 
   return (
     <>
-      {pestanas}
+      {!buscando && selector}
       <div className="buscador">
+        <Simbolo nombre="buscar" tamano={18} />
         <input
           type="search"
           placeholder="Buscar por nota, categoría, tarjeta o monto"
@@ -122,19 +65,18 @@ export function Movimientos({ datos, alEditar }: Props) {
         </p>
       ) : (
         <>
-          {selector}
           <section className="tarjeta">
             <dl className="cifras">
               <div>
-                <dt>Ingresos</dt>
+                <dt>Entró</dt>
                 <dd className="positivo">{formatearDinero(totales.ingresosCentavos)}</dd>
               </div>
               <div>
-                <dt>Salidas</dt>
+                <dt>Salió</dt>
                 <dd>{formatearDinero(totales.salidasCentavos)}</dd>
               </div>
               <div>
-                <dt>Diferencia</dt>
+                <dt>Balance</dt>
                 <dd>{formatearDinero(totales.ingresosCentavos - totales.salidasCentavos)}</dd>
               </div>
             </dl>
@@ -152,9 +94,12 @@ export function Movimientos({ datos, alEditar }: Props) {
         <p className="sin-datos">{buscando || filtro !== 'todos' ? 'No hay movimientos que coincidan.' : 'No hay movimientos en este mes.'}</p>
       ) : (
         dias.map(([fecha, lista]) => (
-          <section className="tarjeta" key={fecha}>
-            <h3 className="titulo-dia">{buscando ? `${fechaRelativa(fecha)} · ${nombreMes(mesDe(fecha))}` : fechaRelativa(fecha)}</h3>
-            <ul className="lista">
+          <section className="grupo" key={fecha}>
+            <h3 className="cabecera-grupo">
+              <span>{buscando ? `${fechaRelativa(fecha)} · ${nombreMes(mesDe(fecha))}` : fechaRelativa(fecha)}</span>
+              <span>{totalDia(lista)}</span>
+            </h3>
+            <ul className="lista tarjeta">
               {lista.map((m) => (
                 <FilaMovimiento key={m.id} movimiento={m} datos={datos} alTocar={alEditar} />
               ))}
@@ -164,4 +109,13 @@ export function Movimientos({ datos, alEditar }: Props) {
       )}
     </>
   );
+}
+
+/** Lo que salió en el día (sin contar compras con tarjeta, que no salen de tu dinero). */
+function totalDia(lista: Movimiento[]) {
+  const entra = lista.filter((m) => m.tipo === 'ingreso').reduce((t, m) => t + m.montoCentavos, 0);
+  const sale = lista.filter((m) => m.tipo !== 'ingreso' && !(m.tipo === 'gasto' && m.tarjetaId)).reduce((t, m) => t + m.montoCentavos, 0);
+  const neto = entra - sale;
+  if (neto === 0) return '';
+  return neto > 0 ? `+${formatearDinero(neto)}` : `−${formatearDinero(-neto)}`;
 }

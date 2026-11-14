@@ -2,6 +2,7 @@ import type { Datos } from '../datos';
 import type { Movimiento } from '../db';
 import { formatearDinero } from '../lib/dinero';
 import { fechaCorta } from '../lib/fechas';
+import { Insignia, InsigniaCategoria } from './Simbolo';
 
 interface Props {
   movimiento: Movimiento;
@@ -11,8 +12,7 @@ interface Props {
 }
 
 interface Vista {
-  emoji: string;
-  color: string;
+  insignia: React.ReactNode;
   titulo: string;
   /** Texto extra antes de la nota. */
   detalle?: string;
@@ -24,8 +24,7 @@ function vistaDe(m: Movimiento, datos: Datos): Vista {
   const dinero = formatearDinero(m.montoCentavos);
   if (m.tipo === 'ingreso') {
     return {
-      emoji: '💵',
-      color: 'var(--positivo)',
+      insignia: <Insignia color="var(--positivo)" simbolo="ingreso" />,
       titulo: m.esPago ? 'Mi pago' : 'Otro ingreso',
       monto: `+${dinero}`,
       claseMonto: 'fila-monto positivo',
@@ -36,8 +35,7 @@ function vistaDe(m: Movimiento, datos: Datos): Vista {
       const prestamo = datos.prestamos.find((p) => p.id === m.prestamoId);
       const intereses = m.montoCentavos - (m.capitalCentavos ?? 0);
       return {
-        emoji: '🏦',
-        color: 'var(--primario)',
+        insignia: <Insignia color="var(--primario)" simbolo="prestamo" />,
         titulo: `${m.esExtra ? 'Abono extra' : 'Cuota'} · ${prestamo?.nombre ?? 'Préstamo eliminado'}`,
         detalle: intereses > 0 ? `${formatearDinero(m.capitalCentavos ?? 0)} a capital` : undefined,
         monto: `−${dinero}`,
@@ -46,8 +44,7 @@ function vistaDe(m: Movimiento, datos: Datos): Vista {
     }
     const tarjeta = datos.tarjetas.find((t) => t.id === m.tarjetaId);
     return {
-      emoji: '💳',
-      color: tarjeta?.color ?? 'var(--tenue)',
+      insignia: <Insignia color={tarjeta?.color ?? 'var(--tenue)'} simbolo="pago" />,
       titulo: `Pago · ${tarjeta?.nombre ?? 'Tarjeta eliminada'}`,
       monto: `−${dinero}`,
       claseMonto: 'fila-monto',
@@ -55,8 +52,7 @@ function vistaDe(m: Movimiento, datos: Datos): Vista {
   }
   const categoria = m.categoriaId ? datos.mapaCategorias.get(m.categoriaId) : undefined;
   const base = {
-    emoji: categoria?.emoji ?? '📦',
-    color: categoria?.color ?? 'var(--tenue)',
+    insignia: <InsigniaCategoria categoria={categoria} />,
     titulo: categoria?.nombre ?? 'Sin categoría',
   };
   if (m.tarjetaId) {
@@ -79,9 +75,7 @@ export function FilaMovimiento({ movimiento: m, datos, mostrarFecha, alTocar }: 
   return (
     <li>
       <button type="button" className="fila" onClick={() => alTocar(m)}>
-        <span className="fila-emoji" style={{ background: `color-mix(in srgb, ${v.color} 18%, transparent)` }}>
-          {v.emoji}
-        </span>
+        {v.insignia}
         <span className="fila-texto">
           <span className="fila-titulo">{v.titulo}</span>
           {detalle && <span className="fila-detalle">{detalle}</span>}

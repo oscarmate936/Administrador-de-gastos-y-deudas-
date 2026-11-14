@@ -5,18 +5,21 @@ import { proyectar, sumarMeses, textoDuracion } from '../lib/deudas';
 import { centavosATexto, formatearDinero, textoACentavos, textoATasa } from '../lib/dinero';
 import { aFechaTexto, esFechaValida, fechaCorta, mesCorto } from '../lib/fechas';
 import { Hoja } from './Hoja';
+import { Simbolo } from './Simbolo';
 import { BotonCapturaPrestamo, DudasLectura } from './LecturaCaptura';
 import type { CapturaPrestamo } from '../lib/ocr/prestamo';
 
 interface Props {
   prestamo?: Prestamo;
   alCerrar: () => void;
+  /** Pide la captura de la app del banco en cuanto se abre. */
+  leerAlAbrir?: boolean;
 }
 
 /** Vacío cuenta como 0 (tasa desconocida). */
 const leerTasa = (texto: string) => (texto.trim() === '' ? 0 : textoATasa(texto));
 
-export function FormularioPrestamo({ prestamo, alCerrar }: Props) {
+export function FormularioPrestamo({ prestamo, alCerrar, leerAlAbrir }: Props) {
   const [nombre, setNombre] = useState(prestamo?.nombre ?? '');
   const [acreedor, setAcreedor] = useState(prestamo?.acreedor ?? BANCOS[1]);
   const [original, setOriginal] = useState(
@@ -91,7 +94,15 @@ export function FormularioPrestamo({ prestamo, alCerrar }: Props) {
       <form onSubmit={guardar} className="formulario" noValidate>
         {!prestamo && (
           <>
-            <BotonCapturaPrestamo texto="📷 Llenar con una captura de la app del banco" alLeer={aplicarCaptura} />
+            <BotonCapturaPrestamo
+              texto={
+                <>
+                  <Simbolo nombre="camara" tamano={18} /> Llenar con una captura de la app del banco
+                </>
+              }
+              alLeer={aplicarCaptura}
+              abrirAlInicio={leerAlAbrir}
+            />
             {captura && (
               <p className="aviso" role="status">
                 Llené los datos con la captura. Revísalos, elige con quién es el préstamo y guarda.

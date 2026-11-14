@@ -24,13 +24,13 @@ export interface Borrador {
 
 /** Formulario abierto en una hoja inferior. */
 export type Formulario =
-  | { clase: 'movimiento'; tipo: 'ingreso' | 'gasto'; movimiento?: Movimiento; tarjetaId?: string; borrador?: Borrador }
+  | { clase: 'movimiento'; tipo: 'ingreso' | 'gasto'; movimiento?: Movimiento; tarjetaId?: string; borrador?: Borrador; leer?: boolean }
   | { clase: 'pago'; tarjetaId?: string; prestamoId?: string; movimiento?: Movimiento; extra?: boolean; monto?: number; fecha?: string }
   | { clase: 'tarjeta'; tarjeta?: Tarjeta }
-  | { clase: 'prestamo'; prestamo?: Prestamo }
+  | { clase: 'prestamo'; prestamo?: Prestamo; leer?: boolean }
   | { clase: 'estado'; estado: EstadoCuentaTarjeta; tarjetaId?: string };
 
-/** Pantalla abierta dentro de la pestaña Deudas. */
+/** Pantalla abierta encima de una sección (detalle de una deuda o el plan). */
 export type Detalle = { tipo: 'tarjeta' | 'prestamo'; id: string } | { tipo: 'plan' };
 
 /** Abre el formulario que corresponde para editar un movimiento ya guardado. */

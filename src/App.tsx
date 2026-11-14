@@ -13,7 +13,9 @@ import { movimientosACsv } from './lib/csv';
 import type { Recurrente } from './db';
 import { Opcion } from './componentes/Opcion';
 import { RevisionEstado } from './componentes/RevisionEstado';
-import { IconoAjustes, IconoDeudas, IconoInicio, IconoLista, IconoMas } from './componentes/Iconos';
+import { IconoAnalisis, IconoAnterior, IconoDeudas, IconoInicio, IconoLista, IconoMas } from './componentes/Iconos';
+import { Agregar } from './componentes/Agregar';
+import { Insignia, InsigniaCategoria, Simbolo } from './componentes/Simbolo';
 import { ErrorEstado, leerEstadoTarjeta } from './lib/estados/leer';
 import { extraerPaginas } from './lib/estados/pdf';
 import { useAjustes } from './lib/ajustes';
@@ -34,6 +36,7 @@ import {
   pantallaPrivada,
 } from './lib/nativo';
 import { Ajustes } from './pantallas/Ajustes';
+import { Analisis } from './pantallas/Analisis';
 import { Deudas } from './pantallas/Deudas';
 import { DetallePrestamo } from './pantallas/DetallePrestamo';
 import { DetalleTarjeta } from './pantallas/DetalleTarjeta';
@@ -41,13 +44,24 @@ import { Inicio } from './pantallas/Inicio';
 import { Movimientos } from './pantallas/Movimientos';
 import { PlanDeudas } from './pantallas/PlanDeudas';
 
-type Pestana = 'inicio' | 'movimientos' | 'deudas' | 'ajustes';
+type Pestana = 'inicio' | 'movimientos' | 'deudas' | 'analisis' | 'ajustes';
 
-const PESTANAS: Array<{ id: Pestana; nombre: string; Icono: () => React.JSX.Element }> = [
-  { id: 'inicio', nombre: 'Inicio', Icono: IconoInicio },
-  { id: 'movimientos', nombre: 'Movimientos', Icono: IconoLista },
-  { id: 'deudas', nombre: 'Deudas', Icono: IconoDeudas },
-  { id: 'ajustes', nombre: 'Ajustes', Icono: IconoAjustes },
+const NOMBRES: Record<Pestana, string> = {
+  inicio: 'Inicio',
+  movimientos: 'Movimientos',
+  deudas: 'Deudas',
+  analisis: 'Análisis',
+  ajustes: 'Ajustes',
+};
+
+/** La barra: dos secciones, el botón + en el centro y dos secciones más. Ajustes se abre desde Inicio. */
+const IZQUIERDA: Array<{ id: Pestana; Icono: () => React.JSX.Element }> = [
+  { id: 'inicio', Icono: IconoInicio },
+  { id: 'movimientos', Icono: IconoLista },
+];
+const DERECHA: Array<{ id: Pestana; Icono: () => React.JSX.Element }> = [
+  { id: 'deudas', Icono: IconoDeudas },
+  { id: 'analisis', Icono: IconoAnalisis },
 ];
 
 const fmtHoy = new Intl.DateTimeFormat('es-SV', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -55,11 +69,16 @@ const fechaDeHoy = () => {
   const t = fmtHoy.format(new Date());
   return t.charAt(0).toUpperCase() + t.slice(1);
 };
+const saludo = () => {
+  const h = new Date().getHours();
+  return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+};
 
 export function App() {
   const [pestana, setPestana] = useState<Pestana>('inicio');
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const [formulario, setFormulario] = useState<Formulario | null>(null);
+  const [agregando, setAgregando] = useState(false);
   const [aviso, setAviso] = useState<{ texto: string; tipo: 'error' | 'info' } | null>(null);
   // Los avisos informativos se cierran solos; los errores esperan a que se lean.
   useEffect(() => {
@@ -104,6 +123,15 @@ export function App() {
   useEffect(() => {
     if (bloqueoActivo !== undefined) void pantallaPrivada(bloqueoActivo);
   }, [bloqueoActivo]);
+
+  // Tema claro u oscuro elegido en Ajustes; sin elegir, sigue al celular.
+  const tema = ajustes?.apariencia.tema;
+  useEffect(() => {
+    const raiz = document.documentElement;
+    if (tema === 'claro') raiz.dataset.theme = 'light';
+    else if (tema === 'oscuro') raiz.dataset.theme = 'dark';
+    else delete raiz.dataset.theme;
+  }, [tema]);
 
   const datos = useMemo<Datos | null>(() => {
     if (!movimientos || !categorias || !tarjetas || !prestamos || !recurrentes || !historial) return null;
@@ -206,7 +234,8 @@ export function App() {
     window.scrollTo(0, 0);
   };
   const abrirDeuda = (d: Detalle) => {
-    setPestana('deudas');
+    // El plan se abre encima de la sección actual; tarjetas y préstamos, dentro de Deudas.
+    if (d.tipo !== 'plan') setPestana('deudas');
     setDetalle(d);
     window.scrollTo(0, 0);
   };
@@ -250,6 +279,9 @@ export function App() {
   const prestamoAbierto = detalle?.tipo === 'prestamo' ? datos?.prestamos.find((p) => p.id === detalle.id) : undefined;
 
   function contenido(d: Datos) {
+    if (detalle?.tipo === 'plan') {
+      return <PlanDeudas datos={d} ajustes={ajustes!.plan} alVolver={() => setDetalle(null)} alAbrir={abrirDeuda} />;
+    }
     switch (pestana) {
       case 'inicio':
         return (
@@ -260,6 +292,7 @@ export function App() {
             alEditar={editar}
             alVerTodos={() => irA('movimientos')}
             alVerDeudas={() => irA('deudas')}
+            alVerAnalisis={() => irA('analisis')}
             alAbrirDeuda={abrirDeuda}
             diasSinRespaldo={diasSinRespaldo}
             alRespaldar={() => irA('ajustes')}
@@ -268,10 +301,9 @@ export function App() {
         );
       case 'movimientos':
         return <Movimientos datos={d} alEditar={editar} />;
+      case 'analisis':
+        return <Analisis datos={d} plan={ajustes!.plan} alAbrir={abrirDeuda} />;
       case 'deudas':
-        if (detalle?.tipo === 'plan') {
-          return <PlanDeudas datos={d} ajustes={ajustes!.plan} alVolver={() => setDetalle(null)} alAbrir={abrirDeuda} />;
-        }
         if (tarjetaAbierta) {
           return (
             <DetalleTarjeta
@@ -306,64 +338,62 @@ export function App() {
             alNuevaTarjeta={() => setFormulario({ clase: 'tarjeta' })}
             alNuevoPrestamo={() => setFormulario({ clase: 'prestamo' })}
             alImportar={() => importarEstado()}
-            plan={ajustes!.plan}
           />
         );
       case 'ajustes':
         return (
-          <Ajustes categorias={d.categorias} totalMovimientos={d.movimientos.length} ajustes={ajustes!}>
-            <section className="tarjeta">
-              <h2>Recordatorios</h2>
-              <ul className="lista">
-                <Opcion
-                  icono="🔔"
-                  titulo="Avisos de pago y corte"
-                  detalle={
-                    ajustes!.recordatorios.activo
-                      ? `Activados a las ${ajustes!.recordatorios.hora}`
-                      : 'Te avisa antes de cada fecha de pago y corte'
-                  }
-                  valor={ajustes!.recordatorios.activo ? 'Activados' : 'Desactivados'}
-                  alTocar={() => setVerRecordatorios(true)}
-                />
-              </ul>
-            </section>
-            <section className="tarjeta">
-              <h2>Se repiten cada mes</h2>
-              {d.recurrentes.length === 0 ? (
-                <p className="texto-tenue">
-                  Al registrar un gasto o ingreso, activa “Se repite cada mes” y la app te lo propondrá cada mes.
-                </p>
-              ) : (
-                <ul className="lista">
-                  {d.recurrentes.map((r) => {
-                    const c = r.categoriaId ? d.mapaCategorias.get(r.categoriaId) : undefined;
-                    return (
-                      <Opcion
-                        key={r.id}
-                        icono={r.tipo === 'ingreso' ? '💵' : (c?.emoji ?? '🔁')}
-                        titulo={r.nota || c?.nombre || (r.tipo === 'ingreso' ? 'Ingreso' : 'Gasto')}
-                        detalle={r.activo ? `El día ${r.dia} de cada mes` : 'En pausa'}
-                        valor={formatearDinero(r.montoCentavos)}
-                        alTocar={() => setRecurrenteAbierto(r)}
-                      />
-                    );
-                  })}
-                </ul>
-              )}
-            </section>
-            <section className="tarjeta">
-              <h2>Exportar</h2>
-              <ul className="lista">
-                <Opcion
-                  icono="📊"
-                  titulo="Movimientos a Excel (CSV)"
-                  detalle={`${d.movimientos.length} movimientos, para abrir en Excel o Google Sheets`}
-                  alTocar={() => void exportarCsv(d)}
-                />
-              </ul>
-            </section>
-          </Ajustes>
+          <Ajustes
+            categorias={d.categorias}
+            totalMovimientos={d.movimientos.length}
+            ajustes={ajustes!}
+            avisos={
+              <Opcion
+                icono={<Insignia color="var(--alerta)" simbolo="campana" cuadrada />}
+                titulo="Recordatorios de pago y corte"
+                detalle={
+                  ajustes!.recordatorios.activo
+                    ? `Activados a las ${ajustes!.recordatorios.hora}`
+                    : 'Te avisa antes de cada fecha de pago y corte'
+                }
+                valor={ajustes!.recordatorios.activo ? 'Activados' : 'Desactivados'}
+                alTocar={() => setVerRecordatorios(true)}
+              />
+            }
+            exportar={
+              <Opcion
+                icono={<Insignia color="var(--info)" simbolo="tabla" cuadrada />}
+                titulo="Exportar a Excel (CSV)"
+                detalle={`${d.movimientos.length} movimientos, para Excel o Google Sheets`}
+                alTocar={() => void exportarCsv(d)}
+              />
+            }
+            recurrentes={
+              <section className="grupo">
+                <h2 className="cabecera-grupo">Se repiten cada mes</h2>
+                {d.recurrentes.length === 0 ? (
+                  <p className="tarjeta texto-tenue">
+                    Al registrar un gasto o ingreso, activa “Se repite cada mes” y la app te lo propondrá cada mes.
+                  </p>
+                ) : (
+                  <ul className="lista tarjeta">
+                    {d.recurrentes.map((r) => {
+                      const c = r.categoriaId ? d.mapaCategorias.get(r.categoriaId) : undefined;
+                      return (
+                        <Opcion
+                          key={r.id}
+                          icono={r.tipo === 'ingreso' ? <Insignia color="var(--positivo)" simbolo="ingreso" /> : <InsigniaCategoria categoria={c} />}
+                          titulo={r.nota || c?.nombre || (r.tipo === 'ingreso' ? 'Ingreso' : 'Gasto')}
+                          detalle={r.activo ? `El día ${r.dia} de cada mes` : 'En pausa'}
+                          valor={formatearDinero(r.montoCentavos)}
+                          alTocar={() => setRecurrenteAbierto(r)}
+                        />
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+            }
+          />
         );
     }
   }
@@ -381,6 +411,7 @@ export function App() {
             tarjetaInicial={f.tarjetaId}
             borrador={f.borrador}
             alCerrar={cerrar}
+            leerAlAbrir={f.leer}
             alGuardar={(m) => {
               const c = m.tipo === 'gasto' && m.categoriaId ? d.mapaCategorias.get(m.categoriaId) : undefined;
               if (!c?.limiteCentavos) return;
@@ -410,7 +441,7 @@ export function App() {
       case 'tarjeta':
         return <FormularioTarjeta tarjeta={f.tarjeta} cantidad={d.tarjetas.length} alCerrar={cerrar} />;
       case 'prestamo':
-        return <FormularioPrestamo prestamo={f.prestamo} alCerrar={cerrar} />;
+        return <FormularioPrestamo prestamo={f.prestamo} alCerrar={cerrar} leerAlAbrir={f.leer} />;
       case 'estado':
         return (
           <RevisionEstado
@@ -427,40 +458,69 @@ export function App() {
     }
   }
 
-  const titulo = pestana === 'inicio' ? 'Mis Finanzas' : PESTANAS.find((p) => p.id === pestana)!.nombre;
-
   if (!ajustes || bloqueado === null) return <div className="app" />;
+
+  const boton = (id: Pestana, Icono: () => React.JSX.Element) => (
+    <button key={id} type="button" aria-current={pestana === id ? 'page' : undefined} onClick={() => irA(id)}>
+      <Icono />
+      <span>{NOMBRES[id]}</span>
+    </button>
+  );
 
   return (
     <div className={bloqueado ? 'app oculta' : 'app'}>
       {bloqueado && <Bloqueo ajustes={ajustes.bloqueo} alDesbloquear={() => setBloqueado(false)} />}
-      <header className="cabecera">
-        <h1>{titulo}</h1>
-        {pestana === 'inicio' && <p className="fecha-cabecera">{fechaDeHoy()}</p>}
-      </header>
+      {!detalle && (
+        <header className="cabecera">
+          {pestana === 'inicio' ? (
+            <>
+              <div className="cabecera-texto">
+                <p className="fecha-cabecera">{fechaDeHoy()}</p>
+                <h1>{saludo()}</h1>
+              </div>
+              <button type="button" className="boton-redondo" onClick={() => irA('ajustes')} aria-label="Ajustes">
+                <Simbolo nombre="engranaje" tamano={22} />
+              </button>
+            </>
+          ) : pestana === 'ajustes' ? (
+            <div className="cabecera-volver">
+              <button type="button" className="boton-icono" onClick={() => irA('inicio')} aria-label="Volver a Inicio">
+                <IconoAnterior />
+              </button>
+              <h1>Ajustes</h1>
+            </div>
+          ) : (
+            <h1>{NOMBRES[pestana]}</h1>
+          )}
+        </header>
+      )}
 
       <main className="contenido">{datos && contenido(datos)}</main>
 
-      {(pestana === 'inicio' || pestana === 'movimientos') && (
-        <button
-          type="button"
-          className="boton-flotante"
-          onClick={() => setFormulario({ clase: 'movimiento', tipo: 'gasto' })}
-          aria-label="Agregar movimiento"
-        >
-          <IconoMas />
-        </button>
-      )}
-
       <nav className="navegacion" aria-label="Secciones">
-        {PESTANAS.map(({ id, nombre, Icono }) => (
-          <button key={id} type="button" aria-current={pestana === id ? 'page' : undefined} onClick={() => irA(id)}>
-            <Icono />
-            <span>{nombre}</span>
+        {IZQUIERDA.map(({ id, Icono }) => boton(id, Icono))}
+        <span className="hueco-agregar">
+          <button type="button" className="boton-agregar" onClick={() => setAgregando(true)} aria-label="Agregar">
+            <IconoMas />
           </button>
-        ))}
+        </span>
+        {DERECHA.map(({ id, Icono }) => boton(id, Icono))}
       </nav>
 
+      {agregando && datos && (
+        <Agregar
+          datos={datos}
+          alCerrar={() => setAgregando(false)}
+          alAbrir={(f) => {
+            setAgregando(false);
+            setFormulario(f);
+          }}
+          alImportarPdf={() => {
+            setAgregando(false);
+            importarEstado();
+          }}
+        />
+      )}
       {formulario && datos && hoja(formulario, datos)}
       {recurrenteAbierto && datos && (
         <FormularioRecurrente

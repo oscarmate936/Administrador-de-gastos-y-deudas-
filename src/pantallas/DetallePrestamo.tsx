@@ -5,6 +5,7 @@ import type { CapturaPrestamo } from '../lib/ocr/prestamo';
 import type { Datos } from '../datos';
 import type { Movimiento, Prestamo } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
+import { Simbolo } from '../componentes/Simbolo';
 import { IconoAnterior } from '../componentes/Iconos';
 import { ahorroPorAbono, estadoPrestamo, textoDuracion } from '../lib/deudas';
 import { formatearDinero, textoACentavos } from '../lib/dinero';
@@ -146,7 +147,14 @@ export function DetallePrestamo({ prestamo: p, datos, alVolver, alEditarPrestamo
           Toma una captura del detalle del préstamo en la app de tu banco y la app ajusta saldo, cuota, tasa y fecha sin
           borrar tus pagos.
         </p>
-        <BotonCapturaPrestamo texto="📷 Actualizar con una captura" alLeer={setCaptura} />
+        <BotonCapturaPrestamo
+          texto={
+            <>
+              <Simbolo nombre="camara" tamano={18} /> Actualizar con una captura
+            </>
+          }
+          alLeer={setCaptura}
+        />
       </section>
       {captura && <ActualizarPrestamo prestamo={p} movimientos={datos.movimientos} captura={captura} alCerrar={() => setCaptura(null)} />}
 

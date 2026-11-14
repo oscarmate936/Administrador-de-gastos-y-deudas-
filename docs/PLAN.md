@@ -31,6 +31,7 @@ una versión instalable que se actualiza encima de la anterior sin borrar datos.
 | 4 | Costo de las deudas, plan para salir de deudas, límites por categoría | Hecho (0.6) |
 | 5 | Gastos recurrentes, gráficas, búsqueda, exportar | Hecho (0.7) |
 | 6 | Fotos de tickets y capturas | Hecho (1.0) |
+| — | Rediseño: barra con botón +, sección Análisis, Ajustes desde Inicio, íconos y estilo nuevos | Hecho (1.4) |
 
 La fase 3 puede adelantarse en cuanto lleguen los PDF; no depende de las demás.
 

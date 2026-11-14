@@ -41,11 +41,18 @@ export interface AjustesPlan {
   metodo: 'avalancha' | 'bola';
 }
 
+export type Tema = 'sistema' | 'claro' | 'oscuro';
+
+export interface AjustesApariencia {
+  tema: Tema;
+}
+
 export interface Ajustes {
   bloqueo: AjustesBloqueo;
   respaldo: AjustesRespaldo;
   recordatorios: AjustesRecordatorios;
   plan: AjustesPlan;
+  apariencia: AjustesApariencia;
 }
 
 export const AJUSTES_INICIALES: Ajustes = {
@@ -62,6 +69,7 @@ export const AJUSTES_INICIALES: Ajustes = {
     diasPrestamo: [3, 0],
   },
   plan: { metodo: 'avalancha' },
+  apariencia: { tema: 'sistema' },
 };
 
 export type ClaveAjuste = keyof Ajustes;

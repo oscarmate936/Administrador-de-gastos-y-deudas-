@@ -5,6 +5,8 @@ import { interpretar, type Intencion } from '../lib/asistente/interpretar';
 import { capitalSugerido, estadoPrestamo } from '../lib/deudas';
 import { formatearDinero } from '../lib/dinero';
 import { fechaCorta, hoy, sumarDias } from '../lib/fechas';
+import { IconoSiguiente } from './Iconos';
+import { Simbolo } from './Simbolo';
 
 interface Props {
   datos: Datos;
@@ -27,6 +29,8 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir }: Props) {
   const [texto, setTexto] = useState('');
   const [resultado, setResultado] = useState<Intencion | null>(null);
   const [guardado, setGuardado] = useState<{ id: string; texto: string } | null>(null);
+  // Las sugerencias aparecen al tocar la barra, para que Inicio quede limpio.
+  const [abierto, setAbierto] = useState(false);
 
   const preguntar = (frase: string) => {
     setGuardado(null);
@@ -118,23 +122,27 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir }: Props) {
   const esRegistro = resultado && ['gasto', 'ingreso', 'pagoTarjeta', 'pagoPrestamo'].includes(resultado.tipo);
 
   return (
-    <section className="tarjeta asistente">
+    <section className="asistente" aria-label="Asistente">
       <form className="asistente-entrada" onSubmit={enviar}>
+        <Simbolo nombre="chispa" />
         <input
+          onFocus={() => setAbierto(true)}
           type="text"
           enterKeyHint="send"
           autoComplete="off"
-          placeholder="Escribe o dicta: «gasté 5 en almuerzo»"
+          placeholder="Pregunta o registra: «gasté 5 en almuerzo»"
           aria-label="Pregunta o registra algo"
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
         />
-        <button type="submit" className="boton primario" aria-label="Enviar" disabled={!texto.trim()}>
-          ➤
-        </button>
+        {texto.trim() && (
+          <button type="submit" className="boton-icono primario" aria-label="Enviar">
+            <IconoSiguiente />
+          </button>
+        )}
       </form>
 
-      {!resultado && !guardado && (
+      {abierto && !resultado && !guardado && (
         <div className="chips desplazable">
           {SUGERENCIAS.map((s) => (
             <button key={s} type="button" className="chip" onClick={() => preguntar(s)}>
@@ -146,7 +154,7 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir }: Props) {
 
       {guardado && (
         <p className="aviso" role="status">
-          ✓ {guardado.texto}{' '}
+          {guardado.texto}{' '}
           <button
             type="button"
             className="enlace"

@@ -2,6 +2,7 @@ import type { Datos } from '../datos';
 import type { Movimiento, Tarjeta } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { IconoAnterior } from '../componentes/Iconos';
+import { Plastico } from './Deudas';
 import { estadoTarjeta, sumarMeses } from '../lib/deudas';
 import { formatearDinero } from '../lib/dinero';
 import { fechaCorta, hoy, mesCorto, textoFaltan } from '../lib/fechas';
@@ -34,25 +35,23 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
         </button>
       </div>
 
-      <section className="tarjeta-principal">
-        <p className="etiqueta">{t.banco || 'Tarjeta de crédito'} · saldo actual</p>
-        <p className="monto-grande">{formatearDinero(e.saldoCentavos)}</p>
-        <p className="nota-principal">
-          Crédito disponible {formatearDinero(e.creditoDisponibleCentavos)} de {formatearDinero(t.limiteCentavos)}
-        </p>
+      <Plastico tarjeta={t}>
+        <span className="plastico-cifra">
+          <span className="plastico-etiqueta">Saldo actual</span>
+          <span className="plastico-monto grande">{formatearDinero(e.saldoCentavos)}</span>
+        </span>
+        <span className="plastico-barra" aria-hidden="true">
+          <span style={{ width: `${t.limiteCentavos > 0 ? Math.min(100, Math.max(0, (e.saldoCentavos / t.limiteCentavos) * 100)) : 0}%` }} />
+        </span>
+        <span className="plastico-pie">
+          Disponible {formatearDinero(e.creditoDisponibleCentavos)} de {formatearDinero(t.limiteCentavos)}
+        </span>
         {e.planesCentavos > 0 && (
-          <dl className="cifras-heroe">
-            <div>
-              <dt>Plazos y extrafinanciamiento</dt>
-              <dd>{formatearDinero(e.planesCentavos)}</dd>
-            </div>
-            <div>
-              <dt>Deuda total</dt>
-              <dd>{formatearDinero(e.deudaTotalCentavos)}</dd>
-            </div>
-          </dl>
+          <span className="plastico-pie">
+            Plazos y extrafinanciamiento {formatearDinero(e.planesCentavos)} · deuda total {formatearDinero(e.deudaTotalCentavos)}
+          </span>
         )}
-      </section>
+      </Plastico>
 
       <section className="tarjeta">
         <div className="cabecera-seccion">
@@ -81,13 +80,13 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
           <div>
             <dt>Pago de contado pendiente</dt>
             <dd className={e.pendienteCentavos > 0 ? '' : 'positivo'}>
-              {e.pendienteCentavos > 0 ? formatearDinero(e.pendienteCentavos) : 'Pagado ✓'}
+              {e.pendienteCentavos > 0 ? formatearDinero(e.pendienteCentavos) : 'Pagado'}
             </dd>
           </div>
           {e.pagoMinimoCentavos !== null && (
             <div>
               <dt>Pago mínimo pendiente</dt>
-              <dd>{e.pagoMinimoCentavos > 0 ? formatearDinero(e.pagoMinimoCentavos) : 'Cubierto ✓'}</dd>
+              <dd>{e.pagoMinimoCentavos > 0 ? formatearDinero(e.pagoMinimoCentavos) : 'Cubierto'}</dd>
             </div>
           )}
           <div>

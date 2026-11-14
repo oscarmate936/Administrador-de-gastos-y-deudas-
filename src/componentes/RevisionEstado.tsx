@@ -14,6 +14,7 @@ import {
 } from '../lib/estados/importar';
 import type { EstadoCuentaTarjeta } from '../lib/estados/tipos';
 import { Hoja } from './Hoja';
+import { Simbolo } from './Simbolo';
 
 interface Props {
   estado: EstadoCuentaTarjeta;
@@ -137,11 +138,11 @@ export function RevisionEstado({ estado, datos, tarjetaPreferida, alCerrar, alGu
           <div className="chips">
             {datos.tarjetas.map((t) => (
               <button key={t.id} type="button" className="chip" aria-pressed={destino === t.id} onClick={() => setDestino(t.id)}>
-                <span aria-hidden="true">💳</span> {t.nombre}
+                <span className="marca-categoria" style={{ color: t.color }}><Simbolo nombre="tarjeta" tamano={16} /></span> {t.nombre}
               </button>
             ))}
             <button type="button" className="chip" aria-pressed={destino === NUEVA} onClick={() => setDestino(NUEVA)}>
-              ➕ Tarjeta nueva
+              Tarjeta nueva
             </button>
           </div>
         </fieldset>
@@ -183,7 +184,7 @@ export function RevisionEstado({ estado, datos, tarjetaPreferida, alCerrar, alGu
               Los movimientos que pude leer no suman lo mismo que los totales del estado de cuenta: puede faltar alguno.
             </p>
           )}
-          {estado.totalesCuadran === true && <p className="ayuda sin-margen positivo">✓ Suman lo mismo que los totales del banco.</p>}
+          {estado.totalesCuadran === true && <p className="ayuda sin-margen positivo">Suman lo mismo que los totales del banco.</p>}
           <p className="ayuda sin-margen">
             Las compras se guardan como historial para ver en qué gastas; no cambian la deuda, que ya viene en el saldo. Los
             pagos a la tarjeta van sin marcar: márcalos solo si no los registraste y quieres que se resten de tu disponible.

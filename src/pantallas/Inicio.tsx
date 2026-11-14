@@ -2,22 +2,22 @@ import type { Datos, Detalle, Formulario } from '../datos';
 import { Asistente } from '../componentes/Asistente';
 import type { Movimiento } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
-import { proximosPagos, totalPorPagar } from '../lib/deudas';
+import { IconoFlecha } from '../componentes/Iconos';
+import { Insignia, InsigniaCategoria } from '../componentes/Simbolo';
+import { proximosPagos, totalPorPagar, type ProximoPago } from '../lib/deudas';
 import { formatearDinero } from '../lib/dinero';
-import { fechaCorta, haceCuanto, hoy, mesDe, nombreMes } from '../lib/fechas';
-import {
-  calcularDisponible,
-  gastosPorCategoria,
-  ordenarRecientes,
-  resumenDesdeUltimoPago,
-} from '../lib/resumen';
+import { fechaCorta, hoy, mesDe, nombreMes, textoFaltan } from '../lib/fechas';
+import { calcularDisponible, ordenarRecientes, resumenDesdeUltimoPago } from '../lib/resumen';
 import { estadoLimites } from '../lib/limites';
 import { omitirRecurrente, pendientes, registrarRecurrente } from '../lib/recurrentes';
 import { db } from '../db';
-import { ListaProximos } from './Deudas';
 
 /** Días hacia adelante que se apartan para pagos al calcular lo "libre". */
 const DIAS_A_APARTAR = 15;
+/** Pagos que se muestran en "Requiere atención". */
+const DIAS_ATENCION = 30;
+/** Cada cuántos días se recuerda hacer un respaldo. */
+const DIAS_ENTRE_RESPALDOS = 7;
 
 interface Props {
   datos: Datos;
@@ -26,6 +26,7 @@ interface Props {
   alEditar: (m: Movimiento) => void;
   alVerTodos: () => void;
   alVerDeudas: () => void;
+  alVerAnalisis: () => void;
   alAbrirDeuda: (d: Detalle) => void;
   /** Días desde el último respaldo externo; null si nunca se hizo. */
   diasSinRespaldo: number | null;
@@ -33,24 +34,18 @@ interface Props {
   alAbrirFormulario: (f: Formulario) => void;
 }
 
-/** Cada cuántos días se recuerda hacer un respaldo. */
-const DIAS_ENTRE_RESPALDOS = 7;
-
-export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVerTodos, alVerDeudas, alAbrirDeuda, diasSinRespaldo, alRespaldar, alAbrirFormulario }: Props) {
+export function Inicio(props: Props) {
+  const { datos, alAgregarIngreso, alAgregarGasto, alEditar, alVerTodos, alVerDeudas, alVerAnalisis, alAbrirDeuda, diasSinRespaldo, alRespaldar, alAbrirFormulario } =
+    props;
   const { movimientos, mapaCategorias, tarjetas, prestamos } = datos;
   const fechaHoy = hoy();
 
   if (movimientos.length === 0 && tarjetas.length === 0 && prestamos.length === 0) {
     return (
       <section className="vacio">
-        <div className="vacio-emoji" aria-hidden="true">
-          💵
-        </div>
+        <Insignia color="var(--primario)" simbolo="dinero" />
         <h2>Empieza con tu último pago</h2>
-        <p>
-          Registra cuánto te pagaron y la app irá restando cada gasto que anotes, para que siempre
-          sepas cuánto te queda.
-        </p>
+        <p>Registra cuánto te pagaron y la app irá restando cada gasto que anotes, para que siempre sepas cuánto te queda.</p>
         <button type="button" className="boton primario" onClick={alAgregarIngreso}>
           Registrar mi pago
         </button>
@@ -69,41 +64,61 @@ export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVe
   const recientes = ordenarRecientes(movimientos).slice(0, 5);
   const proximos = proximosPagos(tarjetas, prestamos, movimientos, fechaHoy);
   const porApartar = totalPorPagar(proximos, DIAS_A_APARTAR);
-  const limites = estadoLimites(movimientos, datos.categorias, mesDe(fechaHoy));
-  const porConfirmar = pendientes(datos.recurrentes, fechaHoy);
   const libre = disponible - porApartar;
+  const mes = mesDe(fechaHoy);
+  const limites = estadoLimites(movimientos, datos.categorias, mes).filter((l) => l.porcentaje >= 80);
+  const porConfirmar = pendientes(datos.recurrentes, fechaHoy);
+  const atender = proximos.filter((p) => p.vencido || p.dias <= DIAS_ATENCION).slice(0, 3);
+  const pedirRespaldo = diasSinRespaldo === null || diasSinRespaldo >= DIAS_ENTRE_RESPALDOS;
 
-  // Por categoría cuenta todo lo comprado desde el pago, también con tarjeta.
-  const comprasPeriodo = periodo
-    ? movimientos.filter((m) => m.tipo === 'gasto' && m.fecha >= periodo.pago.fecha && m.fecha <= fechaHoy)
-    : [];
-  const porCategoria = gastosPorCategoria(comprasPeriodo, new Set(mapaCategorias.keys()));
-  const mayor = porCategoria[0]?.totalCentavos ?? 0;
   const recibido = periodo ? periodo.pago.montoCentavos + periodo.otrosIngresosCentavos : 0;
   const porcentaje = recibido > 0 ? Math.min(100, Math.round((periodo!.gastadoCentavos / recibido) * 100)) : 0;
 
+  // Resumen del mes: lo que entró, lo que gastaste (también con tarjeta) y lo que pagaste a deudas.
+  const delMes = movimientos.filter((m) => mesDe(m.fecha) === mes);
+  const suma = (lista: Movimiento[]) => lista.reduce((t, m) => t + m.montoCentavos, 0);
+  const entro = suma(delMes.filter((m) => m.tipo === 'ingreso'));
+  const gastado = suma(delMes.filter((m) => m.tipo === 'gasto'));
+  const aDeudas = suma(delMes.filter((m) => m.tipo === 'pago'));
+
+  const conLibre = porApartar > 0;
+  const cifra = conLibre ? libre : disponible;
+
   return (
     <>
-      <section className={disponible < 0 ? 'tarjeta-principal negativo' : 'tarjeta-principal'}>
-        <p className="etiqueta">Disponible</p>
-        <p className="monto-grande">{formatearDinero(disponible)}</p>
-        {porApartar > 0 ? (
-          <dl className="cifras-heroe">
-            <div>
-              <dt>Pagos en {DIAS_A_APARTAR} días</dt>
-              <dd>{formatearDinero(porApartar)}</dd>
-            </div>
-            <div>
-              <dt>Libre después de pagar</dt>
-              <dd className={libre < 0 ? 'heroe-alerta' : ''}>{formatearDinero(libre)}</dd>
-            </div>
-          </dl>
-        ) : (
-          <p className="nota-principal">
-            {disponible < 0
+      <section className={cifra < 0 ? 'tarjeta-principal negativo' : 'tarjeta-principal'}>
+        <p className="etiqueta">{conLibre ? 'Libre para gastar' : 'Disponible'}</p>
+        <p className="monto-grande">{formatearDinero(cifra)}</p>
+        <p className="nota-principal">
+          {conLibre
+            ? `Tienes ${formatearDinero(disponible)} y ${formatearDinero(porApartar)} ya son de pagos de los próximos ${DIAS_A_APARTAR} días.`
+            : disponible < 0
               ? 'Ha salido más dinero del que has registrado como ingreso.'
               : 'Lo que has recibido menos lo que ha salido.'}
-          </p>
+        </p>
+        {periodo ? (
+          <>
+            <div
+              className="barra barra-clara"
+              role="progressbar"
+              aria-valuenow={porcentaje}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Porcentaje gastado desde tu último pago"
+            >
+              <div className="barra-relleno" style={{ width: `${porcentaje}%` }} />
+            </div>
+            <p className="pie-heroe">
+              <span>Desde tu pago del {fechaCorta(periodo.pago.fecha)}</span>
+              <span>
+                Salió {formatearDinero(periodo.gastadoCentavos)} · {porcentaje}%
+              </span>
+            </p>
+          </>
+        ) : (
+          <button type="button" className="boton boton-heroe" onClick={alAgregarIngreso}>
+            Registrar mi pago
+          </button>
         )}
       </section>
 
@@ -113,24 +128,31 @@ export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVe
         alAbrir={(d) => (d === 'movimientos' ? alVerTodos() : alAbrirDeuda(d))}
       />
 
-      {porConfirmar.length > 0 && (
-        <section className="tarjeta">
-          <h2>Por confirmar</h2>
-          <p className="texto-tenue">Movimientos que se repiten cada mes y ya tocaban.</p>
-          <ul className="lista-confirmar">
+      {(atender.length > 0 || porConfirmar.length > 0 || limites.length > 0 || pedirRespaldo) && (
+        <section className="grupo">
+          <div className="cabecera-grupo">
+            <h2>Requiere atención</h2>
+            {atender.length > 0 && (
+              <button type="button" className="enlace" onClick={alVerDeudas}>
+                Ver deudas
+              </button>
+            )}
+          </div>
+          <ul className="lista tarjeta">
+            {atender.map((p) => (
+              <FilaPago key={`${p.tipo}-${p.id}`} pago={p} color={colorDeuda(datos, p)} alTocar={() => alAbrirDeuda({ tipo: p.tipo, id: p.id })} />
+            ))}
             {porConfirmar.map((r) => {
               const c = r.categoriaId ? mapaCategorias.get(r.categoriaId) : undefined;
               const titulo = r.nota || (r.tipo === 'ingreso' ? (r.esPago ? 'Mi pago' : 'Otro ingreso') : (c?.nombre ?? 'Gasto'));
               return (
-                <li key={r.id}>
-                  <span className="fila-emoji" style={{ background: 'var(--superficie-2)' }}>
-                    {r.tipo === 'ingreso' ? '💵' : (c?.emoji ?? '🔁')}
-                  </span>
+                <li key={r.id} className="fila-confirmar">
+                  {r.tipo === 'ingreso' ? <Insignia color="var(--positivo)" simbolo="ingreso" /> : <InsigniaCategoria categoria={c} />}
                   <span className="fila-texto">
                     <span className="fila-titulo">{titulo}</span>
-                    <span className="fila-detalle">
+                    <span className="fila-detalle envolver">
                       {r.tipo === 'ingreso' ? '+' : '−'}
-                      {formatearDinero(r.montoCentavos)} · tocaba {fechaCorta(r.proxima)}
+                      {formatearDinero(r.montoCentavos)} · se repite, tocaba el {fechaCorta(r.proxima)}
                     </span>
                   </span>
                   <span className="botones-confirmar">
@@ -144,151 +166,77 @@ export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVe
                 </li>
               );
             })}
-          </ul>
-        </section>
-      )}
-
-      {(diasSinRespaldo === null || diasSinRespaldo >= DIAS_ENTRE_RESPALDOS) && (
-        <section className="tarjeta aviso-tarjeta">
-          <div className="aviso-tarjeta-texto">
-            <h2>Haz un respaldo</h2>
-            <p className="texto-tenue">
-              Tus datos solo están en este celular.{' '}
-              {diasSinRespaldo === null ? 'Aún no guardas ninguna copia fuera.' : `Tu último respaldo fue hace ${diasSinRespaldo} días.`}
-            </p>
-          </div>
-          <button type="button" className="boton primario" onClick={alRespaldar}>
-            Hacer respaldo
-          </button>
-        </section>
-      )}
-
-      {proximos.length > 0 && (
-        <section className="tarjeta">
-          <div className="cabecera-seccion">
-            <h2>Próximos pagos</h2>
-            <button type="button" className="enlace" onClick={alVerDeudas}>
-              Ver deudas
-            </button>
-          </div>
-          <ListaProximos datos={datos} alAbrir={alAbrirDeuda} limite={3} />
-        </section>
-      )}
-
-      {limites.length > 0 && (
-        <section className="tarjeta">
-          <h2>Límites de {nombreMes(mesDe(fechaHoy)).split(' ')[0].toLowerCase()}</h2>
-          <ul className="categorias-barras sin-borde">
             {limites.map((l) => (
               <li key={l.categoria.id}>
-                <span className="categoria-nombre">
-                  <span aria-hidden="true">{l.categoria.emoji}</span> {l.categoria.nombre}
-                </span>
-                <span className={l.porcentaje >= 100 ? 'categoria-total texto-peligro' : 'categoria-total'}>
-                  {formatearDinero(l.gastadoCentavos)} <span className="texto-tenue">de {formatearDinero(l.limiteCentavos)}</span>
-                </span>
-                <span className="categoria-barra">
-                  <span
-                    style={{
-                      width: `${Math.min(100, Math.max(3, l.porcentaje))}%`,
-                      background: l.porcentaje >= 100 ? 'var(--peligro)' : l.porcentaje >= 80 ? 'var(--alerta)' : 'var(--primario)',
-                    }}
-                  />
-                </span>
+                <button type="button" className="fila" onClick={alVerAnalisis}>
+                  <InsigniaCategoria categoria={l.categoria} />
+                  <span className="fila-texto">
+                    <span className="fila-titulo">{l.categoria.nombre}</span>
+                    <span className={l.porcentaje >= 100 ? 'fila-detalle texto-peligro' : 'fila-detalle texto-alerta'}>
+                      {l.porcentaje >= 100 ? 'Pasaste el límite del mes' : `Llevas el ${l.porcentaje}% del límite`}
+                    </span>
+                  </span>
+                  <span className="fila-monto">
+                    {formatearDinero(l.gastadoCentavos)}
+                    <span className="fila-monto-sub">de {formatearDinero(l.limiteCentavos)}</span>
+                  </span>
+                </button>
               </li>
             ))}
+            {pedirRespaldo && (
+              <li>
+                <button type="button" className="fila" onClick={alRespaldar}>
+                  <Insignia color="var(--info)" simbolo="subir" />
+                  <span className="fila-texto">
+                    <span className="fila-titulo">Haz un respaldo</span>
+                    <span className="fila-detalle envolver">
+                      {diasSinRespaldo === null
+                        ? 'Tus datos solo están en este celular.'
+                        : `Tu último respaldo fue hace ${diasSinRespaldo} días.`}
+                    </span>
+                  </span>
+                  <span className="opcion-flecha" aria-hidden="true">
+                    <IconoFlecha />
+                  </span>
+                </button>
+              </li>
+            )}
           </ul>
         </section>
       )}
 
-      {periodo ? (
-        <section className="tarjeta">
-          <h2>Desde tu último pago</h2>
-          <p className="texto-tenue">
-            Recibiste {formatearDinero(periodo.pago.montoCentavos)} el {fechaCorta(periodo.pago.fecha)} (
-            {haceCuanto(periodo.pago.fecha, fechaHoy)})
-            {periodo.otrosIngresosCentavos > 0 &&
-              ` y ${formatearDinero(periodo.otrosIngresosCentavos)} en otros ingresos`}
-            .
-          </p>
-          <div
-            className="barra"
-            role="progressbar"
-            aria-valuenow={porcentaje}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label="Porcentaje gastado desde tu último pago"
-          >
-            <div
-              className={porcentaje >= 90 ? 'barra-relleno alerta' : 'barra-relleno'}
-              style={{ width: `${porcentaje}%` }}
-            />
-          </div>
-          <dl className="cifras">
-            <div>
-              <dt>Ha salido</dt>
-              <dd>{formatearDinero(periodo.gastadoCentavos)}</dd>
-            </div>
-            <div>
-              <dt>Del pago</dt>
-              <dd>{porcentaje}%</dd>
-            </div>
-            <div>
-              <dt>Por día</dt>
-              <dd>{formatearDinero(periodo.promedioDiarioCentavos)}</dd>
-            </div>
-          </dl>
-          {periodo.pagosDeudasCentavos > 0 && (
-            <p className="ayuda sin-margen">
-              Incluye {formatearDinero(periodo.pagosDeudasCentavos)} en pagos de tarjetas y préstamos.
-            </p>
-          )}
-
-          {porCategoria.length > 0 && (
-            <ul className="categorias-barras">
-              {porCategoria.map(({ categoriaId, totalCentavos }) => {
-                const c = categoriaId ? mapaCategorias.get(categoriaId) : undefined;
-                return (
-                  <li key={categoriaId ?? 'sin'}>
-                    <span className="categoria-nombre">
-                      <span aria-hidden="true">{c?.emoji ?? '📦'}</span> {c?.nombre ?? 'Sin categoría'}
-                    </span>
-                    <span className="categoria-total">{formatearDinero(totalCentavos)}</span>
-                    <span className="categoria-barra">
-                      <span
-                        style={{
-                          width: `${Math.max(3, (totalCentavos / mayor) * 100)}%`,
-                          background: c?.color ?? 'var(--tenue)',
-                        }}
-                      />
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-      ) : (
-        <section className="tarjeta">
-          <h2>Aún no registras tu pago</h2>
-          <p className="texto-tenue">
-            Cuando te paguen, regístralo como “Mi pago” para ver cuánto llevas gastado desde ese día.
-          </p>
-          <button type="button" className="boton primario" onClick={alAgregarIngreso}>
-            Registrar mi pago
+      <section className="grupo">
+        <div className="cabecera-grupo">
+          <h2>{nombreMes(mes).split(' ')[0]}</h2>
+          <button type="button" className="enlace" onClick={alVerAnalisis}>
+            Ver análisis
           </button>
-        </section>
-      )}
+        </div>
+        <dl className="mosaico">
+          <div>
+            <dt>Entró</dt>
+            <dd className="positivo">{formatearDinero(entro)}</dd>
+          </div>
+          <div>
+            <dt>Gastaste</dt>
+            <dd>{formatearDinero(gastado)}</dd>
+          </div>
+          <div>
+            <dt>A deudas</dt>
+            <dd>{formatearDinero(aDeudas)}</dd>
+          </div>
+        </dl>
+      </section>
 
       {recientes.length > 0 && (
-        <section className="tarjeta">
-          <div className="cabecera-seccion">
+        <section className="grupo">
+          <div className="cabecera-grupo">
             <h2>Últimos movimientos</h2>
             <button type="button" className="enlace" onClick={alVerTodos}>
               Ver todos
             </button>
           </div>
-          <ul className="lista">
+          <ul className="lista tarjeta">
             {recientes.map((m) => (
               <FilaMovimiento key={m.id} movimiento={m} datos={datos} mostrarFecha alTocar={alEditar} />
             ))}
@@ -298,3 +246,30 @@ export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVe
     </>
   );
 }
+
+const mayuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
+export function colorDeuda(datos: Datos, p: { tipo: 'tarjeta' | 'prestamo'; id: string }) {
+  return p.tipo === 'tarjeta' ? (datos.tarjetas.find((t) => t.id === p.id)?.color ?? 'var(--tenue)') : 'var(--primario)';
+}
+
+/** Fila de un pago por hacer: vencido en rojo, en 5 días o menos en naranja. */
+export function FilaPago({ pago: p, color, alTocar }: { pago: ProximoPago; color: string; alTocar: () => void }) {
+  const clase = p.vencido ? 'fila-detalle texto-peligro' : p.dias <= 5 ? 'fila-detalle texto-alerta' : 'fila-detalle';
+  return (
+    <li>
+      <button type="button" className="fila" onClick={alTocar}>
+        <Insignia color={color} simbolo={p.tipo === 'tarjeta' ? 'tarjeta' : 'prestamo'} />
+        <span className="fila-texto">
+          <span className="fila-titulo">{p.tipo === 'tarjeta' ? `Pagar ${p.nombre}` : `Cuota ${p.nombre}`}</span>
+          <span className={clase}>
+            {mayuscula(textoFaltan(p.dias))} · {fechaCorta(p.fecha)}
+            {p.estimado && ' · estimado'}
+          </span>
+        </span>
+        <span className="fila-monto">{formatearDinero(p.montoCentavos)}</span>
+      </button>
+    </li>
+  );
+}
+

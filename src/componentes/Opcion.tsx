@@ -9,14 +9,12 @@ interface Props {
   alTocar: () => void;
 }
 
-/** Fila de una lista de ajustes: ícono, título, detalle y flecha. */
+/** Fila de una lista de ajustes: insignia, título, detalle y flecha. */
 export function Opcion({ icono, titulo, detalle, valor, alTocar }: Props) {
   return (
     <li>
       <button type="button" className="opcion" onClick={alTocar}>
-        <span className="opcion-icono" aria-hidden="true">
-          {icono}
-        </span>
+        {icono}
         <span className="fila-texto">
           <span className="fila-titulo">{titulo}</span>
           {detalle && <span className="fila-detalle">{detalle}</span>}

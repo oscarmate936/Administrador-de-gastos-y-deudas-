@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { formatearDinero } from '../lib/dinero';
 import { fechaCorta } from '../lib/fechas';
 import { marcarSalidaPropia } from '../lib/nativo';
@@ -6,9 +6,25 @@ import type { Lectura } from '../lib/ocr/combinar';
 import type { CapturaPrestamo } from '../lib/ocr/prestamo';
 
 /** Botón que pide una imagen y la lee como captura de un préstamo. */
-export function BotonCapturaPrestamo({ texto, alLeer }: { texto: string; alLeer: (c: CapturaPrestamo) => void }) {
+export function BotonCapturaPrestamo({
+  texto,
+  alLeer,
+  abrirAlInicio,
+}: {
+  texto: ReactNode;
+  alLeer: (c: CapturaPrestamo) => void;
+  /** Pide la imagen en cuanto aparece, sin esperar a que se toque el botón. */
+  abrirAlInicio?: boolean;
+}) {
   const [estado, setEstado] = useState<{ avance: number } | { error: string } | null>(null);
   const entrada = useRef<HTMLInputElement>(null);
+  const yaAbierta = useRef(false);
+  useEffect(() => {
+    if (!abrirAlInicio || yaAbierta.current) return;
+    yaAbierta.current = true;
+    marcarSalidaPropia();
+    entrada.current?.click();
+  }, [abrirAlInicio]);
 
   async function leer(archivo: File) {
     setEstado({ avance: 0 });

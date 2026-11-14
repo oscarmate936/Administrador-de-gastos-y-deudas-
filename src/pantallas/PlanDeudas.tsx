@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Datos, Detalle } from '../datos';
 import { IconoAnterior } from '../componentes/Iconos';
+import { Insignia } from '../componentes/Simbolo';
 import { guardarAjuste, type AjustesPlan } from '../lib/ajustes';
 import { sumarMeses, textoDuracion } from '../lib/deudas';
 import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
@@ -36,7 +37,7 @@ export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
 
   const cabecera = (
     <div className="barra-detalle">
-      <button type="button" className="boton-icono" onClick={alVolver} aria-label="Volver a Deudas">
+      <button type="button" className="boton-icono" onClick={alVolver} aria-label="Volver">
         <IconoAnterior />
       </button>
       <h2>Plan para salir de deudas</h2>
@@ -58,6 +59,8 @@ export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
   const plan = pago ? simularPlan(deudas, pago, metodo) : null;
   const soloMinimos = simularPlan(deudas, minimos, metodo, { reinvertir: false });
   const nombre = (id: string) => deudas.find((d) => d.id === id)!;
+  const colorDe = (a: { tipo: 'tarjeta' | 'prestamo'; id: string }) =>
+    a.tipo === 'tarjeta' ? (datos.tarjetas.find((t) => t.id === a.id)?.color ?? 'var(--tenue)') : 'var(--primario)';
   const fechaFin = (mes: number) => mesCorto(sumarMeses(fechaHoy, mes - 1));
   const sinTasa = deudas.filter((d) => !d.tasaConocida);
   const estimados = deudas.filter((d) => d.minimoEstimado);
@@ -141,9 +144,7 @@ export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
                 return (
                   <li key={id}>
                     <button type="button" className="fila" onClick={() => alAbrir(d.abrir)}>
-                      <span className="fila-emoji" style={{ background: 'var(--superficie-2)' }}>
-                        {d.tipo === 'tarjeta' ? '💳' : '🏦'}
-                      </span>
+                      <Insignia color={colorDe(d.abrir)} simbolo={d.tipo === 'tarjeta' ? 'tarjeta' : 'prestamo'} />
                       <span className="fila-texto">
                         <span className="fila-titulo">{d.nombre}</span>
                         <span className="fila-detalle envolver">

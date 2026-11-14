@@ -100,3 +100,9 @@ export const IconoFlecha = () => (
     <path d="m9 6 6 6-6 6" />
   </Icono>
 );
+
+export const IconoAnalisis = () => (
+  <Icono>
+    <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+  </Icono>
+);

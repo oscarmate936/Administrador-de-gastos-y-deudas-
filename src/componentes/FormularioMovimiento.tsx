@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { db, nuevoId, type Categoria, type Movimiento, type Tarjeta } from '../db';
 import type { Borrador } from '../datos';
 import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
@@ -7,6 +7,7 @@ import { primeraFecha } from '../lib/recurrentes';
 import { sugerirCategoria } from '../lib/estados/categorias';
 import { marcarSalidaPropia } from '../lib/nativo';
 import { Hoja } from './Hoja';
+import { MarcaCategoria, Simbolo } from './Simbolo';
 
 interface Props {
   /** Si viene, se edita ese movimiento; si no, se crea uno nuevo. */
@@ -21,9 +22,11 @@ interface Props {
   alCerrar: () => void;
   /** Se llama con el movimiento guardado (para avisos de límite). */
   alGuardar?: (m: Movimiento) => void;
+  /** Abre la cámara o la galería en cuanto aparece el formulario. */
+  leerAlAbrir?: boolean;
 }
 
-export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarjetas, tarjetaInicial, borrador, alCerrar, alGuardar }: Props) {
+export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarjetas, tarjetaInicial, borrador, alCerrar, alGuardar, leerAlAbrir }: Props) {
   const [tipo, setTipo] = useState<'ingreso' | 'gasto'>(movimiento?.tipo === 'ingreso' ? 'ingreso' : movimiento ? 'gasto' : tipoInicial);
   const [tarjetaId, setTarjetaId] = useState(movimiento ? movimiento.tarjetaId : (borrador?.tarjetaId ?? tarjetaInicial));
   const [cuotas, setCuotas] = useState(String(movimiento?.cuotas ?? 1));
@@ -37,6 +40,13 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
   const [repetir, setRepetir] = useState(false);
   const [lectura, setLectura] = useState<{ estado: 'leyendo'; avance: number } | { estado: 'listo' | 'error'; texto: string } | null>(null);
   const entradaFoto = useRef<HTMLInputElement>(null);
+  const yaAbierta = useRef(false);
+  useEffect(() => {
+    if (!leerAlAbrir || yaAbierta.current) return;
+    yaAbierta.current = true;
+    marcarSalidaPropia();
+    entradaFoto.current?.click();
+  }, [leerAlAbrir]);
 
   async function leerFoto(archivo: File) {
     setLectura({ estado: 'leyendo', avance: 0 });
@@ -166,7 +176,11 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
             >
               {lectura?.estado === 'leyendo'
                 ? `Leyendo la imagen… ${Math.round(lectura.avance * 100)}%`
-                : '📷 Leer ticket o captura'}
+                : (
+                  <>
+                    <Simbolo nombre="camara" tamano={18} /> Leer ticket o captura
+                  </>
+                )}
             </button>
             <input
               ref={entradaFoto}
@@ -221,7 +235,7 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
                   aria-pressed={categoriaId === c.id}
                   onClick={() => setCategoriaId(categoriaId === c.id ? undefined : c.id)}
                 >
-                  <span aria-hidden="true">{c.emoji}</span> {c.nombre}
+                  <MarcaCategoria categoria={c} /> {c.nombre}
                 </button>
               ))}
             </div>
@@ -231,10 +245,10 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
             <legend>¿Qué tipo de ingreso es?</legend>
             <div className="chips">
               <button type="button" className="chip" aria-pressed={esPago} onClick={() => setEsPago(true)}>
-                <span aria-hidden="true">💵</span> Mi pago
+                <Simbolo nombre="ingreso" tamano={16} /> Mi pago
               </button>
               <button type="button" className="chip" aria-pressed={!esPago} onClick={() => setEsPago(false)}>
-                <span aria-hidden="true">➕</span> Otro ingreso
+                <Simbolo nombre="dinero" tamano={16} /> Otro ingreso
               </button>
             </div>
             <p className="ayuda">
@@ -250,11 +264,11 @@ export function FormularioMovimiento({ movimiento, tipoInicial, categorias, tarj
             <legend>¿Con qué pagaste?</legend>
             <div className="chips">
               <button type="button" className="chip" aria-pressed={tarjetaId === undefined} onClick={() => setTarjetaId(undefined)}>
-                <span aria-hidden="true">💵</span> Efectivo o débito
+                <Simbolo nombre="dinero" tamano={16} /> Efectivo o débito
               </button>
               {tarjetas.map((t) => (
                 <button key={t.id} type="button" className="chip" aria-pressed={tarjetaId === t.id} onClick={() => setTarjetaId(t.id)}>
-                  <span aria-hidden="true">💳</span> {t.nombre}
+                  <span className="marca-categoria" style={{ color: t.color }}><Simbolo nombre="tarjeta" tamano={16} /></span> {t.nombre}
                 </button>
               ))}
             </div>

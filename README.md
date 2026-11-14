@@ -12,6 +12,18 @@ El mismo código sale en dos formas:
 En ambas funciona sin conexión y **los datos se guardan solo en el dispositivo**;
 no hay servidor ni cuentas.
 
+## Cómo está organizada
+
+- **Inicio:** lo libre para gastar, el asistente, lo que requiere atención
+  (pagos que vencen, gastos por confirmar, límites, respaldo), el resumen del
+  mes y los últimos movimientos. El engranaje abre **Ajustes**.
+- **Movimientos:** la lista por día, con búsqueda y filtros.
+- **Botón + (centro):** gasto, ingreso, pago de deuda, foto de ticket, estado de
+  cuenta en PDF, captura de préstamo y nuevas tarjetas o préstamos.
+- **Deudas:** total, lo que vence en 30 días y las tarjetas y préstamos.
+- **Análisis:** gráficas, en qué gastas con sus límites, el costo de las deudas
+  y el plan para salir de ellas.
+
 ## Qué hace
 
 **Día a día**
@@ -94,7 +106,8 @@ conviene firmar siempre con una misma llave propia.
 
 - `src/db.ts`: base de datos local (IndexedDB con Dexie) y tipos.
 - `src/lib/`: lógica sin interfaz (dinero en centavos, fechas, resúmenes, tarjetas y préstamos, respaldo), con pruebas.
-- `src/pantallas/`: Inicio, Movimientos, Deudas (con el detalle de cada tarjeta y préstamo) y Ajustes.
+- `src/pantallas/`: Inicio, Movimientos, Deudas (con el detalle de cada tarjeta y préstamo), Análisis y Ajustes.
+- `src/componentes/Simbolo.tsx`: los íconos de línea y las insignias de color; `Agregar.tsx`: la hoja del botón +.
 - `src/componentes/`: formularios y piezas compartidas.
 - `src/lib/estados/`: lectura de estados de cuenta en PDF. `ejemplos.ts` imita la
   posición del texto de cada banco con datos inventados para las pruebas.
