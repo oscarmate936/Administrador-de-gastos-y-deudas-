@@ -313,6 +313,9 @@ export function App() {
         return (
           <Inicio
             datos={d}
+            ajustes={ajustes!}
+            alImportar={() => importarEstado()}
+            alRecordatorios={() => setVerRecordatorios(true)}
             alAgregarIngreso={() => setFormulario({ clase: 'movimiento', tipo: 'ingreso' })}
             alAgregarGasto={() => setFormulario({ clase: 'movimiento', tipo: 'gasto' })}
             alEditar={editar}

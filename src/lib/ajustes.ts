@@ -49,12 +49,29 @@ export interface AjustesApariencia {
   vibracion: boolean;
 }
 
+export type SeccionInicio = 'asistente' | 'atencion' | 'semana' | 'mes' | 'ultimos';
+export const SECCIONES_INICIO: SeccionInicio[] = ['asistente', 'atencion', 'semana', 'mes', 'ultimos'];
+
+export interface AjustesInicio {
+  orden: SeccionInicio[];
+  ocultas: SeccionInicio[];
+  /** La lista de primeros pasos se cerró a mano. */
+  primerosPasosOculto: boolean;
+}
+
+/** Orden guardado, sin secciones desconocidas y con las nuevas al final. */
+export function ordenInicio(a: AjustesInicio): SeccionInicio[] {
+  const validas = a.orden.filter((s, i) => SECCIONES_INICIO.includes(s) && a.orden.indexOf(s) === i);
+  return [...validas, ...SECCIONES_INICIO.filter((s) => !validas.includes(s))];
+}
+
 export interface Ajustes {
   bloqueo: AjustesBloqueo;
   respaldo: AjustesRespaldo;
   recordatorios: AjustesRecordatorios;
   plan: AjustesPlan;
   apariencia: AjustesApariencia;
+  inicio: AjustesInicio;
 }
 
 export const AJUSTES_INICIALES: Ajustes = {
@@ -72,6 +89,7 @@ export const AJUSTES_INICIALES: Ajustes = {
   },
   plan: { metodo: 'avalancha' },
   apariencia: { tema: 'sistema', vibracion: true },
+  inicio: { orden: [...SECCIONES_INICIO], ocultas: [], primerosPasosOculto: false },
 };
 
 export type ClaveAjuste = keyof Ajustes;
