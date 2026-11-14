@@ -1,4 +1,5 @@
-import type { BaseDeDatos, Categoria, Movimiento, Prestamo, Tarjeta, UltimoEstado } from '../db';
+import type { Ajuste, BaseDeDatos, Categoria, Foto, Movimiento, Prestamo, Recurrente, Tarjeta, UltimoEstado } from '../db';
+import { cifrar, esSobre, type Sobre } from './cripto';
 import { esFechaValida } from './fechas';
 
 // Los datos viven solo en el dispositivo, así que el respaldo es la única
@@ -6,31 +7,62 @@ import { esFechaValida } from './fechas';
 
 export interface Respaldo {
   app: 'mis-finanzas';
-  /** La versión 1 no tenía tarjetas ni préstamos; se sigue pudiendo restaurar. */
-  version: 2;
+  /**
+   * 1: ingresos, gastos y categorías. 2: más tarjetas y préstamos.
+   * 3: más ajustes, historial y recurrentes. Todas se pueden restaurar.
+   */
+  version: 3;
   exportadoEn: string;
   movimientos: Movimiento[];
   categorias: Categoria[];
   tarjetas: Tarjeta[];
   prestamos: Prestamo[];
+  ajustes: Ajuste[];
+  historial: Foto[];
+  recurrentes: Recurrente[];
 }
 
+/** Ajustes que no viajan en el respaldo: el bloqueo es de cada dispositivo. */
+const AJUSTES_LOCALES = new Set(['bloqueo']);
+
 export async function crearRespaldo(db: BaseDeDatos): Promise<Respaldo> {
-  const [movimientos, categorias, tarjetas, prestamos] = await Promise.all([
+  const [movimientos, categorias, tarjetas, prestamos, ajustes, historial, recurrentes] = await Promise.all([
     db.movimientos.toArray(),
     db.categorias.toArray(),
     db.tarjetas.toArray(),
     db.prestamos.toArray(),
+    db.ajustes.toArray(),
+    db.historial.toArray(),
+    db.recurrentes.toArray(),
   ]);
   return {
     app: 'mis-finanzas',
-    version: 2,
+    version: 3,
     exportadoEn: new Date().toISOString(),
     movimientos,
     categorias,
     tarjetas,
     prestamos,
+    ajustes: ajustes.filter((a) => !AJUSTES_LOCALES.has(a.id)),
+    historial,
+    recurrentes,
   };
+}
+
+/** El texto del archivo de respaldo, cifrado si se da una contraseña. */
+export async function textoRespaldo(respaldo: Respaldo, clave?: string): Promise<string> {
+  const plano = JSON.stringify(respaldo, null, 2);
+  return clave ? JSON.stringify(await cifrar(plano, clave), null, 2) : plano;
+}
+
+/** Si el archivo es un respaldo cifrado, devuelve el sobre para pedir la contraseña. */
+export function sobreDeRespaldo(texto: string): Sobre | null {
+  try {
+    const datos: unknown = JSON.parse(texto);
+    return esSobre(datos) ? datos : null;
+  } catch {
+    return null;
+  }
 }
 
 const esObjeto = (v: unknown): v is Record<string, unknown> =>
@@ -149,6 +181,56 @@ function leerCategoria(v: unknown, i: number): Categoria {
     emoji: typeof v.emoji === 'string' ? v.emoji : '📦',
     color: typeof v.color === 'string' ? v.color : '#7c8791',
     orden: typeof v.orden === 'number' ? v.orden : i + 1,
+    limiteCentavos: esCentavos(v.limiteCentavos) && v.limiteCentavos > 0 ? v.limiteCentavos : undefined,
+  };
+}
+
+function leerAjuste(v: unknown): Ajuste | null {
+  if (!esObjeto(v) || !esTextoNoVacio(v.id) || AJUSTES_LOCALES.has(v.id) || !esObjeto(v.valor)) return null;
+  return { id: v.id, valor: v.valor };
+}
+
+function leerFoto(v: unknown): Foto | null {
+  if (!esObjeto(v) || typeof v.mes !== 'string' || !/^\d{4}-\d{2}$/.test(v.mes) || !esFechaValida(v.fecha)) return null;
+  if (typeof v.disponibleCentavos !== 'number' || !esCentavos(v.deudaTotalCentavos) || !Array.isArray(v.deudas)) return null;
+  return {
+    mes: v.mes,
+    fecha: v.fecha,
+    disponibleCentavos: Math.round(v.disponibleCentavos),
+    deudaTotalCentavos: v.deudaTotalCentavos,
+    deudas: v.deudas
+      .filter(esObjeto)
+      .filter((d) => (d.tipo === 'tarjeta' || d.tipo === 'prestamo') && esTextoNoVacio(d.id) && typeof d.saldoCentavos === 'number')
+      .map((d) => ({
+        tipo: d.tipo as 'tarjeta' | 'prestamo',
+        id: d.id as string,
+        nombre: typeof d.nombre === 'string' ? d.nombre : '',
+        saldoCentavos: Math.round(d.saldoCentavos as number),
+      })),
+  };
+}
+
+function leerRecurrente(v: unknown, i: number): Recurrente {
+  const error = (campo: string) => new Error(`Movimiento recurrente ${i + 1}: "${campo}" no es válido.`);
+  if (!esObjeto(v) || !esTextoNoVacio(v.id)) throw new Error(`Movimiento recurrente ${i + 1}: formato no válido.`);
+  if (v.tipo !== 'gasto' && v.tipo !== 'ingreso' && v.tipo !== 'pago') throw error('tipo');
+  if (!esCentavos(v.montoCentavos) || v.montoCentavos === 0) throw error('montoCentavos');
+  if (!esDiaDelMes(v.dia)) throw error('dia');
+  if (!esFechaValida(v.proxima)) throw error('proxima');
+  const texto = (x: unknown) => (typeof x === 'string' && x !== '' ? x : undefined);
+  return {
+    id: v.id,
+    tipo: v.tipo,
+    montoCentavos: v.montoCentavos,
+    categoriaId: v.tipo === 'gasto' ? texto(v.categoriaId) : undefined,
+    tarjetaId: v.tipo === 'ingreso' ? undefined : texto(v.tarjetaId),
+    prestamoId: v.tipo === 'pago' ? texto(v.prestamoId) : undefined,
+    esPago: v.tipo === 'ingreso' ? v.esPago === true : undefined,
+    nota: typeof v.nota === 'string' ? v.nota : '',
+    dia: v.dia,
+    proxima: v.proxima,
+    activo: v.activo !== false,
+    creadoEn: typeof v.creadoEn === 'number' ? v.creadoEn : Date.now(),
   };
 }
 
@@ -160,10 +242,13 @@ export function leerRespaldo(texto: string): Respaldo {
   } catch {
     throw new Error('El archivo no es un respaldo válido.');
   }
+  if (esSobre(datos)) {
+    throw new Error('Este respaldo está protegido con contraseña.');
+  }
   if (!esObjeto(datos) || datos.app !== 'mis-finanzas') {
     throw new Error('El archivo no es un respaldo de Mis Finanzas.');
   }
-  if (datos.version !== 1 && datos.version !== 2) {
+  if (datos.version !== 1 && datos.version !== 2 && datos.version !== 3) {
     throw new Error('Este respaldo es de una versión más nueva de la app.');
   }
   if (!Array.isArray(datos.movimientos) || !Array.isArray(datos.categorias)) {
@@ -171,23 +256,34 @@ export function leerRespaldo(texto: string): Respaldo {
   }
   return {
     app: 'mis-finanzas',
-    version: 2,
+    version: 3,
     exportadoEn: typeof datos.exportadoEn === 'string' ? datos.exportadoEn : '',
     movimientos: datos.movimientos.map(leerMovimiento),
     categorias: datos.categorias.map(leerCategoria),
     tarjetas: Array.isArray(datos.tarjetas) ? datos.tarjetas.map(leerTarjeta) : [],
     prestamos: Array.isArray(datos.prestamos) ? datos.prestamos.map(leerPrestamo) : [],
+    ajustes: Array.isArray(datos.ajustes) ? datos.ajustes.map(leerAjuste).filter((a): a is Ajuste => a !== null) : [],
+    historial: Array.isArray(datos.historial) ? datos.historial.map(leerFoto).filter((f): f is Foto => f !== null) : [],
+    recurrentes: Array.isArray(datos.recurrentes) ? datos.recurrentes.map(leerRecurrente) : [],
   };
 }
 
-/** Reemplaza todo lo que hay en el dispositivo por el contenido del respaldo. */
+/**
+ * Reemplaza todo lo que hay en el dispositivo por el contenido del respaldo.
+ * El bloqueo de este dispositivo se conserva.
+ */
 export async function restaurarRespaldo(db: BaseDeDatos, respaldo: Respaldo): Promise<void> {
-  await db.transaction('rw', [db.movimientos, db.categorias, db.tarjetas, db.prestamos], async () => {
-    await Promise.all([db.movimientos.clear(), db.categorias.clear(), db.tarjetas.clear(), db.prestamos.clear()]);
+  const tablas = [db.movimientos, db.categorias, db.tarjetas, db.prestamos, db.ajustes, db.historial, db.recurrentes];
+  await db.transaction('rw', tablas, async () => {
+    const locales = (await db.ajustes.toArray()).filter((a) => AJUSTES_LOCALES.has(a.id));
+    await Promise.all(tablas.map((t) => t.clear()));
     await db.categorias.bulkAdd(respaldo.categorias);
     await db.tarjetas.bulkAdd(respaldo.tarjetas);
     await db.prestamos.bulkAdd(respaldo.prestamos);
     await db.movimientos.bulkAdd(respaldo.movimientos);
+    await db.ajustes.bulkAdd([...respaldo.ajustes, ...locales]);
+    await db.historial.bulkAdd(respaldo.historial);
+    await db.recurrentes.bulkAdd(respaldo.recurrentes);
   });
 }
 

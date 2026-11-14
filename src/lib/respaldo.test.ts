@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import Dexie from 'dexie';
 import { BaseDeDatos, CATEGORIAS_INICIALES } from '../db';
-import { crearRespaldo, leerRespaldo, restaurarRespaldo } from './respaldo';
+import { descifrar } from './cripto';
+import { crearRespaldo, leerRespaldo, restaurarRespaldo, sobreDeRespaldo, textoRespaldo } from './respaldo';
 
 let contador = 0;
 const nuevaBase = () => new BaseDeDatos(`prueba-${++contador}`);
@@ -45,6 +46,44 @@ describe('respaldo', () => {
     expect(await destino.categorias.toArray()).toEqual(await origen.categorias.toArray());
     expect(await destino.tarjetas.toArray()).toEqual(await origen.tarjetas.toArray());
     expect(await destino.prestamos.toArray()).toEqual(await origen.prestamos.toArray());
+  });
+
+  it('la versión 3 lleva ajustes, historial y recurrentes, pero no el bloqueo del dispositivo', async () => {
+    const origen = nuevaBase();
+    await origen.categorias.update('comida', { limiteCentavos: 15000 });
+    await origen.ajustes.bulkAdd([
+      { id: 'plan', valor: { metodo: 'bola', pagoMensualCentavos: 30000 } },
+      { id: 'bloqueo', valor: { activo: true, pinHash: 'x', sal: 'y', huella: true, esperaMinutos: 1 } },
+    ]);
+    await origen.historial.add({
+      mes: '2026-11', fecha: '2026-11-14', disponibleCentavos: -500, deudaTotalCentavos: 1000,
+      deudas: [{ tipo: 'tarjeta', id: 't1', nombre: 'Visa', saldoCentavos: 1000 }],
+    });
+    await origen.recurrentes.add({
+      id: 'r1', tipo: 'gasto', montoCentavos: 2500, categoriaId: 'servicios', nota: 'Internet', dia: 5,
+      proxima: '2026-12-05', activo: true, creadoEn: 1,
+    });
+    const respaldo = leerRespaldo(await textoRespaldo(await crearRespaldo(origen)));
+    expect(respaldo.ajustes.map((a) => a.id)).toEqual(['plan']);
+
+    const destino = nuevaBase();
+    await destino.ajustes.put({ id: 'bloqueo', valor: { activo: true, pinHash: 'local', sal: 's', huella: false, esperaMinutos: 5 } });
+    await restaurarRespaldo(destino, respaldo);
+    expect((await destino.categorias.get('comida'))?.limiteCentavos).toBe(15000);
+    expect(await destino.historial.toArray()).toEqual(await origen.historial.toArray());
+    expect(await destino.recurrentes.toArray()).toEqual(await origen.recurrentes.toArray());
+    expect((await destino.ajustes.get('plan'))?.valor).toEqual({ metodo: 'bola', pagoMensualCentavos: 30000 });
+    expect((await destino.ajustes.get('bloqueo'))?.valor).toMatchObject({ pinHash: 'local' });
+  });
+
+  it('un respaldo con contraseña se reconoce y se abre con ella', async () => {
+    const db = nuevaBase();
+    const texto = await textoRespaldo(await crearRespaldo(db), 'mi clave');
+    expect(() => leerRespaldo(texto)).toThrow('protegido con contraseña');
+    const sobre = sobreDeRespaldo(texto)!;
+    expect(sobre).not.toBeNull();
+    expect(leerRespaldo(await descifrar(sobre, 'mi clave')).categorias.length).toBeGreaterThan(0);
+    expect(sobreDeRespaldo('{"app":"mis-finanzas","version":3}')).toBeNull();
   });
 
   it('restaura un respaldo de la versión 1, sin tarjetas ni préstamos', async () => {
@@ -94,7 +133,7 @@ describe('respaldo', () => {
   it('rechaza archivos que no son respaldos', () => {
     expect(() => leerRespaldo('hola')).toThrow('no es un respaldo válido');
     expect(() => leerRespaldo('{"app":"otra"}')).toThrow('no es un respaldo de Mis Finanzas');
-    expect(() => leerRespaldo('{"app":"mis-finanzas","version":3}')).toThrow('versión más nueva');
+    expect(() => leerRespaldo('{"app":"mis-finanzas","version":4}')).toThrow('versión más nueva');
     expect(() => leerRespaldo('{"app":"mis-finanzas","version":1}')).toThrow('incompleto');
   });
 

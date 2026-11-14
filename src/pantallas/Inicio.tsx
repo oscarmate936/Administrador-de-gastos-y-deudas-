@@ -23,9 +23,15 @@ interface Props {
   alVerTodos: () => void;
   alVerDeudas: () => void;
   alAbrirDeuda: (d: Detalle) => void;
+  /** Días desde el último respaldo externo; null si nunca se hizo. */
+  diasSinRespaldo: number | null;
+  alRespaldar: () => void;
 }
 
-export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVerTodos, alVerDeudas, alAbrirDeuda }: Props) {
+/** Cada cuántos días se recuerda hacer un respaldo. */
+const DIAS_ENTRE_RESPALDOS = 7;
+
+export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVerTodos, alVerDeudas, alAbrirDeuda, diasSinRespaldo, alRespaldar }: Props) {
   const { movimientos, mapaCategorias, tarjetas, prestamos } = datos;
   const fechaHoy = hoy();
 
@@ -93,6 +99,21 @@ export function Inicio({ datos, alAgregarIngreso, alAgregarGasto, alEditar, alVe
           </p>
         )}
       </section>
+
+      {(diasSinRespaldo === null || diasSinRespaldo >= DIAS_ENTRE_RESPALDOS) && (
+        <section className="tarjeta aviso-tarjeta">
+          <div className="aviso-tarjeta-texto">
+            <h2>Haz un respaldo</h2>
+            <p className="texto-tenue">
+              Tus datos solo están en este celular.{' '}
+              {diasSinRespaldo === null ? 'Aún no guardas ninguna copia fuera.' : `Tu último respaldo fue hace ${diasSinRespaldo} días.`}
+            </p>
+          </div>
+          <button type="button" className="boton primario" onClick={alRespaldar}>
+            Hacer respaldo
+          </button>
+        </section>
+      )}
 
       {proximos.length > 0 && (
         <section className="tarjeta">

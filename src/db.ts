@@ -95,6 +95,52 @@ export interface Categoria {
   emoji: string;
   color: string;
   orden: number;
+  /** Límite de gasto al mes (incluye compras con tarjeta). */
+  limiteCentavos?: number;
+}
+
+/** Un ajuste guardado (la forma de cada uno está en lib/ajustes.ts). */
+export interface Ajuste {
+  id: string;
+  valor: unknown;
+}
+
+/** Foto mensual de las deudas y del disponible, para las gráficas. */
+export interface Foto {
+  /** "AAAA-MM" */
+  mes: string;
+  /** Último día en que se actualizó. */
+  fecha: string;
+  disponibleCentavos: number;
+  deudaTotalCentavos: number;
+  deudas: Array<{ tipo: 'tarjeta' | 'prestamo'; id: string; nombre: string; saldoCentavos: number }>;
+}
+
+/** Plantilla de un movimiento que se repite cada mes. */
+export interface Recurrente {
+  id: string;
+  tipo: 'gasto' | 'ingreso' | 'pago';
+  montoCentavos: number;
+  categoriaId?: string;
+  /** Gasto con tarjeta, o pago a una tarjeta. */
+  tarjetaId?: string;
+  /** Cuota de un préstamo. */
+  prestamoId?: string;
+  esPago?: boolean;
+  nota: string;
+  /** Día del mes (1-31). */
+  dia: number;
+  /** Próxima fecha en que toca, "AAAA-MM-DD". */
+  proxima: string;
+  activo: boolean;
+  creadoEn: number;
+}
+
+/** Copia automática del respaldo (solo en la versión web; en Android van a archivos). */
+export interface Copia {
+  id: string;
+  creadaEn: string;
+  texto: string;
 }
 
 export const CATEGORIAS_INICIALES: Categoria[] = [
@@ -122,6 +168,10 @@ export class BaseDeDatos extends Dexie {
   categorias!: EntityTable<Categoria, 'id'>;
   tarjetas!: EntityTable<Tarjeta, 'id'>;
   prestamos!: EntityTable<Prestamo, 'id'>;
+  ajustes!: EntityTable<Ajuste, 'id'>;
+  historial!: EntityTable<Foto, 'mes'>;
+  recurrentes!: EntityTable<Recurrente, 'id'>;
+  copias!: EntityTable<Copia, 'id'>;
 
   constructor(nombre = 'mis-finanzas') {
     super(nombre);
@@ -153,6 +203,13 @@ export class BaseDeDatos extends Dexie {
         .modify((t) => {
           t.fechaSaldo = sumarDias(t.fechaSaldo, -1);
         });
+    });
+    // Versión 4: ajustes, historial de saldos, movimientos recurrentes y copias.
+    this.version(4).stores({
+      ajustes: 'id',
+      historial: 'mes',
+      recurrentes: 'id, proxima',
+      copias: 'id, creadaEn',
     });
     // Solo corre la primera vez que se crea la base en el dispositivo.
     this.on('populate', (tx) => {

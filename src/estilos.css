@@ -746,7 +746,7 @@ button {
   font-size: 0.85rem;
 }
 
-.error {
+.error:not(.aviso) {
   margin-top: -8px;
   color: var(--peligro);
   font-size: 0.9rem;
@@ -1061,4 +1061,266 @@ button {
 .toast .enlace {
   color: inherit;
   text-decoration: underline;
+}
+
+/* ---------- Bloqueo ---------- */
+
+.app.oculta {
+  visibility: hidden;
+}
+
+.pantalla-bloqueo {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: calc(env(safe-area-inset-top) + 48px) 24px calc(env(safe-area-inset-bottom) + 24px);
+  border: 0;
+  background: var(--fondo);
+  color: var(--texto);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.pantalla-bloqueo:not([open]) {
+  display: none;
+}
+
+.pantalla-bloqueo::backdrop {
+  background: var(--fondo);
+}
+
+.pantalla-bloqueo h1 {
+  font-size: 1.4rem;
+  letter-spacing: -0.01em;
+}
+
+.logo-bloqueo {
+  border-radius: 20px;
+  box-shadow: 0 8px 22px rgb(10 70 52 / 25%);
+}
+
+.mensaje-bloqueo {
+  min-height: 1.5em;
+  color: var(--tenue);
+}
+
+.error-texto {
+  color: var(--peligro);
+  font-weight: 600;
+}
+
+.olvido {
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--tenue);
+}
+
+.teclado-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+  margin: 10px 0 6px;
+}
+
+.puntos-pin {
+  display: flex;
+  gap: 16px;
+  min-height: 16px;
+}
+
+.punto-pin {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--tenue);
+  border-radius: 50%;
+  transition: background 0.12s;
+}
+
+.punto-pin.lleno {
+  border-color: var(--primario);
+  background: var(--primario);
+}
+
+.teclas {
+  display: grid;
+  grid-template-columns: repeat(3, 72px);
+  gap: 14px 26px;
+}
+
+.tecla {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--superficie-2);
+  font-size: 1.6rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tecla:active {
+  background: color-mix(in srgb, var(--primario) 22%, var(--superficie-2));
+}
+
+.tecla:disabled {
+  opacity: 0.45;
+}
+
+.tecla-icono {
+  background: none;
+  color: var(--tenue);
+}
+
+.tecla-icono svg {
+  width: 28px;
+  height: 28px;
+}
+
+.tecla-extra {
+  display: grid;
+  place-items: center;
+}
+
+.formulario.centrado {
+  align-items: center;
+  text-align: center;
+}
+
+/* ---------- Opciones e interruptores ---------- */
+
+.opcion {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  text-align: left;
+}
+
+.opcion:active {
+  background: var(--superficie-2);
+}
+
+.opcion-icono {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--superficie-2);
+  font-size: 1.15rem;
+}
+
+.opcion-valor {
+  flex: none;
+  color: var(--tenue);
+  font-size: 0.88rem;
+}
+
+.opcion-flecha {
+  flex: none;
+  color: var(--tenue);
+  opacity: 0.6;
+}
+
+.opcion-flecha svg {
+  width: 18px;
+  height: 18px;
+}
+
+.opcion .fila-detalle {
+  white-space: normal;
+}
+
+.interruptor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.interruptor > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.interruptor .texto-tenue {
+  font-size: 0.85rem;
+}
+
+.interruptor input[role='switch'] {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 48px;
+  height: 28px;
+  margin: 0;
+  border-radius: 99px;
+  background: var(--borde);
+  transition: background 0.15s;
+  cursor: pointer;
+}
+
+.interruptor input[role='switch']::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
+  transition: transform 0.15s;
+}
+
+.interruptor input[role='switch']:checked {
+  background: var(--primario);
+}
+
+.interruptor input[role='switch']:checked::after {
+  transform: translateX(20px);
+}
+
+.campo input[type='password'] {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 14px;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  background: var(--superficie);
+}
+
+.aviso-tarjeta {
+  border-color: color-mix(in srgb, var(--alerta) 45%, var(--borde));
+  background: color-mix(in srgb, var(--alerta) 8%, var(--superficie));
+}
+
+.aviso-tarjeta-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pantalla-bloqueo h1:focus {
+  outline: none;
 }

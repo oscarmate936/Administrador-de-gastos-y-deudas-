@@ -6,11 +6,22 @@ import { FormularioMovimiento } from './componentes/FormularioMovimiento';
 import { FormularioPago } from './componentes/FormularioPago';
 import { FormularioPrestamo } from './componentes/FormularioPrestamo';
 import { FormularioTarjeta } from './componentes/FormularioTarjeta';
+import { Bloqueo } from './componentes/Bloqueo';
 import { RevisionEstado } from './componentes/RevisionEstado';
 import { IconoAjustes, IconoDeudas, IconoInicio, IconoLista, IconoMas } from './componentes/Iconos';
 import { ErrorEstado, leerEstadoTarjeta } from './lib/estados/leer';
 import { extraerPaginas } from './lib/estados/pdf';
-import { escucharBotonAtras } from './lib/nativo';
+import { useAjustes } from './lib/ajustes';
+import { copiarSiToca } from './lib/copias';
+import { hoy } from './lib/fechas';
+import { fotoDeHoy, guardarFoto } from './lib/historial';
+import {
+  consumirSalidaPropia,
+  escucharBotonAtras,
+  escucharPrimerPlano,
+  marcarSalidaPropia,
+  pantallaPrivada,
+} from './lib/nativo';
 import { Ajustes } from './pantallas/Ajustes';
 import { Deudas } from './pantallas/Deudas';
 import { DetallePrestamo } from './pantallas/DetallePrestamo';
@@ -41,6 +52,33 @@ export function App() {
   const tarjetas = useLiveQuery(() => db.tarjetas.toArray(), []);
   const prestamos = useLiveQuery(() => db.prestamos.toArray(), []);
 
+  const ajustes = useAjustes();
+  // null hasta saber si hay bloqueo, para no mostrar nada antes de tiempo.
+  const [bloqueado, setBloqueado] = useState<boolean | null>(null);
+  if (ajustes && bloqueado === null) setBloqueado(ajustes.bloqueo.activo);
+  if (ajustes && bloqueado && !ajustes.bloqueo.activo) setBloqueado(false);
+
+  // Volver a pedir el PIN si la app estuvo en segundo plano más del tiempo elegido.
+  const ajustesActuales = useRef(ajustes);
+  ajustesActuales.current = ajustes;
+  useEffect(() => {
+    let enFondoDesde = 0;
+    return escucharPrimerPlano((activa) => {
+      if (!activa) {
+        enFondoDesde = Date.now();
+        return;
+      }
+      const b = ajustesActuales.current?.bloqueo;
+      if (consumirSalidaPropia() || !b?.activo || enFondoDesde === 0) return;
+      if (Date.now() - enFondoDesde >= b.esperaMinutos * 60_000) setBloqueado(true);
+    });
+  }, []);
+
+  const bloqueoActivo = ajustes?.bloqueo.activo;
+  useEffect(() => {
+    if (bloqueoActivo !== undefined) void pantallaPrivada(bloqueoActivo);
+  }, [bloqueoActivo]);
+
   const datos = useMemo<Datos | null>(() => {
     if (!movimientos || !categorias || !tarjetas || !prestamos) return null;
     return {
@@ -52,6 +90,18 @@ export function App() {
     };
   }, [movimientos, categorias, tarjetas, prestamos]);
 
+  // Foto mensual de deudas y disponible para las gráficas, y copia diaria.
+  useEffect(() => {
+    if (!datos) return;
+    const t = setTimeout(() => void guardarFoto(db, fotoDeHoy(datos, hoy())), 800);
+    return () => clearTimeout(t);
+  }, [datos]);
+  const desbloqueada = bloqueado === false;
+  const hayDatos = !!datos && datos.movimientos.length + datos.tarjetas.length + datos.prestamos.length > 0;
+  useEffect(() => {
+    if (desbloqueada && hayDatos) void copiarSiToca().catch(() => undefined);
+  }, [desbloqueada, hayDatos]);
+
   // Botón Atrás de Android: cierra el formulario abierto, luego el detalle,
   // luego vuelve a Inicio y solo entonces deja que la app se minimice.
   const estado = useRef({ pestana, detalle });
@@ -59,6 +109,7 @@ export function App() {
   useEffect(
     () =>
       escucharBotonAtras(() => {
+        if (document.querySelector('dialog.pantalla-bloqueo[open]')) return false;
         const hoja = document.querySelector('dialog[open]');
         if (hoja) {
           hoja.dispatchEvent(new Event('cancel', { cancelable: true }));
@@ -103,6 +154,7 @@ export function App() {
   const importarEstado = (tarjetaId?: string) => {
     tarjetaParaImportar.current = tarjetaId;
     setAviso(null);
+    marcarSalidaPropia();
     entradaPdf.current?.click();
   };
   async function leerPdf(archivo: File) {
@@ -117,6 +169,10 @@ export function App() {
       setLeyendo(false);
     }
   }
+
+  // Días desde el último respaldo externo (null = nunca), para el aviso de Inicio.
+  const ultimoRespaldo = ajustes?.respaldo.ultimoExterno;
+  const diasSinRespaldo = ultimoRespaldo ? Math.floor((Date.now() - Date.parse(ultimoRespaldo)) / 86_400_000) : null;
 
   const tarjetaAbierta = detalle?.tipo === 'tarjeta' ? datos?.tarjetas.find((t) => t.id === detalle.id) : undefined;
   const prestamoAbierto = detalle?.tipo === 'prestamo' ? datos?.prestamos.find((p) => p.id === detalle.id) : undefined;
@@ -133,6 +189,8 @@ export function App() {
             alVerTodos={() => irA('movimientos')}
             alVerDeudas={() => irA('deudas')}
             alAbrirDeuda={abrirDeuda}
+            diasSinRespaldo={diasSinRespaldo}
+            alRespaldar={() => irA('ajustes')}
           />
         );
       case 'movimientos':
@@ -175,7 +233,7 @@ export function App() {
           />
         );
       case 'ajustes':
-        return <Ajustes categorias={d.categorias} totalMovimientos={d.movimientos.length} />;
+        return <Ajustes categorias={d.categorias} totalMovimientos={d.movimientos.length} ajustes={ajustes!} />;
     }
   }
 
@@ -230,8 +288,11 @@ export function App() {
 
   const titulo = pestana === 'inicio' ? 'Mis Finanzas' : PESTANAS.find((p) => p.id === pestana)!.nombre;
 
+  if (!ajustes || bloqueado === null) return <div className="app" />;
+
   return (
-    <div className="app">
+    <div className={bloqueado ? 'app oculta' : 'app'}>
+      {bloqueado && <Bloqueo ajustes={ajustes.bloqueo} alDesbloquear={() => setBloqueado(false)} />}
       <header className="cabecera">
         <h1>{titulo}</h1>
       </header>
