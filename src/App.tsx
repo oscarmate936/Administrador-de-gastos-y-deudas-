@@ -15,10 +15,12 @@ import { Opcion } from './componentes/Opcion';
 import { RevisionEstado } from './componentes/RevisionEstado';
 import { IconoAnalisis, IconoAnterior, IconoDeudas, IconoInicio, IconoLista, IconoMas } from './componentes/Iconos';
 import { Agregar } from './componentes/Agregar';
+import { Hoja } from './componentes/Hoja';
+import { deudaTotalActual, hitosNuevos, prestamosSaldados, progresoDeudas } from './lib/progreso';
 import { Insignia, InsigniaCategoria, Simbolo } from './componentes/Simbolo';
 import { ErrorEstado, leerEstadoTarjeta } from './lib/estados/leer';
 import { extraerPaginas } from './lib/estados/pdf';
-import { useAjustes } from './lib/ajustes';
+import { guardarAjuste, useAjustes } from './lib/ajustes';
 import { copiarSiToca } from './lib/copias';
 import { hoy, mesDe } from './lib/fechas';
 import { formatearDinero } from './lib/dinero';
@@ -40,6 +42,7 @@ import {
 } from './lib/nativo';
 import { Ajustes } from './pantallas/Ajustes';
 import { Analisis } from './pantallas/Analisis';
+import { Calendario } from './pantallas/Calendario';
 import { Deudas } from './pantallas/Deudas';
 import { DetallePrestamo } from './pantallas/DetallePrestamo';
 import { DetalleTarjeta } from './pantallas/DetalleTarjeta';
@@ -238,6 +241,37 @@ export function App() {
     if (ajustesActuales.current?.apariencia.vibracion !== false) void vibrar();
   };
 
+  // Metas del camino a «libre de deudas»: se celebran una sola vez.
+  const [celebracion, setCelebracion] = useState<{ titulo: string; texto: string } | null>(null);
+  const metas = ajustes?.metas;
+  useEffect(() => {
+    if (!datos || !metas || bloqueado !== false) return;
+    const fecha = hoy();
+    const saldado = prestamosSaldados(datos.prestamos, datos.movimientos, fecha).find((p) => !metas.prestamos.includes(p.id));
+    if (saldado) {
+      void guardarAjuste('metas', { prestamos: [...metas.prestamos, saldado.id] });
+      setCelebracion({ titulo: `¡Terminaste de pagar ${saldado.nombre}!`, texto: 'Un préstamo menos. Lo que pagabas de cuota ahora puede ir a tu siguiente deuda.' });
+      void vibrar('exito');
+      return;
+    }
+    if (datos.tarjetas.length + datos.prestamos.length === 0) return;
+    const progreso = progresoDeudas(datos.historial, deudaTotalActual(datos.tarjetas, datos.prestamos, datos.movimientos, fecha));
+    if (!progreso) return;
+    const nuevos = hitosNuevos(progreso.porcentaje, metas.hitos);
+    if (nuevos.length === 0) return;
+    const hito = nuevos[nuevos.length - 1];
+    void guardarAjuste('metas', { hitos: [...metas.hitos, ...nuevos] });
+    setCelebracion(
+      hito === 100
+        ? { titulo: '¡Libre de deudas!', texto: 'Hoy no debes nada en tus tarjetas ni en tus préstamos. Lo lograste.' }
+        : {
+            titulo: `¡Llevas el ${hito}% pagado!`,
+            texto: `Bajaste ${formatearDinero(progreso.pagadoCentavos)} desde lo más alto que debiste. Sigue así.`,
+          },
+    );
+    void vibrar('exito');
+  }, [datos, metas, bloqueado]);
+
   // Atajos del ícono de la app. Con bloqueo, esperan a que se desbloquee.
   const [atajo, setAtajo] = useState<Atajo | null>(null);
   useEffect(() => escucharAtajos(setAtajo), []);
@@ -261,7 +295,7 @@ export function App() {
   };
   const abrirDeuda = (d: Detalle) => {
     // El plan se abre encima de la sección actual; tarjetas y préstamos, dentro de Deudas.
-    if (d.tipo !== 'plan') setPestana('deudas');
+    if (d.tipo === 'tarjeta' || d.tipo === 'prestamo') setPestana('deudas');
     setDetalle(d);
     window.scrollTo(0, 0);
   };
@@ -307,6 +341,9 @@ export function App() {
   function contenido(d: Datos) {
     if (detalle?.tipo === 'plan') {
       return <PlanDeudas datos={d} ajustes={ajustes!.plan} alVolver={() => setDetalle(null)} alAbrir={abrirDeuda} />;
+    }
+    if (detalle?.tipo === 'calendario') {
+      return <Calendario datos={d} alVolver={() => setDetalle(null)} alAbrir={abrirDeuda} />;
     }
     switch (pestana) {
       case 'inicio':
@@ -367,6 +404,7 @@ export function App() {
             alNuevaTarjeta={() => setFormulario({ clase: 'tarjeta' })}
             alNuevoPrestamo={() => setFormulario({ clase: 'prestamo' })}
             alImportar={() => importarEstado()}
+            plan={ajustes!.plan}
           />
         );
       case 'ajustes':
@@ -572,6 +610,22 @@ export function App() {
         />
       )}
       {formulario && datos && hoja(formulario, datos)}
+      {celebracion && !formulario && (
+        <Hoja titulo="Meta cumplida" alCerrar={() => setCelebracion(null)}>
+          <div className="formulario celebracion">
+            <span className="celebracion-icono" aria-hidden="true">
+              <Simbolo nombre="objetivo" tamano={40} />
+            </span>
+            <p className="celebracion-titulo">{celebracion.titulo}</p>
+            <p className="texto-tenue">{celebracion.texto}</p>
+            <div className="acciones">
+              <button type="button" className="boton primario" onClick={() => setCelebracion(null)}>
+                ¡Bien!
+              </button>
+            </div>
+          </div>
+        </Hoja>
+      )}
       {recurrenteAbierto && datos && (
         <FormularioRecurrente
           recurrente={recurrenteAbierto}

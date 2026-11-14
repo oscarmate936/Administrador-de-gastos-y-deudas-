@@ -65,6 +65,13 @@ export function ordenInicio(a: AjustesInicio): SeccionInicio[] {
   return [...validas, ...SECCIONES_INICIO.filter((s) => !validas.includes(s))];
 }
 
+export interface AjustesMetas {
+  /** Porcentajes del camino a «libre de deudas» ya celebrados. */
+  hitos: number[];
+  /** Préstamos cuya liquidación ya se celebró. */
+  prestamos: string[];
+}
+
 export interface Ajustes {
   bloqueo: AjustesBloqueo;
   respaldo: AjustesRespaldo;
@@ -72,6 +79,7 @@ export interface Ajustes {
   plan: AjustesPlan;
   apariencia: AjustesApariencia;
   inicio: AjustesInicio;
+  metas: AjustesMetas;
 }
 
 export const AJUSTES_INICIALES: Ajustes = {
@@ -90,6 +98,7 @@ export const AJUSTES_INICIALES: Ajustes = {
   plan: { metodo: 'avalancha' },
   apariencia: { tema: 'sistema', vibracion: true },
   inicio: { orden: [...SECCIONES_INICIO], ocultas: [], primerosPasosOculto: false },
+  metas: { hitos: [], prestamos: [] },
 };
 
 export type ClaveAjuste = keyof Ajustes;

@@ -31,7 +31,7 @@ export type Formulario =
   | { clase: 'estado'; estado: EstadoCuentaTarjeta; tarjetaId?: string };
 
 /** Pantalla abierta encima de una sección (detalle de una deuda o el plan). */
-export type Detalle = { tipo: 'tarjeta' | 'prestamo'; id: string } | { tipo: 'plan' };
+export type Detalle = { tipo: 'tarjeta' | 'prestamo'; id: string } | { tipo: 'plan' } | { tipo: 'calendario' };
 
 /** Abre el formulario que corresponde para editar un movimiento ya guardado. */
 export function formularioParaEditar(m: Movimiento): Formulario {

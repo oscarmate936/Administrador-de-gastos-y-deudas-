@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import type { Datos, Detalle, Formulario } from '../datos';
 import { Asistente } from '../componentes/Asistente';
+import { Ayuda } from '../componentes/Ayuda';
 import { db, type Movimiento } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { Hoja } from '../componentes/Hoja';
@@ -254,7 +255,10 @@ export function Inicio(props: Props) {
   return (
     <>
       <section className={cifra < 0 ? 'tarjeta-principal negativo' : 'tarjeta-principal'}>
-        <p className="etiqueta">{conLibre ? 'Libre para gastar' : 'Disponible'}</p>
+        <p className="etiqueta">
+          {conLibre ? 'Libre para gastar' : 'Disponible'}
+          {conLibre && <Ayuda termino="libre para gastar" clara />}
+        </p>
         <p className="monto-grande">{formatearDinero(cifra)}</p>
         <p className="nota-principal">
           {conLibre

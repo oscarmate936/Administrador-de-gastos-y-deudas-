@@ -2905,3 +2905,195 @@ button.plastico:active {
 .boton-icono:disabled {
   opacity: 0.35;
 }
+
+/* =====================================================================
+   1.7: progreso de deudas, calendario, explicaciones y celebraciones.
+   ===================================================================== */
+
+.aviso.alerta {
+  background: color-mix(in srgb, var(--alerta) 15%, transparent);
+}
+
+.ayuda-i {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: -6px -4px -6px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--tenue);
+  vertical-align: middle;
+}
+
+.ayuda-i.clara {
+  color: rgb(255 255 255 / 85%);
+}
+
+.tarjeta-principal .etiqueta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.texto-ayuda {
+  font-size: 1.02rem;
+  line-height: 1.55;
+}
+
+.progreso-deudas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--divisor);
+}
+
+.progreso-cabecera {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+  color: var(--tenue);
+}
+
+.progreso-cabecera strong {
+  color: var(--positivo);
+}
+
+.progreso-deudas .barra {
+  position: relative;
+  height: 10px;
+}
+
+.progreso-deudas .barra-relleno {
+  background: var(--positivo);
+}
+
+.marca-hito {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--superficie);
+}
+
+.calendario {
+  gap: 10px;
+}
+
+.calendario-rejilla {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.calendario-fila {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.calendario-cabecera {
+  text-align: center;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--tenue);
+}
+
+.calendario-fila > span {
+  display: block;
+  min-width: 0;
+}
+
+.calendario-dia {
+  width: 100%;
+  aspect-ratio: 1 / 1.05;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+}
+
+.calendario-dia.vacio {
+  visibility: hidden;
+}
+
+.calendario-dia.pasado .calendario-numero {
+  color: var(--tenue);
+}
+
+.calendario-dia.hoy .calendario-numero {
+  color: var(--primario);
+  font-weight: 800;
+}
+
+.calendario-dia[aria-pressed='true'] {
+  background: var(--primario);
+  color: var(--sobre-primario);
+}
+
+.calendario-dia[aria-pressed='true'] .calendario-numero {
+  color: inherit;
+}
+
+.calendario-numero {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.calendario-puntos {
+  display: flex;
+  gap: 3px;
+  height: 6px;
+}
+
+.punto-evento {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.punto-evento.corte {
+  border-radius: 1px;
+}
+
+.calendario-dia[aria-pressed='true'] .punto-evento {
+  outline: 1.5px solid var(--sobre-primario);
+}
+
+.celebracion {
+  align-items: center;
+  text-align: center;
+}
+
+.celebracion-icono {
+  width: 76px;
+  height: 76px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primario-suave);
+  color: var(--primario);
+}
+
+.celebracion-titulo {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.celebracion .acciones {
+  align-self: stretch;
+}

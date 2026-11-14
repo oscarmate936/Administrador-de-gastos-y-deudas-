@@ -3,6 +3,7 @@ import type { Movimiento, Tarjeta } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { IconoAnterior } from '../componentes/Iconos';
 import { Plastico } from './Deudas';
+import { Ayuda } from '../componentes/Ayuda';
 import { estadoTarjeta, sumarMeses } from '../lib/deudas';
 import { formatearDinero } from '../lib/dinero';
 import { fechaCorta, hoy, mesCorto, textoFaltan } from '../lib/fechas';
@@ -67,25 +68,25 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
         )}
         <dl className="datos-lista">
           <div>
-            <dt>Último corte</dt>
+            <dt>Último corte <Ayuda termino="corte" /></dt>
             <dd>{fechaCorta(e.corteAnterior)}</dd>
           </div>
           <div>
-            <dt>Último día de pago</dt>
+            <dt>Último día de pago <Ayuda termino="último día de pago" /></dt>
             <dd>
               {fechaCorta(e.fechaLimite)}
               {e.pendienteCentavos > 0 && <span className={e.vencido ? 'texto-peligro' : 'texto-tenue'}> · {textoFaltan(e.diasParaLimite)}</span>}
             </dd>
           </div>
           <div>
-            <dt>Pago de contado pendiente</dt>
+            <dt>Pago de contado pendiente <Ayuda termino="pago de contado" /></dt>
             <dd className={e.pendienteCentavos > 0 ? '' : 'positivo'}>
               {e.pendienteCentavos > 0 ? formatearDinero(e.pendienteCentavos) : 'Pagado'}
             </dd>
           </div>
           {e.pagoMinimoCentavos !== null && (
             <div>
-              <dt>Pago mínimo pendiente</dt>
+              <dt>Pago mínimo pendiente <Ayuda termino="pago mínimo" /></dt>
               <dd>{e.pagoMinimoCentavos > 0 ? formatearDinero(e.pagoMinimoCentavos) : 'Cubierto'}</dd>
             </div>
           )}
@@ -117,7 +118,7 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
 
       {e.planes.length > 0 && (
         <section className="tarjeta">
-          <h2>Compras a plazos y extrafinanciamiento</h2>
+          <h2>Compras a plazos y extrafinanciamiento <Ayuda termino="extrafinanciamiento" /></h2>
           <ul className="lista-planes">
             {e.planes.map((p, i) => {
               const fin = sumarMeses(e.corteAnterior, p.restantes);

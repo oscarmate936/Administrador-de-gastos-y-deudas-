@@ -6,6 +6,7 @@ import type { Datos } from '../datos';
 import type { Movimiento, Prestamo } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { Simbolo } from '../componentes/Simbolo';
+import { Ayuda } from '../componentes/Ayuda';
 import { IconoAnterior } from '../componentes/Iconos';
 import { ahorroPorAbono, estadoPrestamo, textoDuracion } from '../lib/deudas';
 import { formatearDinero, textoACentavos } from '../lib/dinero';
@@ -58,7 +59,7 @@ export function DetallePrestamo({ prestamo: p, datos, alVolver, alEditarPrestamo
       <section className="tarjeta">
         {pagado ? (
           <>
-            <h2>¡Préstamo pagado! 🎉</h2>
+            <h2>¡Préstamo pagado!</h2>
             <p className="texto-tenue">Ya no debes nada de este préstamo.</p>
           </>
         ) : (
@@ -104,7 +105,7 @@ export function DetallePrestamo({ prestamo: p, datos, alVolver, alEditarPrestamo
                 <dd>{e.cuotasPagadas}</dd>
               </div>
               <div>
-                <dt>Tasa anual</dt>
+                <dt>Tasa anual <Ayuda termino="tasa anual" /></dt>
                 <dd>{p.tasaAnual > 0 ? `${p.tasaAnual}%` : 'Sin registrar'}</dd>
               </div>
             </dl>
@@ -122,7 +123,7 @@ export function DetallePrestamo({ prestamo: p, datos, alVolver, alEditarPrestamo
 
       {!pagado && (
         <section className="tarjeta">
-          <h2>¿Y si abonas extra?</h2>
+          <h2>¿Y si abonas extra? <Ayuda termino="abono extra" /></h2>
           <label className="campo">
             <span>Abono extra a capital</span>
             <input type="text" inputMode="decimal" placeholder="0.00" value={simulado} onChange={(ev) => setSimulado(ev.target.value)} />

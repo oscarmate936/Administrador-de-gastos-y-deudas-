@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Datos, Detalle } from '../datos';
 import { IconoAnterior } from '../componentes/Iconos';
 import { Insignia } from '../componentes/Simbolo';
+import { Ayuda } from '../componentes/Ayuda';
 import { guardarAjuste, type AjustesPlan } from '../lib/ajustes';
 import { sumarMeses, textoDuracion } from '../lib/deudas';
 import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
@@ -14,6 +15,9 @@ interface Props {
   alVolver: () => void;
   alAbrir: (d: Detalle) => void;
 }
+
+/** Pagos extra que se comparan: $20, $50 y $100 al mes. */
+const EXTRAS = [2000, 5000, 10000];
 
 /** Redondea hacia arriba a los siguientes $10. */
 const redondear = (centavos: number) => Math.ceil(centavos / 1000) * 1000;
@@ -49,7 +53,7 @@ export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
       <>
         {cabecera}
         <section className="tarjeta">
-          <h2>No tienes deudas con saldo 🎉</h2>
+          <h2>No tienes deudas con saldo</h2>
           <p className="texto-tenue">Cuando registres tarjetas o préstamos con saldo, aquí verás el mejor orden para pagarlos.</p>
         </section>
       </>
@@ -87,6 +91,7 @@ export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
           </button>
         </div>
         <p className="ayuda sin-margen">
+          <Ayuda termino={metodo === 'avalancha' ? 'avalancha' : 'bola de nieve'} />{' '}
           {metodo === 'avalancha'
             ? 'Recomendado: lo extra va primero a la deuda con la tasa más alta. Es la forma de pagar menos intereses.'
             : 'Lo extra va primero a la deuda más pequeña. Pagas algo más de intereses, pero terminas deudas más rápido y eso motiva.'}
@@ -110,6 +115,33 @@ export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
             <p className="nota-principal">
               {textoDuracion(plan.meses)} · pagarías cerca de {formatearDinero(plan.interesesCentavos)} en intereses
             </p>
+          </section>
+
+          <section className="grupo">
+            <h2 className="cabecera-grupo">¿Y si pagas un poco más?</h2>
+            <ul className="lista tarjeta">
+              {EXTRAS.map((extra) => {
+                const otro = simularPlan(deudas, pago! + extra, metodo);
+                const meses = otro.meses !== null ? plan.meses! - otro.meses : 0;
+                const ahorro = plan.interesesCentavos - otro.interesesCentavos;
+                return (
+                  <li key={extra}>
+                    <button type="button" className="fila" onClick={() => cambiarPago(centavosATexto(pago! + extra))}>
+                      <Insignia color="var(--primario)" simbolo="ingreso" />
+                      <span className="fila-texto">
+                        <span className="fila-titulo">+{formatearDinero(extra)} al mes</span>
+                        <span className="fila-detalle envolver">
+                          {meses > 0
+                            ? `Terminas ${textoDuracion(meses)} antes y ahorras cerca de ${formatearDinero(ahorro)}`
+                            : `Ahorras cerca de ${formatearDinero(ahorro)} en intereses`}
+                        </span>
+                      </span>
+                      <span className="fila-monto-sub">Usar</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </section>
 
           <section className="tarjeta">

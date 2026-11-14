@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { db, nuevoId, type Movimiento, type Prestamo, type Tarjeta } from '../db';
-import { ahorroPorAbono, capitalSugerido, estadoPrestamo, estadoTarjeta, textoDuracion } from '../lib/deudas';
+import { ahorroPorAbono, capitalSugerido, estadoPrestamo, estadoTarjeta, interesMensual, textoDuracion } from '../lib/deudas';
 import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
 import { esFechaValida, hoy } from '../lib/fechas';
 import { Hoja } from './Hoja';
@@ -147,6 +147,13 @@ export function FormularioPago(props: Props) {
 
         {eTarjeta && (
           <div className="chips">
+            {eTarjeta.pagoMinimoCentavos !== null &&
+              eTarjeta.pagoMinimoCentavos > 0 &&
+              eTarjeta.pagoMinimoCentavos < eTarjeta.pendienteCentavos && (
+                <button type="button" className="chip" onClick={() => cambiarMonto(centavosATexto(eTarjeta.pagoMinimoCentavos!))}>
+                  Pago mínimo {formatearDinero(eTarjeta.pagoMinimoCentavos)}
+                </button>
+              )}
             {eTarjeta.pendienteCentavos > 0 && (
               <button type="button" className="chip" onClick={() => cambiarMonto(centavosATexto(eTarjeta.pendienteCentavos))}>
                 Pago de contado {formatearDinero(eTarjeta.pendienteCentavos)}
@@ -165,6 +172,15 @@ export function FormularioPago(props: Props) {
               </button>
             )}
           </div>
+        )}
+
+        {eTarjeta && tarjeta && eTarjeta.pendienteCentavos > 0 && montoCentavos !== null && montoCentavos > 0 && (
+          <ConsecuenciaPago
+            pendienteCentavos={eTarjeta.pendienteCentavos}
+            minimoCentavos={eTarjeta.pagoMinimoCentavos}
+            pagoCentavos={montoCentavos}
+            tasaAnual={tarjeta.tasaAnual}
+          />
         )}
 
         {prestamo && (
@@ -220,5 +236,34 @@ export function FormularioPago(props: Props) {
         </div>
       </form>
     </Hoja>
+  );
+}
+
+/** Qué pasa con lo que queda sin pagar del estado de cuenta. */
+function ConsecuenciaPago({
+  pendienteCentavos,
+  minimoCentavos,
+  pagoCentavos,
+  tasaAnual,
+}: {
+  pendienteCentavos: number;
+  minimoCentavos: number | null;
+  pagoCentavos: number;
+  tasaAnual?: number;
+}) {
+  if (pagoCentavos >= pendienteCentavos) {
+    return <p className="aviso">Pagas el estado de cuenta completo: no te cobran intereses por él.</p>;
+  }
+  const queda = pendienteCentavos - pagoCentavos;
+  const noCubreMinimo = minimoCentavos !== null && pagoCentavos < minimoCentavos;
+  const intereses = tasaAnual ? interesMensual(queda, tasaAnual) : null;
+  return (
+    <p className={noCubreMinimo ? 'aviso error' : 'aviso alerta'}>
+      Quedan {formatearDinero(queda)} sin pagar del estado de cuenta.{' '}
+      {intereses !== null
+        ? `Te cobrarían al menos ${formatearDinero(intereses)} de intereses en el próximo corte.`
+        : 'Generan intereses; agrega la tasa de la tarjeta para calcular cuánto.'}
+      {noCubreMinimo && ` No cubre el pago mínimo (${formatearDinero(minimoCentavos!)}): también te cobrarían mora.`}
+    </p>
   );
 }

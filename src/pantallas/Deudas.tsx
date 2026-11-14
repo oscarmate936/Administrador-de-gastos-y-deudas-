@@ -2,8 +2,11 @@ import { useState } from 'react';
 import type { Datos, Detalle } from '../datos';
 import type { Prestamo, Tarjeta } from '../db';
 import { Insignia, Simbolo } from '../componentes/Simbolo';
+import type { AjustesPlan } from '../lib/ajustes';
 import { costosEntre } from '../lib/costos';
-import { estadoPrestamo, estadoTarjeta, proximosPagos, totalPorPagar } from '../lib/deudas';
+import { estadoPrestamo, estadoTarjeta, proximosPagos, sumarMeses, totalPorPagar } from '../lib/deudas';
+import { deudasParaPlan, simularPlan, sumaMinimos } from '../lib/plan';
+import { progresoDeudas } from '../lib/progreso';
 import { formatearDinero } from '../lib/dinero';
 import { fechaCorta, hoy, mesCorto, mesDe } from '../lib/fechas';
 
@@ -13,12 +16,15 @@ interface Props {
   alNuevaTarjeta: () => void;
   alNuevoPrestamo: () => void;
   alImportar: () => void;
+  plan: AjustesPlan;
 }
 
-export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImportar }: Props) {
+export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImportar, plan }: Props) {
   const { tarjetas, prestamos, movimientos } = datos;
   const fechaHoy = hoy();
-  const [vista, setVista] = useState<'tarjetas' | 'prestamos'>(tarjetas.length === 0 && prestamos.length > 0 ? 'prestamos' : 'tarjetas');
+  // Sin elección propia se muestra la pestaña que tiene algo (préstamos si no hay tarjetas).
+  const [elegida, setVista] = useState<'tarjetas' | 'prestamos' | null>(null);
+  const vista = elegida ?? (tarjetas.length === 0 && prestamos.length > 0 ? 'prestamos' : 'tarjetas');
 
   if (tarjetas.length === 0 && prestamos.length === 0) {
     return (
@@ -50,6 +56,11 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImpo
   const vencidos = proximos.filter((p) => p.vencido);
   const porPagar30 = totalPorPagar(proximos, 30);
   const costoMes = costosEntre(datos, `${mesDe(fechaHoy)}-01`, fechaHoy);
+  const progreso = progresoDeudas(datos.historial, deudaTotal);
+  const deudasPlan = deudasParaPlan(datos, fechaHoy);
+  const pagoPlan = plan.pagoMensualCentavos ?? Math.ceil((sumaMinimos(deudasPlan) * 1.25) / 1000) * 1000;
+  const resultado = deudasPlan.length > 0 ? simularPlan(deudasPlan, pagoPlan, plan.metodo) : null;
+  const meta = resultado?.alcanza && resultado.meses !== null ? mesCorto(sumarMeses(fechaHoy, resultado.meses - 1)) : null;
 
   return (
     <>
@@ -66,12 +77,46 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImpo
             <dd className={costoMes.totalCentavos > 0 ? 'texto-peligro' : ''}>{formatearDinero(costoMes.totalCentavos)}</dd>
           </div>
         </dl>
+        {progreso && progreso.pagadoCentavos > 0 && (
+          <div className="progreso-deudas">
+            <div className="progreso-cabecera">
+              <span>Camino a «libre de deudas»</span>
+              <strong>{progreso.porcentaje}% pagado</strong>
+            </div>
+            <div
+              className="barra"
+              role="progressbar"
+              aria-label="Camino a libre de deudas"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progreso.porcentaje}
+            >
+              <div className="barra-relleno" style={{ width: `${Math.max(2, progreso.porcentaje)}%` }} />
+              {[25, 50, 75].map((h) => (
+                <span key={h} className={progreso.porcentaje >= h ? 'marca-hito alcanzada' : 'marca-hito'} style={{ left: `${h}%` }} />
+              ))}
+            </div>
+            <p className="ayuda sin-margen">
+              Bajaste {formatearDinero(progreso.pagadoCentavos)} desde lo más alto que debiste ({formatearDinero(progreso.maximoCentavos)}).
+              {meta && ` Con tu plan, sin deudas en ${meta}.`}
+            </p>
+          </div>
+        )}
         {vencidos.length > 0 && (
           <p className="aviso error">
             {vencidos.length === 1 ? `El pago de ${vencidos[0].nombre} está vencido.` : `Tienes ${vencidos.length} pagos vencidos.`}
           </p>
         )}
       </section>
+
+      <div className="acciones-lista">
+        <button type="button" className="boton" onClick={() => alAbrir({ tipo: 'calendario' })}>
+          <Simbolo nombre="calendario" tamano={18} /> Calendario
+        </button>
+        <button type="button" className="boton" onClick={() => alAbrir({ tipo: 'plan' })}>
+          <Simbolo nombre="objetivo" tamano={18} /> Plan para salir
+        </button>
+      </div>
 
       <div className="segmentos" role="group" aria-label="Tipo de deuda">
         <button type="button" aria-pressed={vista === 'tarjetas'} onClick={() => setVista('tarjetas')}>

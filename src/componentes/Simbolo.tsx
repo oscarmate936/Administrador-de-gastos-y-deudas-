@@ -123,6 +123,12 @@ const TRAZOS = {
   ),
   lapiz: <path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" />,
   listo: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  calendario: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />
+      <path d="M3.5 10h17M8 3v4M16 3v4" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type NombreSimbolo = keyof typeof TRAZOS;
