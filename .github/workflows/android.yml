@@ -1,8 +1,9 @@
 name: APK de Android
 
-# Compila el APK firmado con la llave fija guardada en los secretos del repositorio.
-# - En main: publica el APK como Release (se descarga desde la página de Releases).
-# - En las ramas de trabajo: deja el APK como artefacto de la ejecución.
+# Compila el APK firmado con la llave fija guardada en los secretos del repositorio
+# y lo publica como Release. El enlace
+#   https://github.com/<dueño>/<repo>/releases/latest/download/MisFinanzas.apk
+# siempre descarga la versión más reciente.
 
 on:
   push:
@@ -87,12 +88,14 @@ jobs:
           retention-days: 30
 
       - name: Publicar Release
-        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           etiqueta="v${{ steps.apk.outputs.version }}-${{ github.run_number }}"
-          gh release create "$etiqueta" "${{ steps.apk.outputs.nombre }}" \
+          # Copia con nombre fijo para el enlace permanente de la última versión.
+          cp "${{ steps.apk.outputs.nombre }}" MisFinanzas.apk
+          gh release create "$etiqueta" "${{ steps.apk.outputs.nombre }}" MisFinanzas.apk \
             --target "$GITHUB_SHA" \
+            --latest \
             --title "Mis Finanzas ${{ steps.apk.outputs.version }}" \
             --notes "APK firmado con la llave fija. Se instala encima de la versión anterior sin borrar los datos."

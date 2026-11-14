@@ -34,11 +34,11 @@ export function Movimientos({ datos, alEditar }: Props) {
   );
 
   const pestanas = (
-    <div className="segmentos" role="tablist" aria-label="Vista">
-      <button type="button" role="tab" aria-selected={vista === 'lista'} aria-pressed={vista === 'lista'} onClick={() => setVista('lista')}>
+    <div className="segmentos" role="group" aria-label="Vista">
+      <button type="button" aria-pressed={vista === 'lista'} onClick={() => setVista('lista')}>
         Lista
       </button>
-      <button type="button" role="tab" aria-selected={vista === 'resumen'} aria-pressed={vista === 'resumen'} onClick={() => setVista('resumen')}>
+      <button type="button" aria-pressed={vista === 'resumen'} onClick={() => setVista('resumen')}>
         Resumen
       </button>
     </div>

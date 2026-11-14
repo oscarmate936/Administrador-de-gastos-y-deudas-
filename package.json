@@ -1,7 +1,7 @@
 {
   "name": "mis-finanzas",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.1.1",
   "type": "module",
   "scripts": {
     "dev": "npm run preparar && vite",
