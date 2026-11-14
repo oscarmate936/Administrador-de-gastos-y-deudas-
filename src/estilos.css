@@ -1747,3 +1747,20 @@ button {
   width: 100%;
   border-style: dashed;
 }
+
+/* En pantallas angostas los botones de "Por confirmar" bajan y el texto se lee completo. */
+.lista-confirmar li {
+  flex-wrap: wrap;
+}
+
+.lista-confirmar .fila-texto {
+  flex: 1 1 150px;
+}
+
+.lista-confirmar .fila-detalle {
+  white-space: normal;
+}
+
+.botones-confirmar {
+  margin-left: auto;
+}
