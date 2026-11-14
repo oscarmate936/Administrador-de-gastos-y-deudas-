@@ -7,6 +7,7 @@ const config: CapacitorConfig = {
   plugins: {
     // Se activa desde la app solo si el bloqueo está encendido.
     PrivacyScreen: { enable: false },
+    LocalNotifications: { smallIcon: 'ic_stat_notificacion', iconColor: '#0F6B54' },
     SystemBars: {
       // La app dibuja detrás de las barras del sistema y usa env(safe-area-inset-*).
       initialViewportFitValueHint: 'cover',

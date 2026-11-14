@@ -7,6 +7,8 @@ import { FormularioPago } from './componentes/FormularioPago';
 import { FormularioPrestamo } from './componentes/FormularioPrestamo';
 import { FormularioTarjeta } from './componentes/FormularioTarjeta';
 import { Bloqueo } from './componentes/Bloqueo';
+import { FormularioRecordatorios } from './componentes/FormularioRecordatorios';
+import { Opcion } from './componentes/Opcion';
 import { RevisionEstado } from './componentes/RevisionEstado';
 import { IconoAjustes, IconoDeudas, IconoInicio, IconoLista, IconoMas } from './componentes/Iconos';
 import { ErrorEstado, leerEstadoTarjeta } from './lib/estados/leer';
@@ -15,9 +17,12 @@ import { useAjustes } from './lib/ajustes';
 import { copiarSiToca } from './lib/copias';
 import { hoy } from './lib/fechas';
 import { fotoDeHoy, guardarFoto } from './lib/historial';
+import { generarRecordatorios } from './lib/recordatorios';
 import {
+  agendarNotificaciones,
   consumirSalidaPropia,
   escucharBotonAtras,
+  escucharNotificaciones,
   escucharPrimerPlano,
   marcarSalidaPropia,
   pantallaPrivada,
@@ -101,6 +106,40 @@ export function App() {
   useEffect(() => {
     if (desbloqueada && hayDatos) void copiarSiToca().catch(() => undefined);
   }, [desbloqueada, hayDatos]);
+
+  // Reprograma las notificaciones cuando cambian los datos o los ajustes.
+  const recordatorios = ajustes?.recordatorios;
+  const respaldoAjustes = ajustes?.respaldo;
+  useEffect(() => {
+    if (!datos || !recordatorios || !respaldoAjustes) return;
+    const t = setTimeout(() => {
+      const lista = generarRecordatorios({ ...datos, ajustes: { recordatorios, respaldo: respaldoAjustes } }, new Date());
+      void agendarNotificaciones(lista).catch(() => undefined);
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [datos, recordatorios, respaldoAjustes]);
+
+  // Tocar una notificación abre la deuda; su botón abre el formulario de pago.
+  useEffect(
+    () =>
+      escucharNotificaciones(({ destino, pagar }) => {
+        const d = destino as { tipo?: string; id?: string } | null;
+        if (d?.tipo === 'ajustes') {
+          setPestana('ajustes');
+          setDetalle(null);
+          return;
+        }
+        if ((d?.tipo === 'tarjeta' || d?.tipo === 'prestamo') && d.id) {
+          setPestana('deudas');
+          setDetalle({ tipo: d.tipo, id: d.id });
+          if (pagar) {
+            setFormulario(d.tipo === 'tarjeta' ? { clase: 'pago', tarjetaId: d.id } : { clase: 'pago', prestamoId: d.id });
+          }
+        }
+      }),
+    [],
+  );
+  const [verRecordatorios, setVerRecordatorios] = useState(false);
 
   // Botón Atrás de Android: cierra el formulario abierto, luego el detalle,
   // luego vuelve a Inicio y solo entonces deja que la app se minimice.
@@ -233,7 +272,26 @@ export function App() {
           />
         );
       case 'ajustes':
-        return <Ajustes categorias={d.categorias} totalMovimientos={d.movimientos.length} ajustes={ajustes!} />;
+        return (
+          <Ajustes categorias={d.categorias} totalMovimientos={d.movimientos.length} ajustes={ajustes!}>
+            <section className="tarjeta">
+              <h2>Recordatorios</h2>
+              <ul className="lista">
+                <Opcion
+                  icono="🔔"
+                  titulo="Avisos de pago y corte"
+                  detalle={
+                    ajustes!.recordatorios.activo
+                      ? `Activados a las ${ajustes!.recordatorios.hora}`
+                      : 'Te avisa antes de cada fecha de pago y corte'
+                  }
+                  valor={ajustes!.recordatorios.activo ? 'Activados' : 'Desactivados'}
+                  alTocar={() => setVerRecordatorios(true)}
+                />
+              </ul>
+            </section>
+          </Ajustes>
+        );
     }
   }
 
@@ -320,6 +378,9 @@ export function App() {
       </nav>
 
       {formulario && datos && hoja(formulario, datos)}
+      {verRecordatorios && datos && (
+        <FormularioRecordatorios ajustes={ajustes} datos={datos} alCerrar={() => setVerRecordatorios(false)} />
+      )}
 
       <input
         ref={entradaPdf}

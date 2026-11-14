@@ -150,3 +150,79 @@ export function escucharPrimerPlano(alCambiar: (activa: boolean) => void): () =>
     quitar?.();
   };
 }
+
+// ---------- Recordatorios ----------
+
+export type EstadoPermiso = 'concedido' | 'negado' | 'sin-preguntar' | 'no-disponible';
+
+/** Permiso de notificaciones. Con `pedir`, lo solicita si aún no se preguntó. */
+export async function permisoNotificaciones(pedir: boolean): Promise<EstadoPermiso> {
+  if (!esNativo) return 'no-disponible';
+  const { LocalNotifications } = await import('@capacitor/local-notifications');
+  let { display } = await LocalNotifications.checkPermissions();
+  if (pedir && display !== 'granted' && display !== 'denied') {
+    marcarSalidaPropia();
+    ({ display } = await LocalNotifications.requestPermissions());
+  }
+  return display === 'granted' ? 'concedido' : display === 'denied' ? 'negado' : 'sin-preguntar';
+}
+
+let canalListo = false;
+
+/** Reemplaza todas las notificaciones agendadas por estas. */
+export async function agendarNotificaciones(
+  lista: Array<{ id: number; fecha: Date; titulo: string; cuerpo: string; pagar?: boolean; destino?: unknown }>,
+): Promise<void> {
+  if (!esNativo) return;
+  const { LocalNotifications } = await import('@capacitor/local-notifications');
+  const pendientes = await LocalNotifications.getPending();
+  if (pendientes.notifications.length > 0) {
+    await LocalNotifications.cancel({ notifications: pendientes.notifications.map((n) => ({ id: n.id })) });
+  }
+  if (lista.length === 0) return;
+  if ((await LocalNotifications.checkPermissions()).display !== 'granted') return;
+  if (!canalListo) {
+    await LocalNotifications.createChannel({
+      id: 'pagos',
+      name: 'Recordatorios de pago',
+      description: 'Fechas de pago, cortes de tarjeta y respaldos',
+      importance: 4,
+      visibility: 0,
+    });
+    await LocalNotifications.registerActionTypes({
+      types: [{ id: 'PAGO', actions: [{ id: 'pagar', title: 'Registrar pago' }] }],
+    });
+    canalListo = true;
+  }
+  await LocalNotifications.schedule({
+    notifications: lista.map((r) => ({
+      id: r.id,
+      title: r.titulo,
+      body: r.cuerpo,
+      largeBody: r.cuerpo,
+      channelId: 'pagos',
+      schedule: { at: r.fecha, allowWhileIdle: true },
+      actionTypeId: r.pagar ? 'PAGO' : undefined,
+      extra: { destino: r.destino ?? null, pagar: r.pagar === true },
+    })),
+  });
+}
+
+/** Avisa cuando la persona toca una notificación o su botón "Registrar pago". */
+export function escucharNotificaciones(alTocar: (extra: { destino: unknown; pagar: boolean }) => void): () => void {
+  if (!esNativo) return () => {};
+  let cancelado = false;
+  let quitar: (() => void) | undefined;
+  void import('@capacitor/local-notifications').then(async ({ LocalNotifications }) => {
+    const escucha = await LocalNotifications.addListener('localNotificationActionPerformed', ({ actionId, notification }) => {
+      const extra = (notification.extra ?? {}) as { destino?: unknown };
+      alTocar({ destino: extra.destino ?? null, pagar: actionId === 'pagar' });
+    });
+    if (cancelado) void escucha.remove();
+    else quitar = () => void escucha.remove();
+  });
+  return () => {
+    cancelado = true;
+    quitar?.();
+  };
+}

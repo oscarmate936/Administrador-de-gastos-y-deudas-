@@ -1324,3 +1324,49 @@ button {
 .pantalla-bloqueo h1:focus {
   outline: none;
 }
+
+/* ---------- Recordatorios ---------- */
+
+.lista-interruptores {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.campo input[type='time'] {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 14px;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  background: var(--superficie);
+}
+
+.lista-avisos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lista-avisos li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--primario);
+  border-radius: 4px 12px 12px 4px;
+  background: var(--superficie-2);
+  font-size: 0.9rem;
+}
+
+.aviso-cuando {
+  color: var(--primario);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.interruptor input[role='switch']:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
