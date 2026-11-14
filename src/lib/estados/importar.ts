@@ -1,5 +1,5 @@
 import { nuevoId, type Movimiento, type Tarjeta } from '../../db';
-import { aDate } from '../fechas';
+import { aDate, diasEntre } from '../fechas';
 import { sugerirCategoria } from './categorias';
 import { normalizar } from './lectura';
 import type { EstadoCuentaTarjeta, MovimientoEstado } from './tipos';
@@ -7,8 +7,14 @@ import type { EstadoCuentaTarjeta, MovimientoEstado } from './tipos';
 export interface FilaImportar {
   mov: MovimientoEstado;
   incluir: boolean;
-  /** Ya existe un movimiento igual (misma tarjeta, fecha, monto y tipo). */
+  /**
+   * Ya existe un movimiento igual en la tarjeta: mismo tipo y monto, el mismo día
+   * o hasta 3 días antes o después (el banco suele publicar la compra un día o
+   * dos después de hecha).
+   */
   duplicado: boolean;
+  /** Fecha del movimiento ya registrado, si no es la misma del estado de cuenta. */
+  registradoEl?: string;
   categoriaId?: string;
 }
 
@@ -38,31 +44,48 @@ export function prepararFilas(
   tarjetaId: string | undefined,
   categoriasExistentes: Set<string>,
 ): FilaImportar[] {
-  const clave = (tipo: string, fecha: string, monto: number) => `${tipo}|${fecha}|${monto}`;
-  const disponibles = new Map<string, number>();
-  if (tarjetaId) {
-    for (const m of movimientos) {
-      if (m.tarjetaId !== tarjetaId || m.tipo === 'ingreso') continue;
-      const k = clave(m.tipo === 'gasto' ? 'cargo' : 'abono', m.fecha, m.montoCentavos);
-      disponibles.set(k, (disponibles.get(k) ?? 0) + 1);
-    }
-  }
+  // Movimientos de esta tarjeta que aún pueden emparejarse con una fila (cada uno una sola vez).
+  const libres = tarjetaId
+    ? movimientos
+        .filter((m) => m.tarjetaId === tarjetaId && m.tipo !== 'ingreso')
+        .map((m) => ({ tipo: m.tipo === 'gasto' ? 'cargo' : 'abono', fecha: m.fecha, monto: m.montoCentavos, usado: false }))
+    : [];
+  /** Primero el mismo día; si no hay, el más cercano dentro de 3 días. */
+  const emparejar = (mov: MovimientoEstado) => {
+    const candidatos = libres.filter((l) => !l.usado && l.tipo === mov.tipo && l.monto === mov.montoCentavos);
+    const elegido =
+      candidatos.find((l) => l.fecha === mov.fecha) ??
+      candidatos
+        .map((l) => ({ l, d: Math.abs(diasEntre(l.fecha, mov.fecha)) }))
+        .filter((x) => x.d <= 3)
+        .sort((a, b) => a.d - b.d)[0]?.l;
+    if (elegido) elegido.usado = true;
+    return elegido;
+  };
   const aprendidas = new Map<string, string>();
   for (const m of [...movimientos].sort((a, b) => a.creadoEn - b.creadoEn)) {
     if (m.tipo === 'gasto' && m.nota && m.categoriaId && categoriasExistentes.has(m.categoriaId)) {
       aprendidas.set(normalizar(m.nota), m.categoriaId);
     }
   }
-  return estado.movimientos.map((mov) => {
-    const k = clave(mov.tipo, mov.fecha, mov.montoCentavos);
-    const quedan = disponibles.get(k) ?? 0;
-    const duplicado = quedan > 0;
-    if (duplicado) disponibles.set(k, quedan - 1);
+  // Primero se emparejan los del mismo día, para que uno cercano no se lleve el exacto de otra fila.
+  const exactos = new Map<number, boolean>();
+  estado.movimientos.forEach((mov, i) => {
+    const l = libres.find((x) => !x.usado && x.tipo === mov.tipo && x.monto === mov.montoCentavos && x.fecha === mov.fecha);
+    if (l) {
+      l.usado = true;
+      exactos.set(i, true);
+    }
+  });
+  return estado.movimientos.map((mov, i) => {
+    const cercano = exactos.has(i) ? undefined : emparejar(mov);
+    const duplicado = exactos.has(i) || cercano !== undefined;
     const sugerida =
       mov.tipo === 'cargo' ? (aprendidas.get(normalizar(mov.concepto)) ?? sugerirCategoria(mov.concepto)) : undefined;
     return {
       mov,
       duplicado,
+      registradoEl: cercano?.fecha,
       incluir: mov.tipo === 'cargo' && !duplicado,
       categoriaId: sugerida && categoriasExistentes.has(sugerida) ? sugerida : undefined,
     };

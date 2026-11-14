@@ -152,6 +152,11 @@ function leerPrestamo(v: unknown, i: number): Prestamo {
     saldoInicialCentavos: v.saldoInicialCentavos,
     tasaAnual: v.tasaAnual,
     cuotaCentavos: v.cuotaCentavos,
+    cargosCentavos: esCentavos(v.cargosCentavos) && v.cargosCentavos < v.cuotaCentavos ? v.cargosCentavos : undefined,
+    desgloseCuota:
+      esObjeto(v.desgloseCuota) && esFechaValida(v.desgloseCuota.fecha) && esCentavos(v.desgloseCuota.capitalCentavos)
+        ? { fecha: v.desgloseCuota.fecha, capitalCentavos: v.desgloseCuota.capitalCentavos }
+        : undefined,
     primeraCuota: v.primeraCuota,
     creadoEn: typeof v.creadoEn === 'number' ? v.creadoEn : Date.now(),
   };

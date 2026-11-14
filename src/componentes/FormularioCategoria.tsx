@@ -17,6 +17,8 @@ export function FormularioCategoria({ categoria, siguienteOrden, alCerrar }: Pro
   const [color, setColor] = useState(categoria?.color ?? COLORES[0]);
   const [limite, setLimite] = useState(categoria?.limiteCentavos ? centavosATexto(categoria.limiteCentavos) : '');
   const [error, setError] = useState('');
+  // Fijo mientras el formulario está abierto: guardar dos veces seguidas no crea un duplicado.
+  const [idNuevo] = useState(nuevoId);
 
   async function guardar(e: FormEvent) {
     e.preventDefault();
@@ -30,7 +32,7 @@ export function FormularioCategoria({ categoria, siguienteOrden, alCerrar }: Pro
       return;
     }
     await db.categorias.put({
-      id: categoria?.id ?? nuevoId(),
+      id: categoria?.id ?? idNuevo,
       nombre: nombre.trim(),
       emoji: emoji.trim() || '🏷️',
       color,

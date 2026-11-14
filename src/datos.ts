@@ -41,5 +41,5 @@ export function formularioParaEditar(m: Movimiento): Formulario {
   return { clase: 'movimiento', movimiento: m, tipo: m.tipo };
 }
 
-export const BANCOS = ['Banco Agrícola', 'Davivienda'];
+export const BANCOS = ['Banco Agrícola', 'Davivienda', 'BAC'];
 export const COLORES = ['#e07a3f', '#3f9b6b', '#3f7fd0', '#8a63c9', '#c9a227', '#d0527a', '#2f9aa8', '#7c8791'];

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Movimiento, Prestamo, Tarjeta } from '../db';
 import {
   ahorroPorAbono,
+  ajustarPrestamo,
   capitalSugerido,
   cortesFacturados,
   estadoPrestamo,
@@ -205,6 +206,22 @@ describe('préstamos', () => {
     expect(capitalSugerido(100000, 12, 10000, true)).toBe(10000);
     expect(capitalSugerido(100000, 12, 500, false)).toBe(0);
     expect(capitalSugerido(5000, 12, 10000, true)).toBe(5000);
+  });
+
+  it('los seguros y otros cargos de la cuota no bajan el saldo', () => {
+    // Cuota de $100 con $10 de seguro: solo $90 van a capital e intereses.
+    expect(proyectar(100000, 12, 10000, 1000)).toEqual(proyectar(100000, 12, 9000));
+    expect(proyectar(100000, 12, 10000, 1000)!.meses).toBeGreaterThan(proyectar(100000, 12, 10000)!.meses);
+    expect(capitalSugerido(100000, 12, 10000, false, 1000)).toBe(8000);
+    // Un abono extra va todo a capital aunque la cuota tenga cargos.
+    expect(capitalSugerido(100000, 12, 10000, true, 1000)).toBe(10000);
+    const conCargos = { ...prestamo, cargosCentavos: 1000 };
+    const e = estadoPrestamo(conCargos, [], '2026-11-13');
+    expect(e.proyeccion).toEqual(proyectar(100000, 12, 9000));
+    // La última cuota cubre saldo, intereses y cargos.
+    const casi = estadoPrestamo({ ...conCargos, saldoInicialCentavos: 2000 }, [], '2026-11-13');
+    expect(casi.proximaCuotaCentavos).toBe(2000 + 20 + 1000);
+    expect(ajustarPrestamo(prestamo, [], '2026-11-13', { saldoCentavos: 90000, cargosCentavos: 775 }).cargosCentavos).toBe(775);
   });
 
   it('calcula lo que se gana con un abono extra', () => {

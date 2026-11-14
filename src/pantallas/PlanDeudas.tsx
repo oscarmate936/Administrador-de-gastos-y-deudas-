@@ -67,6 +67,9 @@ export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
     a.tipo === 'tarjeta' ? (datos.tarjetas.find((t) => t.id === a.id)?.color ?? 'var(--tenue)') : 'var(--primario)';
   const fechaFin = (mes: number) => mesCorto(sumarMeses(fechaHoy, mes - 1));
   const sinTasa = deudas.filter((d) => !d.tasaConocida);
+  const cargos = datos.prestamos
+    .filter((p) => deudas.some((d) => d.tipo === 'prestamo' && d.id === p.id))
+    .reduce((t, p) => t + (p.cargosCentavos ?? 0), 0);
   const estimados = deudas.filter((d) => d.minimoEstimado);
 
   return (
@@ -191,6 +194,12 @@ export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
                 );
               })}
             </ul>
+            {cargos > 0 && (
+              <p className="ayuda sin-margen">
+                Los préstamos aparecen sin seguros ni otros cargos. Esos {formatearDinero(cargos)} al mes los pagas además, junto con
+                la cuota.
+              </p>
+            )}
           </section>
 
           <section className="tarjeta">

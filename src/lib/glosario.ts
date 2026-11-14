@@ -16,6 +16,8 @@ export const GLOSARIO = {
   extrafinanciamiento:
     'Un préstamo que el banco da sobre tu tarjeta y cobras en cuotas mensuales con intereses, aparte del saldo normal.',
   'tasa anual': 'El interés que cobra la deuda en un año. Al mes se cobra más o menos la doceava parte.',
+  'seguros y otros cargos':
+    'La parte fija de la cuota que no es capital ni intereses, como seguros o comisiones. Se paga cada mes pero no baja lo que debes.',
   'abono a capital': 'La parte del pago que baja lo que debes. El resto se va en intereses y otros cargos.',
   'abono extra': 'Un pago adicional a la cuota. Va todo a capital y hace que termines antes y pagues menos intereses.',
   avalancha: 'Pagar primero la deuda con la tasa más alta. Es la forma de pagar menos intereses en total.',

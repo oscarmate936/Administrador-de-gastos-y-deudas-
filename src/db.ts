@@ -87,6 +87,16 @@ export interface Prestamo {
   /** Tasa de interés anual en porcentaje, por ejemplo 12.5. */
   tasaAnual: number;
   cuotaCentavos: number;
+  /**
+   * Parte fija de la cuota que no es capital ni intereses: seguros, comisiones
+   * ("otras deducciones"). No baja el saldo. 0 o ausente si no hay.
+   */
+  cargosCentavos?: number;
+  /**
+   * Capital de la próxima cuota según el desglose del banco (leído de una
+   * captura). Al pagar esa cuota se usa en lugar del cálculo aproximado.
+   */
+  desgloseCuota?: { fecha: string; capitalCentavos: number };
   /** Fecha de la primera cuota a pagar después de registrarlo; las siguientes caen el mismo día de cada mes. */
   primeraCuota: string;
   creadoEn: number;

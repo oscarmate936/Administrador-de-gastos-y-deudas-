@@ -28,6 +28,8 @@ export function FormularioTarjeta({ tarjeta, cantidad, alCerrar }: Props) {
   const [tasa, setTasa] = useState(tarjeta?.tasaAnual !== undefined ? String(tarjeta.tasaAnual) : '');
   const [color, setColor] = useState(tarjeta?.color ?? COLORES[(2 + cantidad * 3) % COLORES.length]);
   const [error, setError] = useState('');
+  // Fijo mientras el formulario está abierto: guardar dos veces seguidas no crea un duplicado.
+  const [idNuevo] = useState(nuevoId);
 
   const cambiar = (set: (v: string) => void) => (e: { target: { value: string } }) => {
     set(e.target.value);
@@ -50,7 +52,7 @@ export function FormularioTarjeta({ tarjeta, cantidad, alCerrar }: Props) {
     if (tasaAnual === null) return setError('La tasa de interés no es válida. Escribe un número, por ejemplo 39.9');
 
     await db.tarjetas.put({
-      id: tarjeta?.id ?? nuevoId(),
+      id: tarjeta?.id ?? idNuevo,
       nombre: nombre.trim(),
       banco: banco.trim(),
       limiteCentavos,

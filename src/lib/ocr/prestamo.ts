@@ -5,7 +5,8 @@ import { leerImporte } from './ticket';
 
 // Interpreta el texto de una captura de la app del banco con el detalle de un
 // préstamo ("Monto original", "Deuda total", "Cuota", "Tasa de interés",
-// "Fecha de pago"...). El resultado siempre se revisa antes de guardar.
+// "Fecha de pago"...). Probado con capturas de Banco Agrícola y de BAC. El
+// resultado siempre se revisa antes de guardar.
 
 export interface DatosPrestamo {
   nombre?: string;
@@ -18,6 +19,10 @@ export interface DatosPrestamo {
   /** Lo que está vencido sin pagar. */
   pendienteCentavos?: number;
   cuotasEnMora?: number;
+  /** Parte fija de la cuota que no es capital ni intereses (seguros, «otras deducciones»). */
+  cargosCentavos?: number;
+  /** Capital de la cuota pendiente según el desglose del banco («Principal»). */
+  capitalCuotaCentavos?: number;
 }
 
 const importe = (t: string) => {
@@ -45,8 +50,12 @@ export function leerCapturaPrestamo(texto: string): DatosPrestamo {
   const lineas = texto.split(/\r?\n/).map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
   const normales = lineas.map((l) => normalizar(l).replace(/([A-Z])DE\b/g, '$1 DE'));
 
-  /** Valor de la etiqueta: en su mismo renglón o en uno de los dos siguientes. */
-  function valor<T>(etiqueta: RegExp, leer: (t: string) => T | null, excluir?: RegExp): T | undefined {
+  /**
+   * Valor de la etiqueta: en su mismo renglón o en uno de los dos siguientes.
+   * Con `antes`, también en el renglón anterior (BAC pone la cifra arriba de su
+   * etiqueta: "$ 5,627.74 7.95%" y debajo "Saldo sin intereses... Tasa de interés").
+   */
+  function valor<T>(etiqueta: RegExp, leer: (t: string) => T | null, excluir?: RegExp, antes = false): T | undefined {
     for (let i = 0; i < normales.length; i++) {
       const m = etiqueta.exec(normales[i]);
       if (!m || (excluir && excluir.test(normales[i]))) continue;
@@ -58,6 +67,10 @@ export function leerCapturaPrestamo(texto: string): DatosPrestamo {
         const v = leer(lineas[j]);
         if (v !== null) return v;
       }
+      if (antes && i > 0) {
+        const v = leer(lineas[i - 1]);
+        if (v !== null) return v;
+      }
     }
     return undefined;
   }
@@ -67,18 +80,30 @@ export function leerCapturaPrestamo(texto: string): DatosPrestamo {
     return /[A-Za-zÁÉÍÓÚáéíóúñÑ]{3}/.test(limpio) ? limpio : null;
   };
 
-  const nombre = valor(/\bTIPO\b/, texto0) ?? valor(/\b(ALIAS|NOMBRE|PRODUCTO)\b/, texto0);
+  // Sin etiqueta de nombre, el título de la pantalla si habla de un préstamo ("SV - Préstamo").
+  const titulo = lineas.find((l, i) => i < 3 && /PRESTAMO|CREDITO/.test(normales[i]) && !/\d/.test(l) && !/DETALLE/.test(normales[i]));
+  const nombre = valor(/\bTIPO\b/, texto0) ?? valor(/\b(ALIAS|NOMBRE|PRODUCTO)\b/, texto0) ?? titulo;
   return {
     nombre: nombre?.slice(0, 40),
     montoOriginalCentavos: valor(/MONTO (ORIGINAL|OTORGADO|DESEMBOLSADO|DEL PRESTAMO|APROBADO)/, importe),
+    // El saldo de capital primero; el saldo total de BAC incluye intereses y deducciones.
     saldoCentavos:
-      valor(/DEUDA TOTAL|SALDO (ACTUAL|PENDIENTE|DE CAPITAL|CAPITAL|TOTAL|ADEUDADO)|CAPITAL PENDIENTE/, importe) ??
-      valor(/\bSALDO\b/, importe),
-    cuotaCentavos: valor(/\b(VALOR DE (LA )?)?CUOTA( MENSUAL)?\b/, importe, /MORA|CUOTAS|PAGADAS|PENDIENTES/),
-    tasaAnual: valor(/TASA/, tasa),
-    proximaFecha: valor(/FECHA (DE |DEL |DE PROXIMO |DEL PROXIMO )?PAGO|PROXIMA CUOTA|PROXIMO PAGO|VENCIMIENTO/, fecha),
+      valor(/DEUDA TOTAL|SALDO (ACTUAL|PENDIENTE|DE CAPITAL|CAPITAL|PRINCIPAL|ADEUDADO)|CAPITAL PENDIENTE/, importe) ??
+      valor(/SALDO SIN INTERESES/, importe, undefined, true) ??
+      valor(/SALDO TOTAL/, importe) ??
+      valor(/\bSALDO\b/, importe, /\bSALDOS$/),
+    cuotaCentavos:
+      valor(/TOTAL DE (LA )?CUOTA|CUOTA TOTAL|VALOR DE (LA )?CUOTA/, importe) ??
+      valor(/\bCUOTA( MENSUAL)?\b/, importe, /MORA|CUOTAS|PAGADAS|PENDIENTES|VENCE|SU CUOTA|DESGLOSE/),
+    tasaAnual: valor(/TASA ACTUAL|TASA (DE INTERES )?ANUAL/, tasa) ?? valor(/TASA/, tasa, undefined, true),
+    proximaFecha: valor(
+      /FECHA (DE |DEL |DE PROXIMO |DEL PROXIMO )?PAGO|PROXIMA CUOTA|PROXIMO PAGO|CUOTA VENCE|VENCE EL|VENCIMIENTO/,
+      fecha,
+    ),
     pendienteCentavos: valor(/(VALOR|MONTO) PENDIENTE|PENDIENTE DE PAGO|VALOR VENCIDO/, importe),
     cuotasEnMora: valor(/CUOTAS (EN MORA|VENCIDAS)/, entero),
+    cargosCentavos: valor(/OTRAS DEDUCCIONES|SEGUROS?\b|CARGOS (ADMINISTRATIVOS|ADICIONALES)/, importe),
+    capitalCuotaCentavos: valor(/^(PRINCIPAL|CAPITAL)$/, importe),
   };
 }
 
@@ -91,6 +116,8 @@ export interface CapturaPrestamo {
   proximaFecha: Lectura<string>;
   pendiente: Lectura<number>;
   cuotasEnMora: Lectura<number>;
+  cargos: Lectura<number>;
+  capitalCuota: Lectura<number>;
 }
 
 /** Combina las lecturas de los dos motores: números del clásico, nombre del moderno. */
@@ -106,5 +133,33 @@ export function leerCapturaConDosMotores(textoLstm: string, textoClasico: string
     proximaFecha: combinar(b.proximaFecha, a.proximaFecha),
     pendiente: combinar(b.pendienteCentavos, a.pendienteCentavos),
     cuotasEnMora: combinar(b.cuotasEnMora, a.cuotasEnMora),
+    cargos: combinar(b.cargosCentavos, a.cargosCentavos),
+    capitalCuota: combinar(b.capitalCuotaCentavos, a.capitalCuotaCentavos),
   };
+}
+
+/** El desglose de la próxima cuota, si la captura trae su fecha y su capital sin dudas. */
+export function desgloseDe(c: CapturaPrestamo): { fecha: string; capitalCentavos: number } | undefined {
+  const fecha = c.proximaFecha.valor;
+  const capital = c.capitalCuota.valor;
+  if (!fecha || capital === undefined || c.capitalCuota.dudoso || c.proximaFecha.dudoso) return undefined;
+  return { fecha, capitalCentavos: capital };
+}
+
+type Campo = Exclude<keyof CapturaPrestamo, 'nombre'>;
+const CAMPOS: Campo[] = ['montoOriginal', 'saldo', 'cuota', 'tasaAnual', 'proximaFecha', 'pendiente', 'cuotasEnMora', 'cargos', 'capitalCuota'];
+
+/**
+ * Junta varias capturas del mismo préstamo (en BAC el saldo, la cuota y la fecha
+ * están en pantallas distintas). Para cada dato se usa la primera lectura segura;
+ * si todas son dudosas, la primera que haya.
+ */
+export function unirCapturas(capturas: CapturaPrestamo[]): CapturaPrestamo {
+  const elegir = <K extends Campo>(campo: K): CapturaPrestamo[K] => {
+    const con = capturas.map((c) => c[campo]).filter((l) => l.valor !== undefined);
+    return (con.find((l) => !l.dudoso) ?? con[0] ?? capturas[0][campo]) as CapturaPrestamo[K];
+  };
+  const unida = { nombre: capturas.find((c) => c.nombre)?.nombre } as CapturaPrestamo;
+  for (const campo of CAMPOS) (unida as unknown as Record<Campo, unknown>)[campo] = elegir(campo);
+  return unida;
 }

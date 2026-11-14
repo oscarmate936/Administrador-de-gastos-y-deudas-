@@ -59,8 +59,11 @@ no hay servidor ni cuentas.
 - Préstamos: próxima cuota, tiempo restante, fecha de término, intereses,
   cuotas y abonos extra con capital e intereses, y simulador de abono.
 - Importar estados de cuenta en PDF de tarjetas de Davivienda y Banco Agrícola.
-- Préstamos desde una captura de la app del banco: se crea el préstamo o se
-  ajusta uno existente (saldo, cuota, tasa, próxima cuota) sin borrar los pagos.
+- Préstamos desde una o varias capturas de la app del banco (Banco Agrícola y BAC):
+  se crea el préstamo o se ajusta uno existente (saldo, cuota, tasa, próxima cuota,
+  seguros y otros cargos) sin borrar los pagos. Con el desglose de la cuota, el pago
+  usa el capital exacto del banco.
+- Los seguros y otros cargos fijos de la cuota no se cuentan como capital.
 - Compras a plazos y extrafinanciamiento (Davivienda): se leen del estado de
   cuenta, se suman a la deuda total y cada corte cobra su cuota en la tarjeta.
 - Cuánto cuestan las deudas (intereses, comisiones, IVA, avances de efectivo).

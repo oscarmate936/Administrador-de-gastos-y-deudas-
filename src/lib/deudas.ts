@@ -220,8 +220,13 @@ export interface Proyeccion {
   interesesCentavos: number;
 }
 
-/** Simula mes a mes hasta saldar. Devuelve null si la cuota no alcanza ni para los intereses. */
-export function proyectar(saldoCentavos: number, tasaAnual: number, cuotaCentavos: number): Proyeccion | null {
+/**
+ * Simula mes a mes hasta saldar. `cargosCentavos` es la parte fija de la cuota
+ * (seguros, comisiones) que no baja el saldo. Devuelve null si la cuota no
+ * alcanza ni para los intereses.
+ */
+export function proyectar(saldoCentavos: number, tasaAnual: number, cuotaTotalCentavos: number, cargosCentavos = 0): Proyeccion | null {
+  const cuotaCentavos = cuotaTotalCentavos - cargosCentavos;
   let saldo = saldoCentavos;
   let meses = 0;
   let interesesCentavos = 0;
@@ -235,14 +240,18 @@ export function proyectar(saldoCentavos: number, tasaAnual: number, cuotaCentavo
   return { meses, interesesCentavos };
 }
 
-/** Parte de un pago que baja el saldo: todo si es abono extra; si es cuota, lo que queda tras los intereses del mes. */
+/**
+ * Parte de un pago que baja el saldo: todo si es abono extra; si es cuota, lo
+ * que queda tras los intereses del mes y los cargos fijos (seguros).
+ */
 export function capitalSugerido(
   saldoCentavos: number,
   tasaAnual: number,
   montoCentavos: number,
   esExtra: boolean,
+  cargosCentavos = 0,
 ): number {
-  const capital = esExtra ? montoCentavos : montoCentavos - interesMensual(saldoCentavos, tasaAnual);
+  const capital = esExtra ? montoCentavos : montoCentavos - interesMensual(saldoCentavos, tasaAnual) - cargosCentavos;
   return Math.max(0, Math.min(saldoCentavos, capital));
 }
 
@@ -272,7 +281,8 @@ export function estadoPrestamo(prestamo: Prestamo, movimientos: Movimiento[], ho
 
   const diaAncla = aDate(prestamo.primeraCuota).getDate();
   const proximaFecha = saldado ? null : sumarMeses(prestamo.primeraCuota, cuotasPagadas, diaAncla);
-  const proyeccion = saldado ? null : proyectar(saldoCentavos, prestamo.tasaAnual, prestamo.cuotaCentavos);
+  const cargos = prestamo.cargosCentavos ?? 0;
+  const proyeccion = saldado ? null : proyectar(saldoCentavos, prestamo.tasaAnual, prestamo.cuotaCentavos, cargos);
   const base = Math.max(prestamo.montoOriginalCentavos ?? 0, prestamo.saldoInicialCentavos);
 
   return {
@@ -282,7 +292,7 @@ export function estadoPrestamo(prestamo: Prestamo, movimientos: Movimiento[], ho
     proximaFecha,
     proximaCuotaCentavos: saldado
       ? 0
-      : Math.min(prestamo.cuotaCentavos, saldoCentavos + interesMensual(saldoCentavos, prestamo.tasaAnual)),
+      : Math.min(prestamo.cuotaCentavos, saldoCentavos + interesMensual(saldoCentavos, prestamo.tasaAnual) + cargos),
     vencido: proximaFecha !== null && hoy > proximaFecha,
     diasParaPago: proximaFecha ? diasEntre(hoy, proximaFecha) : 0,
     proyeccion,
@@ -301,7 +311,15 @@ export function ajustarPrestamo(
   p: Prestamo,
   movimientos: Movimiento[],
   hoy: string,
-  banco: { saldoCentavos: number; cuotaCentavos?: number; tasaAnual?: number; proximaFecha?: string; montoOriginalCentavos?: number },
+  banco: {
+    saldoCentavos: number;
+    cuotaCentavos?: number;
+    tasaAnual?: number;
+    proximaFecha?: string;
+    montoOriginalCentavos?: number;
+    cargosCentavos?: number;
+    desgloseCuota?: { fecha: string; capitalCentavos: number };
+  },
 ): Prestamo {
   const e = estadoPrestamo(p, movimientos, hoy);
   const ancla = banco.proximaFecha ? aDate(banco.proximaFecha).getDate() : undefined;
@@ -312,6 +330,8 @@ export function ajustarPrestamo(
     tasaAnual: banco.tasaAnual ?? p.tasaAnual,
     primeraCuota: banco.proximaFecha ? sumarMeses(banco.proximaFecha, -e.cuotasPagadas, ancla) : p.primeraCuota,
     montoOriginalCentavos: banco.montoOriginalCentavos ?? p.montoOriginalCentavos,
+    cargosCentavos: banco.cargosCentavos ?? p.cargosCentavos,
+    desgloseCuota: banco.desgloseCuota,
   };
 }
 
@@ -326,9 +346,10 @@ export function ahorroPorAbono(
   tasaAnual: number,
   cuotaCentavos: number,
   abonoCentavos: number,
+  cargosCentavos = 0,
 ): AhorroAbono | null {
-  const antes = proyectar(saldoCentavos, tasaAnual, cuotaCentavos);
-  const despues = proyectar(Math.max(0, saldoCentavos - abonoCentavos), tasaAnual, cuotaCentavos);
+  const antes = proyectar(saldoCentavos, tasaAnual, cuotaCentavos, cargosCentavos);
+  const despues = proyectar(Math.max(0, saldoCentavos - abonoCentavos), tasaAnual, cuotaCentavos, cargosCentavos);
   if (!antes || !despues) return null;
   return {
     mesesMenos: antes.meses - despues.meses,

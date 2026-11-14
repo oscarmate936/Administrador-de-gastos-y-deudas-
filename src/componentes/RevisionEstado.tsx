@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { COLORES, type Datos } from '../datos';
 import { db } from '../db';
 import { formatearDinero } from '../lib/dinero';
@@ -54,7 +54,12 @@ export function RevisionEstado({ estado, datos, tarjetaPreferida, alCerrar, alGu
   const otrosDigitos = tarjeta?.ultimos4 && estado.ultimos4 && tarjeta.ultimos4 !== estado.ultimos4;
   const marcados = filas.filter((f) => f.incluir).length;
 
+  const enviando = useRef(false);
+
   async function guardar() {
+    // Un segundo toque antes de que la pantalla se actualice no debe importar dos veces.
+    if (enviando.current) return;
+    enviando.current = true;
     setError('');
     setGuardando(true);
     try {
@@ -71,6 +76,7 @@ export function RevisionEstado({ estado, datos, tarjetaPreferida, alCerrar, alGu
     } catch {
       setError('No se pudo guardar. Inténtalo de nuevo.');
       setGuardando(false);
+      enviando.current = false;
     }
   }
 
@@ -209,7 +215,7 @@ export function RevisionEstado({ estado, datos, tarjetaPreferida, alCerrar, alGu
                     <span className="fila-detalle">
                       {fechaCorta(f.mov.fecha)}
                       {f.mov.tipo === 'abono' && ' · pago a la tarjeta'}
-                      {f.duplicado && ' · ya registrado'}
+                      {f.duplicado && (f.registradoEl ? ` · ya registrado el ${fechaCorta(f.registradoEl)}` : ' · ya registrado')}
                     </span>
                   </span>
                   <span className={f.mov.tipo === 'abono' ? 'fila-monto positivo' : 'fila-monto'}>

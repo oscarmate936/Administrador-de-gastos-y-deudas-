@@ -93,7 +93,8 @@ export function deudasParaPlan(
       saldoCentavos: e.saldoCentavos,
       tasaAnual: p.tasaAnual,
       tasaConocida: p.tasaAnual > 0,
-      minimoCentavos: Math.min(p.cuotaCentavos, e.saldoCentavos + interesMensual(e.saldoCentavos, p.tasaAnual)),
+      // Sin los seguros y otros cargos: esa parte de la cuota no baja la deuda.
+      minimoCentavos: Math.min(p.cuotaCentavos - (p.cargosCentavos ?? 0), e.saldoCentavos + interesMensual(e.saldoCentavos, p.tasaAnual)),
       minimoEstimado: false,
       abrir: { tipo: 'prestamo', id: p.id },
     });

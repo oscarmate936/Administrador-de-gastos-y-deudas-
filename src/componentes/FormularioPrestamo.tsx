@@ -7,7 +7,7 @@ import { aFechaTexto, esFechaValida, fechaCorta, mesCorto } from '../lib/fechas'
 import { Hoja } from './Hoja';
 import { Simbolo } from './Simbolo';
 import { BotonCapturaPrestamo, DudasLectura } from './LecturaCaptura';
-import type { CapturaPrestamo } from '../lib/ocr/prestamo';
+import { desgloseDe, type CapturaPrestamo } from '../lib/ocr/prestamo';
 
 interface Props {
   prestamo?: Prestamo;
@@ -28,8 +28,11 @@ export function FormularioPrestamo({ prestamo, alCerrar, leerAlAbrir }: Props) {
   const [saldo, setSaldo] = useState(prestamo ? centavosATexto(prestamo.saldoInicialCentavos) : '');
   const [tasa, setTasa] = useState(prestamo ? String(prestamo.tasaAnual) : '');
   const [cuota, setCuota] = useState(prestamo ? centavosATexto(prestamo.cuotaCentavos) : '');
+  const [cargos, setCargos] = useState(prestamo?.cargosCentavos ? centavosATexto(prestamo.cargosCentavos) : '');
   const [primeraCuota, setPrimeraCuota] = useState(prestamo?.primeraCuota ?? '');
   const [error, setError] = useState('');
+  // Fijo mientras el formulario está abierto: guardar dos veces seguidas no crea un duplicado.
+  const [idNuevo] = useState(nuevoId);
   const [captura, setCaptura] = useState<CapturaPrestamo | null>(null);
 
   function aplicarCaptura(c: CapturaPrestamo) {
@@ -41,6 +44,7 @@ export function FormularioPrestamo({ prestamo, alCerrar, leerAlAbrir }: Props) {
     if (c.tasaAnual.valor !== undefined) setTasa(String(c.tasaAnual.valor));
     if (c.proximaFecha.valor) setPrimeraCuota(c.proximaFecha.valor);
     if (c.montoOriginal.valor !== undefined) setOriginal(centavosATexto(c.montoOriginal.valor));
+    if (c.cargos.valor !== undefined) setCargos(centavosATexto(c.cargos.valor));
   }
 
   const cambiar = (set: (v: string) => void) => (e: { target: { value: string } }) => {
@@ -51,8 +55,11 @@ export function FormularioPrestamo({ prestamo, alCerrar, leerAlAbrir }: Props) {
   const saldoCentavos = textoACentavos(saldo);
   const cuotaCentavos = textoACentavos(cuota);
   const tasaAnual = leerTasa(tasa);
+  const cargosCentavos = cargos.trim() === '' ? 0 : textoACentavos(cargos);
   const proyeccion =
-    saldoCentavos && cuotaCentavos && tasaAnual !== null ? proyectar(saldoCentavos, tasaAnual, cuotaCentavos) : undefined;
+    saldoCentavos && cuotaCentavos && tasaAnual !== null && cargosCentavos !== null
+      ? proyectar(saldoCentavos, tasaAnual, cuotaCentavos, cargosCentavos)
+      : undefined;
 
   async function guardar(e: FormEvent) {
     e.preventDefault();
@@ -61,17 +68,21 @@ export function FormularioPrestamo({ prestamo, alCerrar, leerAlAbrir }: Props) {
     if (!saldoCentavos) return setError('Escribe cuánto debes todavía.');
     if (tasaAnual === null) return setError('La tasa de interés no es válida. Escribe un número, por ejemplo 18.5');
     if (!cuotaCentavos) return setError('Escribe el monto de la cuota mensual.');
+    if (cargosCentavos === null) return setError('Los seguros y otros cargos no son un monto válido.');
+    if (cargosCentavos >= cuotaCentavos) return setError('Los seguros y otros cargos deben ser menores que la cuota.');
     if (!esFechaValida(primeraCuota)) return setError('Elige la fecha de tu próxima cuota.');
     if (originalCentavos === null) return setError('El monto original no es un monto válido.');
 
     await db.prestamos.put({
-      id: prestamo?.id ?? nuevoId(),
+      id: prestamo?.id ?? idNuevo,
       nombre: nombre.trim(),
       acreedor: acreedor.trim(),
       montoOriginalCentavos: originalCentavos,
       saldoInicialCentavos: saldoCentavos,
       tasaAnual,
       cuotaCentavos,
+      cargosCentavos: cargosCentavos || undefined,
+      desgloseCuota: captura && desgloseDe(captura)?.fecha === primeraCuota ? desgloseDe(captura) : prestamo?.desgloseCuota,
       primeraCuota,
       creadoEn: prestamo?.creadoEn ?? Date.now(),
     });
@@ -115,12 +126,14 @@ export function FormularioPrestamo({ prestamo, alCerrar, leerAlAbrir }: Props) {
                   { nombre: 'Cuota', lectura: captura.cuota, formato: 'dinero', clave: 'cuota' },
                   { nombre: 'Tasa', lectura: captura.tasaAnual, formato: 'tasa', clave: 'tasa' },
                   { nombre: 'Próxima cuota', lectura: captura.proximaFecha, formato: 'fecha', clave: 'fecha' },
+                  { nombre: 'Seguros y otros cargos', lectura: captura.cargos, formato: 'dinero', clave: 'cargos' },
                 ]}
                 alElegir={(clave, v) => {
                   if (clave === 'saldo') setSaldo(centavosATexto(v as number));
                   if (clave === 'cuota') setCuota(centavosATexto(v as number));
                   if (clave === 'tasa') setTasa(String(v));
                   if (clave === 'fecha') setPrimeraCuota(v as string);
+                  if (clave === 'cargos') setCargos(centavosATexto(v as number));
                 }}
               />
             )}
@@ -165,6 +178,15 @@ export function FormularioPrestamo({ prestamo, alCerrar, leerAlAbrir }: Props) {
           </label>
         </div>
         <p className="ayuda sin-margen">La tasa está en tu contrato. Si no la sabes, déjala vacía: el tiempo restante será aproximado.</p>
+
+        <label className="campo">
+          <span>Seguros y otros cargos de la cuota (opcional)</span>
+          <input type="text" inputMode="decimal" value={cargos} placeholder="0.00" onChange={cambiar(setCargos)} />
+          <span className="ayuda sin-margen">
+            La parte fija de cada cuota que no es capital ni intereses, por ejemplo «Otras deducciones» o seguros. No baja lo
+            que debes.
+          </span>
+        </label>
 
         <label className="campo">
           <span>{prestamo ? 'Primera cuota después de registrarlo' : 'Fecha de tu próxima cuota'}</span>

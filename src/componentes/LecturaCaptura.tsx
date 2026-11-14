@@ -16,7 +16,7 @@ export function BotonCapturaPrestamo({
   /** Pide la imagen en cuanto aparece, sin esperar a que se toque el botón. */
   abrirAlInicio?: boolean;
 }) {
-  const [estado, setEstado] = useState<{ avance: number } | { error: string } | null>(null);
+  const [estado, setEstado] = useState<{ avance: number; texto: string } | { error: string } | null>(null);
   const entrada = useRef<HTMLInputElement>(null);
   const yaAbierta = useRef(false);
   useEffect(() => {
@@ -26,17 +26,28 @@ export function BotonCapturaPrestamo({
     entrada.current?.click();
   }, [abrirAlInicio]);
 
-  async function leer(archivo: File) {
-    setEstado({ avance: 0 });
+  /** Lee una o varias capturas del mismo préstamo y junta lo que encuentre en cada una. */
+  async function leer(archivos: File[]) {
+    const varias = archivos.length > 1;
+    const texto = (i: number) => (varias ? `Leyendo la captura ${i + 1} de ${archivos.length}…` : 'Leyendo la captura…');
+    setEstado({ avance: 0, texto: texto(0) });
     try {
-      const [{ leerTextoDeImagen }, { leerCapturaConDosMotores }] = await Promise.all([
+      const [{ leerTextoDeImagen }, { leerCapturaConDosMotores, unirCapturas }] = await Promise.all([
         import('../lib/ocr/leer'),
         import('../lib/ocr/prestamo'),
       ]);
-      const [lstm, clasico] = await leerTextoDeImagen(archivo, (avance) => setEstado({ avance }));
-      const captura = leerCapturaConDosMotores(lstm, clasico);
+      const capturas: CapturaPrestamo[] = [];
+      for (const [i, archivo] of archivos.entries()) {
+        const [lstm, clasico] = await leerTextoDeImagen(archivo, (avance) => setEstado({ avance, texto: texto(i) }));
+        capturas.push(leerCapturaConDosMotores(lstm, clasico));
+      }
+      const captura = unirCapturas(capturas);
       if (captura.saldo.valor === undefined && captura.cuota.valor === undefined) {
-        setEstado({ error: 'No encontré los datos del préstamo. Usa una captura donde se vean el saldo y la cuota.' });
+        setEstado({
+          error: varias
+            ? 'No encontré los datos del préstamo en estas capturas. Usa capturas donde se vean el saldo y la cuota.'
+            : 'No encontré los datos del préstamo. Usa una captura donde se vean el saldo y la cuota.',
+        });
         return;
       }
       setEstado(null);
@@ -57,19 +68,21 @@ export function BotonCapturaPrestamo({
           entrada.current?.click();
         }}
       >
-        {estado && 'avance' in estado ? `Leyendo la captura… ${Math.round(estado.avance * 100)}%` : texto}
+        {estado && 'avance' in estado ? `${estado.texto} ${Math.round(estado.avance * 100)}%` : texto}
       </button>
       <input
         ref={entrada}
         type="file"
         accept="image/*"
+        multiple
         hidden
         onChange={(e) => {
-          const archivo = e.target.files?.[0];
+          const archivos = [...(e.target.files ?? [])].slice(0, 6);
           e.target.value = '';
-          if (archivo) void leer(archivo);
+          if (archivos.length > 0) void leer(archivos);
         }}
       />
+      <span className="ayuda sin-margen">Puedes elegir varias capturas del mismo préstamo: la app junta los datos.</span>
       {estado && 'error' in estado && (
         <p className="aviso error" role="alert">
           {estado.error}
