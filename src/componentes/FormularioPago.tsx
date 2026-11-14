@@ -48,14 +48,23 @@ export function FormularioPago(props: Props) {
   const [fecha, setFecha] = useState(movimiento?.fecha ?? fechaInicial ?? fechaHoy);
   const [nota, setNota] = useState(movimiento?.nota ?? '');
   const [error, setError] = useState('');
+  // Fijo mientras el formulario está abierto: guardar dos veces seguidas no crea un duplicado.
+  const [idNuevo] = useState(nuevoId);
 
   const montoCentavos = textoACentavos(monto);
+  // Si el banco dio el desglose de esta cuota (captura), su capital es exacto.
+  const desglose =
+    prestamo?.desgloseCuota && !movimiento && !esExtra && ePrestamo?.proximaFecha === prestamo.desgloseCuota.fecha && montoCentavos === prestamo.cuotaCentavos
+      ? Math.min(saldoPrestamo, prestamo.desgloseCuota.capitalCentavos)
+      : null;
   const capitalCalculado =
-    prestamo && montoCentavos ? capitalSugerido(saldoPrestamo, prestamo.tasaAnual, montoCentavos, esExtra) : 0;
+    prestamo && montoCentavos
+      ? (desglose ?? capitalSugerido(saldoPrestamo, prestamo.tasaAnual, montoCentavos, esExtra, prestamo.cargosCentavos))
+      : 0;
   const capitalCentavos = capitalEditado ? textoACentavos(capital) : capitalCalculado;
   const ahorro =
     prestamo && esExtra && montoCentavos
-      ? ahorroPorAbono(saldoPrestamo, prestamo.tasaAnual, prestamo.cuotaCentavos, Math.min(montoCentavos, saldoPrestamo))
+      ? ahorroPorAbono(saldoPrestamo, prestamo.tasaAnual, prestamo.cuotaCentavos, Math.min(montoCentavos, saldoPrestamo), prestamo.cargosCentavos)
       : null;
 
   async function guardar(e: FormEvent) {
@@ -83,7 +92,7 @@ export function FormularioPago(props: Props) {
       }
     }
     const pago: Movimiento = {
-      id: movimiento?.id ?? nuevoId(),
+      id: movimiento?.id ?? idNuevo,
       tipo: 'pago',
       montoCentavos,
       fecha,
@@ -200,7 +209,9 @@ export function FormularioPago(props: Props) {
               {montoCentavos && capitalCentavos !== null && capitalCentavos <= montoCentavos
                 ? `Intereses y otros cargos: ${formatearDinero(montoCentavos - capitalCentavos)}. `
                 : ''}
-              Es un cálculo aproximado; si tu comprobante dice otra cantidad, cámbiala.
+              {desglose !== null && !capitalEditado
+                ? 'Es el capital del desglose del banco para esta cuota.'
+                : 'Es un cálculo aproximado; si tu comprobante dice otra cantidad, cámbiala.'}
             </span>
           </label>
         )}

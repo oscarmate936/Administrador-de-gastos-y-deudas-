@@ -47,6 +47,25 @@ describe('importar estado de cuenta', () => {
     expect(prepararFilas(doble, ya, 't1', categorias).map((f) => f.duplicado)).toEqual([true, false]);
   });
 
+  it('reconoce una compra registrada a mano unos días antes de que el banco la publique', () => {
+    const [primero] = estado.movimientos;
+    const tresDiasAntes = new Date(primero.fecha);
+    tresDiasAntes.setUTCDate(tresDiasAntes.getUTCDate() - 3);
+    const fecha = tresDiasAntes.toISOString().slice(0, 10);
+    const ya: Movimiento[] = [{ id: 'a', tipo: 'gasto', montoCentavos: primero.montoCentavos, fecha, tarjetaId: 't1', nota: '', creadoEn: 1 }];
+    const [fila] = prepararFilas(estado, ya, 't1', categorias);
+    expect(fila).toMatchObject({ duplicado: true, incluir: false, registradoEl: fecha });
+    // Más de 3 días de diferencia ya no cuenta como el mismo.
+    const lejos = new Date(primero.fecha);
+    lejos.setUTCDate(lejos.getUTCDate() - 4);
+    const otro = [{ ...ya[0], fecha: lejos.toISOString().slice(0, 10) }];
+    expect(prepararFilas(estado, otro, 't1', categorias)[0].duplicado).toBe(false);
+    // Un registro solo empareja una fila: el exacto de otra fila no se lo lleva el cercano.
+    const dos = { ...estado, movimientos: [{ ...primero, fecha: lejos.toISOString().slice(0, 10) }, primero] };
+    const exacto: Movimiento[] = [{ ...ya[0], fecha: primero.fecha }];
+    expect(prepararFilas(dos, exacto, 't1', categorias).map((f) => f.duplicado)).toEqual([false, true]);
+  });
+
   it('propone la categoría que la persona ya usó para ese comercio', () => {
     const ya: Movimiento[] = [
       { id: 'v', tipo: 'gasto', montoCentavos: 100, fecha: '2026-09-01', categoriaId: 'ocio', nota: 'pizza hut san salvador', creadoEn: 1 },

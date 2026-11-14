@@ -36,6 +36,9 @@ export function movimientoDesde(r: Recurrente, ahora = Date.now()): Movimiento {
 /** Registra el movimiento con la fecha que tocaba y pasa la plantilla al mes siguiente. */
 export async function registrarRecurrente(db: BaseDeDatos, r: Recurrente): Promise<void> {
   await db.transaction('rw', db.movimientos, db.recurrentes, async () => {
+    // Si ya se registró (por ejemplo, con un doble toque), no se repite.
+    const actual = await db.recurrentes.get(r.id);
+    if (!actual || actual.proxima !== r.proxima) return;
     await db.movimientos.add(movimientoDesde(r));
     await db.recurrentes.update(r.id, { proxima: siguienteFecha(r) });
   });
@@ -43,5 +46,9 @@ export async function registrarRecurrente(db: BaseDeDatos, r: Recurrente): Promi
 
 /** Salta esta vez sin registrar nada. */
 export async function omitirRecurrente(db: BaseDeDatos, r: Recurrente): Promise<void> {
-  await db.recurrentes.update(r.id, { proxima: siguienteFecha(r) });
+  await db.transaction('rw', db.recurrentes, async () => {
+    const actual = await db.recurrentes.get(r.id);
+    if (!actual || actual.proxima !== r.proxima) return;
+    await db.recurrentes.update(r.id, { proxima: siguienteFecha(r) });
+  });
 }

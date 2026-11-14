@@ -29,7 +29,7 @@ export function DetallePrestamo({ prestamo: p, datos, alVolver, alEditarPrestamo
   const e = estadoPrestamo(p, datos.movimientos, hoy());
   const pagos = ordenarRecientes(datos.movimientos.filter((m) => m.prestamoId === p.id));
   const abono = textoACentavos(simulado);
-  const ahorro = abono ? ahorroPorAbono(e.saldoCentavos, p.tasaAnual, p.cuotaCentavos, Math.min(abono, e.saldoCentavos)) : null;
+  const ahorro = abono ? ahorroPorAbono(e.saldoCentavos, p.tasaAnual, p.cuotaCentavos, Math.min(abono, e.saldoCentavos), p.cargosCentavos) : null;
   const pagado = e.saldoCentavos === 0;
 
   return (
@@ -108,6 +108,12 @@ export function DetallePrestamo({ prestamo: p, datos, alVolver, alEditarPrestamo
                 <dt>Tasa anual <Ayuda termino="tasa anual" /></dt>
                 <dd>{p.tasaAnual > 0 ? `${p.tasaAnual}%` : 'Sin registrar'}</dd>
               </div>
+              {(p.cargosCentavos ?? 0) > 0 && (
+                <div>
+                  <dt>Seguros y otros cargos <Ayuda termino="seguros y otros cargos" /></dt>
+                  <dd>{formatearDinero(p.cargosCentavos!)} de cada cuota</dd>
+                </div>
+              )}
             </dl>
             <div className="acciones">
               <button type="button" className="boton" onClick={alAbonoExtra}>

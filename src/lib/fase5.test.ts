@@ -34,6 +34,17 @@ describe('movimientos recurrentes', () => {
     expect((await db.recurrentes.get('r1'))?.proxima).toBe('2026-12-31');
     expect(await db.movimientos.count()).toBe(1);
   });
+
+  it('un doble toque en Registrar no lo anota dos veces', async () => {
+    const db = new BaseDeDatos('recurrentes-doble');
+    await db.recurrentes.add(internet);
+    await Promise.all([registrarRecurrente(db, internet), registrarRecurrente(db, internet)]);
+    expect(await db.movimientos.count()).toBe(1);
+    expect((await db.recurrentes.get('r1'))?.proxima).toBe('2026-11-30');
+    // Omitir con la plantilla vieja tampoco salta otro mes.
+    await omitirRecurrente(db, internet);
+    expect((await db.recurrentes.get('r1'))?.proxima).toBe('2026-11-30');
+  });
 });
 
 const categorias: Categoria[] = [{ id: 'super', nombre: 'Supermercado', emoji: '', color: '', orden: 1 }];

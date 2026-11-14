@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import type { Datos, Detalle, Formulario } from '../datos';
 import { db, nuevoId, type Movimiento } from '../db';
 import { interpretar, type Intencion } from '../lib/asistente/interpretar';
@@ -71,7 +71,7 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir }: Props) {
           fecha: r.fecha,
           prestamoId: p.id,
           esExtra: r.extra,
-          capitalCentavos: capitalSugerido(e.saldoCentavos, p.tasaAnual, monto, r.extra),
+          capitalCentavos: capitalSugerido(e.saldoCentavos, p.tasaAnual, monto, r.extra, p.cargosCentavos),
         };
       }
       default:
@@ -93,10 +93,18 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir }: Props) {
     setTexto('');
   }
 
+  // Evita guardar dos veces con un doble toque.
+  const enviando = useRef(false);
+
   async function guardar(r: Intencion) {
     const m = movimientoDe(r);
-    if (!m) return;
-    await db.movimientos.add(m);
+    if (!m || enviando.current) return;
+    enviando.current = true;
+    try {
+      await db.movimientos.add(m);
+    } finally {
+      enviando.current = false;
+    }
     setGuardado({ id: m.id, texto: `${resumen(r)} guardado.` });
     setResultado(null);
     setTexto('');

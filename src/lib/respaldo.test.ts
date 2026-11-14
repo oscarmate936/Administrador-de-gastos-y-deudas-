@@ -28,7 +28,7 @@ describe('respaldo', () => {
     });
     await origen.prestamos.add({
       id: 'p1', nombre: 'Personal', acreedor: 'Davivienda', montoOriginalCentavos: 200000, saldoInicialCentavos: 100000,
-      tasaAnual: 12.5, cuotaCentavos: 10000, primeraCuota: '2026-11-30', creadoEn: 4,
+      tasaAnual: 12.5, cuotaCentavos: 10000, cargosCentavos: 750, desgloseCuota: { fecha: '2026-11-30', capitalCentavos: 8000 }, primeraCuota: '2026-11-30', creadoEn: 4,
     });
     await origen.movimientos.bulkAdd([
       { id: 'c', tipo: 'gasto', montoCentavos: 12000, fecha: '2026-11-21', categoriaId: 'super', tarjetaId: 't1', cuotas: 3, nota: '', creadoEn: 5 },

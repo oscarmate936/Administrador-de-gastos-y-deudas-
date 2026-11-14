@@ -143,6 +143,9 @@ export function FormularioMovimiento(props: Props) {
     }
   }
   const [error, setError] = useState('');
+  // Fijos mientras el formulario está abierto: guardar dos veces seguidas no crea duplicados.
+  const [idNuevo] = useState(nuevoId);
+  const [idRecurrente] = useState(nuevoId);
 
   async function guardar(e: FormEvent) {
     e.preventDefault();
@@ -163,7 +166,7 @@ export function FormularioMovimiento(props: Props) {
       return;
     }
     const guardado: Movimiento = {
-      id: movimiento?.id ?? nuevoId(),
+      id: movimiento?.id ?? idNuevo,
       tipo,
       montoCentavos,
       fecha,
@@ -177,8 +180,8 @@ export function FormularioMovimiento(props: Props) {
     await db.movimientos.put(guardado);
     let recurrenteId: string | undefined;
     if (repetir && !movimiento) {
-      recurrenteId = nuevoId();
-      await db.recurrentes.add({
+      recurrenteId = idRecurrente;
+      await db.recurrentes.put({
         id: recurrenteId,
         tipo,
         montoCentavos,
