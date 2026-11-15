@@ -41,14 +41,14 @@ describe('resumen del mes que terminó', () => {
   it('una deuda que se agregó en el mes no cuenta como que la deuda subió', () => {
     const historial = [
       foto('2026-09', 300000),
-      foto('2026-10', 842774, [
+      foto('2026-10', 711520, [
         { tipo: 'tarjeta', id: 't1', nombre: 'Visa', saldoCentavos: 280000 },
-        { tipo: 'prestamo', id: 'p1', nombre: 'Préstamo BAC', saldoCentavos: 562774 },
+        { tipo: 'prestamo', id: 'p1', nombre: 'Préstamo BAC', saldoCentavos: 431520 },
       ]),
     ];
     const c = cierreDelMes({ movimientos, categorias, historial }, '2026-10')!;
     expect(c.bajoDeudaCentavos).toBe(20000);
-    expect(c.nuevas).toEqual([{ nombre: 'Préstamo BAC', saldoCentavos: 562774 }]);
+    expect(c.nuevas).toEqual([{ nombre: 'Préstamo BAC', saldoCentavos: 431520 }]);
   });
 
   it('sin fotos de los dos meses no inventa cuánto bajó la deuda; sin movimientos no hay resumen', () => {

@@ -53,7 +53,7 @@ export function leerCapturaPrestamo(texto: string): DatosPrestamo {
   /**
    * Valor de la etiqueta: en su mismo renglón o en uno de los dos siguientes.
    * Con `antes`, también en el renglón anterior (BAC pone la cifra arriba de su
-   * etiqueta: "$ 5,627.74 7.95%" y debajo "Saldo sin intereses... Tasa de interés").
+   * etiqueta: "$ 4,315.20 8.25%" y debajo "Saldo sin intereses... Tasa de interés").
    */
   function valor<T>(etiqueta: RegExp, leer: (t: string) => T | null, excluir?: RegExp, antes = false): T | undefined {
     for (let i = 0; i < normales.length; i++) {

@@ -102,8 +102,8 @@ Saldo sin intereses y Tasa de interés actual
 deducciones
 Pago pendiente Información del préstamo
 Tasa actual º 8.25%
-Fecha de apertura 30 abril 2026
-Fecha vencimiento 03 junio 2035
+Fecha de apertura 12 enero 2026
+Fecha vencimiento 03 marzo 2033
 Saldos
 Saldo principal $4,315.20
 Interés a hoy $21.10

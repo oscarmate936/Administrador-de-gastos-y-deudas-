@@ -251,8 +251,8 @@ describe('préstamos', () => {
     // La última cuota cubre saldo, intereses de los días y cargos.
     const casi = estadoPrestamo({ ...conCargos, saldoInicialCentavos: 2000, cargosBaseCentavos: 100000 }, [], '2026-11-13');
     expect(casi.proximaCuotaCentavos).toBe(2000 + interesPorDias(2000, 12, 31) + 20);
-    const ajustado = ajustarPrestamo(prestamo, [], '2026-11-13', { saldoCentavos: 90000, cargosCentavos: 775 });
-    expect([ajustado.cargosCentavos, ajustado.cargosBaseCentavos]).toEqual([775, 90000]);
+    const ajustado = ajustarPrestamo(prestamo, [], '2026-11-13', { saldoCentavos: 90000, cargosCentavos: 640 });
+    expect([ajustado.cargosCentavos, ajustado.cargosBaseCentavos]).toEqual([640, 90000]);
   });
 
   it('cobra el interés por los días desde el último pago de cuota', () => {
