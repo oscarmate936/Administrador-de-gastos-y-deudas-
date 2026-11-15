@@ -46,8 +46,8 @@ no hay servidor ni cuentas.
 - Atajos al mantener presionado el ícono (gasto, ticket, pago) y widget de Android
   con lo libre para gastar.
 - Inicio: cuánto puedes gastar por día, hasta cuándo te alcanza, gráfica de ritmo,
-  próximos 7 días, primeros pasos y secciones que se pueden ocultar u ordenar. Lo que
-  ya está en «Requiere atención» no se repite en los próximos 7 días.
+  «Próximos pagos» (el mínimo de cada tarjeta y la cuota de cada préstamo pendientes
+  del mes, con el total), primeros pasos y secciones que se pueden ocultar u ordenar.
 - Deudas: camino a «libre de deudas» con metas, calendario de pagos, cuánto ahorras
   pagando un poco más, costo de pagar solo el mínimo y explicación de cada término.
 - Análisis: comparación con el mes anterior, gastos fijos y variables, y el detalle
