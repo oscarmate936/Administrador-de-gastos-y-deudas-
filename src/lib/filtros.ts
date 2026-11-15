@@ -42,7 +42,7 @@ export function coincide(
     m.categoriaId ? datos.mapaCategorias.get(m.categoriaId)?.nombre : '',
     m.tarjetaId ? datos.tarjetas.find((t) => t.id === m.tarjetaId)?.nombre : '',
     m.prestamoId ? datos.prestamos.find((p) => p.id === m.prestamoId)?.nombre : '',
-    m.tipo === 'ingreso' ? (m.esPago ? 'mi pago' : 'otro ingreso') : '',
+    m.tipo === 'ingreso' ? (m.esPago ? 'mi sueldo mi pago' : 'otro ingreso') : '',
     (m.montoCentavos / 100).toFixed(2),
   ];
   return normalizar(partes.filter(Boolean).join(' · ')).includes(q);

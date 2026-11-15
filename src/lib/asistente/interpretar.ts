@@ -85,13 +85,13 @@ function notaDe(original: string): string {
 
 const ES_PREGUNTA = /^(CUANTO|CUANTA|CUANDO|QUE|CUAL|CUALES|COMO|DIME|MUESTRAME|ME FALTA|TENGO QUE|DEBO)\b/;
 
-export function interpretar(original: string, datos: Datos, hoy: string, fondoCentavos = 0): Intencion {
+export function interpretar(original: string, datos: Datos, hoy: string, fondoCentavos = 0, ajusteSaldoCentavos = 0): Intencion {
   const texto = original.trim();
   if (!texto) return { tipo: 'noEntendi' };
   const t = normal(texto).replace(/[¿?¡!]/g, ' ').replace(/\s+/g, ' ').trim();
   const esPregunta = /[?¿]/.test(texto) || ES_PREGUNTA.test(t);
 
-  if (esPregunta) return responder(t, datos, hoy, fondoCentavos);
+  if (esPregunta) return responder(t, datos, hoy, fondoCentavos, ajusteSaldoCentavos);
 
   const fecha = extraerFecha(t, hoy);
   const sinFecha = fecha ? fecha.resto : t;
@@ -141,7 +141,7 @@ export function interpretar(original: string, datos: Datos, hoy: string, fondoCe
 
 // ---------- Preguntas ----------
 
-function responder(t: string, datos: Datos, hoy: string, fondoCentavos: number): Intencion {
+function responder(t: string, datos: Datos, hoy: string, fondoCentavos: number, ajusteSaldoCentavos: number): Intencion {
   // "la tarjeta" o "el préstamo" sin nombre se refiere a la única que haya.
   const tarjeta =
     buscarDeuda(t, datos.tarjetas)?.deuda ?? (/\bTARJETA\b/.test(t) && datos.tarjetas.length === 1 ? datos.tarjetas[0] : undefined);
@@ -150,7 +150,7 @@ function responder(t: string, datos: Datos, hoy: string, fondoCentavos: number):
 
   // ¿Cuánto me queda / tengo disponible / puedo gastar?
   if (/\b(DISPONIBLE|ME QUEDA|TENGO|PUEDO GASTAR|SALDO A FAVOR)\b/.test(t) && !/\b(QUE PAGAR|DEBO|DEUDA|TENGO QUE)\b/.test(t)) {
-    const l = calcularLibre(datos, hoy, fondoCentavos);
+    const l = calcularLibre(datos, hoy, fondoCentavos, ajusteSaldoCentavos);
     const lineas = [
       l.porApartar > 0 ? `Pagos en los próximos 15 días: ${formatearDinero(l.porApartar)}.` : 'No tienes pagos en los próximos 15 días.',
     ];
@@ -168,7 +168,8 @@ function responder(t: string, datos: Datos, hoy: string, fondoCentavos: number):
           ? `Pago de contado: ${formatearDinero(e.pendienteCentavos)} antes del ${fechaCorta(e.fechaLimite)} (${textoFaltan(e.diasParaLimite)}).`
           : `El último estado de cuenta ya está pagado.`,
       ];
-      if (e.pagoMinimoCentavos) lineas.push(`Pago mínimo: ${formatearDinero(e.pagoMinimoCentavos)}.`);
+      if (e.minimoPendienteCentavos > 0) lineas.push(`Pago mínimo: ${formatearDinero(e.minimoPendienteCentavos)}${e.minimoEsEstimado ? ' aprox' : ''}.`);
+      else if (e.pendienteCentavos > 0) lineas.push('El pago mínimo ya está cubierto.');
       lineas.push(`Próximo corte: ${fechaCorta(e.proximoCorte)}. Lo que compres después se paga hasta el ${fechaCorta(e.proximaFechaLimite)}.`);
       return { tipo: 'respuesta', titulo: tarjeta.nombre, lineas, destino: { tipo: 'tarjeta', id: tarjeta.id } };
     }
@@ -288,9 +289,10 @@ function responder(t: string, datos: Datos, hoy: string, fondoCentavos: number):
       titulo: 'Pago mínimo',
       lineas: lista.map((x) => {
         const e = estadoTarjeta(x, datos.movimientos, hoy);
-        return e.pagoMinimoCentavos !== null
-          ? `${x.nombre}: ${formatearDinero(e.pagoMinimoCentavos)} antes del ${fechaCorta(e.fechaLimite)}.`
-          : `${x.nombre}: importa su estado de cuenta para saber el mínimo.`;
+        if (e.minimoPendienteCentavos <= 0) return `${x.nombre}: no tienes mínimo pendiente.`;
+        return e.minimoEsEstimado
+          ? `${x.nombre}: unos ${formatearDinero(e.minimoPendienteCentavos)} antes del ${fechaCorta(e.fechaLimite)} (importa su estado de cuenta para el monto exacto).`
+          : `${x.nombre}: ${formatearDinero(e.minimoPendienteCentavos)} antes del ${fechaCorta(e.fechaLimite)}.`;
       }),
     };
   }

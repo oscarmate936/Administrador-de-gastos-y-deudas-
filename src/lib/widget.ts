@@ -20,8 +20,9 @@ export function resumenWidget(
   hoy: string,
   ahora: Date,
   fondoCentavos = 0,
+  ajusteSaldoCentavos = 0,
 ): ResumenWidget {
-  const { cifra, conLibre } = calcularLibre(datos, hoy, fondoCentavos);
+  const { cifra, conLibre } = calcularLibre(datos, hoy, fondoCentavos, ajusteSaldoCentavos);
   const ritmo = calcularRitmo(datos.movimientos, hoy, cifra);
   const actualizado = `Actualizado ${fmtDia.format(ahora).replace('.', '')}, ${fmtHora.format(ahora)}`;
   return {

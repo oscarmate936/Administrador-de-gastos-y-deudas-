@@ -34,7 +34,7 @@ export function movimientosACsv(
               : '';
         return [
           m.fecha,
-          m.tipo === 'ingreso' && m.esPago ? 'Mi pago' : m.esDevolucion ? 'Devolución' : TIPOS[m.tipo],
+          m.tipo === 'ingreso' && m.esPago ? 'Mi sueldo' : m.esDevolucion ? 'Devolución' : TIPOS[m.tipo],
           ((signo * m.montoCentavos) / 100).toFixed(2),
           m.categoriaId ? (categoria.get(m.categoriaId) ?? 'Sin categoría') : m.tipo === 'gasto' ? 'Sin categoría' : '',
           destino,

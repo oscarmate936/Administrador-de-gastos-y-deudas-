@@ -33,7 +33,7 @@ describe('respaldo', () => {
     await origen.movimientos.bulkAdd([
       { id: 'c', tipo: 'gasto', montoCentavos: 12000, fecha: '2026-11-21', categoriaId: 'super', tarjetaId: 't1', cuotas: 3, nota: '', creadoEn: 5 },
       { id: 'd', tipo: 'pago', montoCentavos: 10000, fecha: '2026-11-14', tarjetaId: 't1', nota: '', creadoEn: 6 },
-      { id: 'e', tipo: 'pago', montoCentavos: 10000, fecha: '2026-11-30', prestamoId: 'p1', capitalCentavos: 8958, esExtra: false, nota: '', creadoEn: 7 },
+      { id: 'e', tipo: 'pago', montoCentavos: 10000, fecha: '2026-11-30', prestamoId: 'p1', capitalCentavos: 8958, esExtra: false, cuotaCentavos: 10000, nota: '', creadoEn: 7 },
     ]);
 
     const texto = JSON.stringify(await crearRespaldo(origen));
@@ -78,6 +78,18 @@ describe('respaldo', () => {
     expect((await destino.ajustes.get('bloqueo'))?.valor).toMatchObject({ pinHash: 'local' });
     expect(await destino.ajustes.get('respaldoAuto')).toBeUndefined();
     expect(JSON.stringify(respaldo)).not.toContain('secreta');
+  });
+
+  it('un respaldo anterior a la 2.3 recibe en cada cuota el monto de la cuota del préstamo', () => {
+    const viejo = {
+      app: 'mis-finanzas', version: 3, exportadoEn: '', categorias: [],
+      prestamos: [{ id: 'p', nombre: 'P', acreedor: '', saldoInicialCentavos: 100000, tasaAnual: 12, cuotaCentavos: 6600, primeraCuota: '2026-08-03', creadoEn: 0 }],
+      movimientos: [
+        { id: 'a', tipo: 'pago', montoCentavos: 6600, fecha: '2026-08-03', prestamoId: 'p', capitalCentavos: 3000, nota: '', creadoEn: 1 },
+        { id: 'b', tipo: 'pago', montoCentavos: 2000, fecha: '2026-08-10', prestamoId: 'p', capitalCentavos: 2000, esExtra: true, nota: '', creadoEn: 2 },
+      ],
+    };
+    expect(leerRespaldo(JSON.stringify(viejo)).movimientos.map((m) => m.cuotaCentavos)).toEqual([6600, undefined]);
   });
 
   it('un dato repetido en el archivo no impide restaurarlo', async () => {

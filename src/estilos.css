@@ -2236,6 +2236,17 @@ body {
   opacity: 0.85;
 }
 
+.acciones-heroe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.acciones-heroe .boton-heroe {
+  margin-top: 0;
+}
+
 .boton-heroe {
   margin-top: 12px;
   align-self: flex-start;

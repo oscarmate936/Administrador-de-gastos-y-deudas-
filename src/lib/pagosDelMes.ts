@@ -1,42 +1,60 @@
 import type { Movimiento, Prestamo, Tarjeta } from '../db';
 import { estadoPrestamo, estadoTarjeta } from './deudas';
-import { mesDe } from './fechas';
-import { minimoEstimado } from './plan';
+import { diasEntre, mesDe } from './fechas';
 
-// «Próximos pagos» de Inicio: lo menos que hay que pagar este mes a cada deuda.
-// Tarjetas: el pago mínimo pendiente del estado de cuenta que vence este mes.
-// Préstamos: la cuota de este mes. También lo vencido de meses anteriores.
+// «Próximos pagos» de Inicio: una fila por deuda con lo que hay que pagar.
+// Tarjetas: el pago mínimo pendiente del estado de cuenta (y, como dato, el pago
+// de contado); cubierto el mínimo, lo que falta del total si la tarjeta se paga
+// completa. Préstamos: la cuota. Entra lo que vence este mes, lo de los
+// próximos días aunque sea del mes siguiente y lo vencido.
+
+/** Días hacia adelante que se muestran aunque el pago sea del mes siguiente. */
+export const DIAS_ADELANTE = 7;
 
 export interface PagoDelMes {
   tipo: 'tarjeta' | 'prestamo';
   id: string;
   nombre: string;
-  /** Lo que falta pagar del mínimo o de la cuota. */
+  /** Lo que falta pagar: del mínimo, del total o de la cuota, según `clase`. */
   montoCentavos: number;
   /** Último día de pago o fecha de la cuota. */
   fecha: string;
-  /** «minimo» en tarjetas, «cuota» en préstamos. */
-  clase: 'minimo' | 'cuota';
+  clase: 'minimo' | 'total' | 'cuota';
   /** true si el mínimo es un cálculo de la app (no se importó el estado de cuenta). */
   estimado: boolean;
+  /** No se cubrió el mínimo o la cuota y ya pasó la fecha. */
   vencido: boolean;
+  /** En tarjetas con mínimo pendiente: el pago de contado, para no generar intereses. */
+  totalCentavos?: number;
 }
 
 export function pagosDelMes(datos: { tarjetas: Tarjeta[]; prestamos: Prestamo[]; movimientos: Movimiento[] }, hoy: string): PagoDelMes[] {
   const mes = mesDe(hoy);
+  const enVentana = (fecha: string) => {
+    const dias = diasEntre(hoy, fecha);
+    return dias >= 0 && (mesDe(fecha) === mes || dias <= DIAS_ADELANTE);
+  };
   const lista: PagoDelMes[] = [];
   for (const t of datos.tarjetas) {
     const e = estadoTarjeta(t, datos.movimientos, hoy);
-    if (e.pendienteCentavos <= 0 || (mesDe(e.fechaLimite) !== mes && !e.vencido)) continue;
-    // El mínimo del estado de cuenta, menos lo ya pagado; sin estado de cuenta, un cálculo.
-    const estimado = e.pagoMinimoCentavos === null;
-    const minimo = estimado ? Math.min(e.pendienteCentavos, minimoEstimado(e.saldoCentavos, t.tasaAnual ?? 0)) : e.pagoMinimoCentavos!;
-    if (minimo <= 0) continue;
-    lista.push({ tipo: 'tarjeta', id: t.id, nombre: t.nombre, montoCentavos: minimo, fecha: e.fechaLimite, clase: 'minimo', estimado, vencido: e.vencido });
+    if (!e.vencido && !enVentana(e.fechaLimite)) continue;
+    const base = { tipo: 'tarjeta' as const, id: t.id, nombre: t.nombre, fecha: e.fechaLimite, vencido: e.vencido };
+    if (e.minimoPendienteCentavos > 0) {
+      lista.push({
+        ...base,
+        montoCentavos: e.minimoPendienteCentavos,
+        clase: 'minimo',
+        estimado: e.minimoEsEstimado,
+        totalCentavos: e.pendienteCentavos > e.minimoPendienteCentavos ? e.pendienteCentavos : undefined,
+      });
+    } else if (t.formaPago !== 'minimo' && e.pendienteCentavos > 0) {
+      // Mínimo cubierto: quien paga el total ve lo que le falta hasta el último día de pago.
+      lista.push({ ...base, montoCentavos: e.pendienteCentavos, clase: 'total', estimado: false });
+    }
   }
   for (const p of datos.prestamos) {
     const e = estadoPrestamo(p, datos.movimientos, hoy);
-    if (!e.proximaFecha || e.proximaCuotaCentavos <= 0 || (mesDe(e.proximaFecha) !== mes && !e.vencido)) continue;
+    if (!e.proximaFecha || e.proximaCuotaCentavos <= 0 || (!e.vencido && !enVentana(e.proximaFecha))) continue;
     lista.push({
       tipo: 'prestamo',
       id: p.id,

@@ -29,7 +29,7 @@ function vistaDe(m: Movimiento, datos: Datos): Vista {
   if (m.tipo === 'ingreso') {
     return {
       insignia: <Insignia color="var(--positivo)" simbolo="ingreso" />,
-      titulo: m.esPago ? 'Mi pago' : 'Otro ingreso',
+      titulo: m.esPago ? 'Mi sueldo' : 'Otro ingreso',
       monto: `+${dinero}`,
       claseMonto: 'fila-monto positivo',
     };

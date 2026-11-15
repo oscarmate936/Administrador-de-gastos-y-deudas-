@@ -103,6 +103,17 @@ export interface AjustesFondo {
   apartadoCentavos: number;
 }
 
+/**
+ * Corrección de tu dinero disponible: la diferencia entre lo que dijiste tener
+ * («¿Cuánto dinero tienes hoy?») y lo que sumaban tus movimientos ese día. Así
+ * la app sirve aunque no hayas anotado todos tus ingresos.
+ */
+export interface AjustesSaldo {
+  ajusteCentavos: number;
+  /** Día en que se corrigió (AAAA-MM-DD). */
+  fecha?: string;
+}
+
 export interface AjustesMetas {
   /** Porcentajes del camino a «libre de deudas» ya celebrados. */
   hitos: number[];
@@ -120,6 +131,7 @@ export interface Ajustes {
   inicio: AjustesInicio;
   metas: AjustesMetas;
   fondo: AjustesFondo;
+  saldo: AjustesSaldo;
 }
 
 export const AJUSTES_INICIALES: Ajustes = {
@@ -143,6 +155,7 @@ export const AJUSTES_INICIALES: Ajustes = {
   inicio: { orden: [...SECCIONES_INICIO], ocultas: [], primerosPasosOculto: false },
   metas: { hitos: [], prestamos: [] },
   fondo: { apartadoCentavos: 0 },
+  saldo: { ajusteCentavos: 0 },
 };
 
 export type ClaveAjuste = keyof Ajustes;

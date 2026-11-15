@@ -110,9 +110,10 @@ export interface EstadoTarjeta {
   /** Saldo más planes (y los intereses estimados): todo lo que se debe por esta tarjeta. */
   deudaTotalCentavos: number;
   /**
-   * Intereses que cobrará el banco por lo que quedó sin pagar del estado de
-   * cuenta (pasó el último día de pago). Es un cálculo aproximado hasta que se
-   * importe el siguiente estado de cuenta; 0 si no hay o no se sabe la tasa.
+   * Intereses que cobra el banco por lo que quedó sin pagar de cada estado de
+   * cuenta desde `fechaSaldo` (pasó su último día de pago). Es un cálculo
+   * aproximado hasta que se importe el siguiente estado de cuenta; 0 si no hay
+   * o no se sabe la tasa.
    */
   interesEstimadoCentavos: number;
   creditoDisponibleCentavos: number;
@@ -125,8 +126,19 @@ export interface EstadoTarjeta {
   pendienteCentavos: number;
   /** Lo que falta del pago mínimo; null si no se conoce (no se importó ese estado de cuenta). */
   pagoMinimoCentavos: number | null;
+  /**
+   * Lo que falta del pago mínimo: el del estado de cuenta o, si no se importó,
+   * un cálculo sobre lo que pedía ese estado de cuenta (no cambia al pagar).
+   */
+  minimoPendienteCentavos: number;
+  /** true si `minimoPendienteCentavos` es un cálculo de la app. */
+  minimoEsEstimado: boolean;
   /** true si las cifras del corte vienen de un estado de cuenta importado. */
   segunEstado: boolean;
+  /**
+   * Pasó el último día de pago sin cubrir el mínimo (el banco cobra mora). Si
+   * se cubrió el mínimo pero no el total, no está vencido: solo genera intereses.
+   */
   vencido: boolean;
   /** Días que faltan para `fechaLimite`; negativo si ya pasó. */
   diasParaLimite: number;
@@ -169,37 +181,97 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
   const capitalDePlanes = planesBase.reduce((t, p) => t + p.saldoCentavos, 0) - planesCentavos;
   const interesesDePlanes = Math.max(0, cobradoHasta(corteAnterior) - capitalDePlanes);
 
-  /** Lo que queda por pagar del estado de cuenta de ese corte, si es posterior a `fechaSaldo`. */
-  const pendienteDelCorte = (corte: string): number => {
-    const facturado = gastos.reduce(
-      (t, g) =>
-        t + montoFacturado(g.montoCentavos, g.cuotas ?? 1, cortesFacturados(tarjeta.diaCorte, g.fecha, corte)),
+  const facturadoEn = (corte: string) =>
+    gastos.reduce(
+      (t, g) => t + montoFacturado(g.montoCentavos, g.cuotas ?? 1, cortesFacturados(tarjeta.diaCorte, g.fecha, corte)),
       tarjeta.saldoInicialCentavos + cobradoHasta(corte),
     );
+  /**
+   * Lo que queda por pagar del estado de cuenta de ese corte, si es posterior a
+   * `fechaSaldo`. `intereses`: los estimados que ya se sumaron a ese estado.
+   */
+  const pendienteDelCorte = (corte: string, intereses: number): number => {
     // Las cuotas de planes que se cobren en ese corte todavía no están en el saldo de hoy.
-    const tope = deuda + Math.max(0, cobradoHasta(corte) - cobradoHasta(corteAnterior));
-    return Math.min(tope, Math.max(0, facturado - pagado));
+    const tope = Math.max(0, saldoCentavos + intereses) + Math.max(0, cobradoHasta(corte) - cobradoHasta(corteAnterior));
+    return Math.min(tope, Math.max(0, facturadoEn(corte) + intereses - pagado));
   };
 
   // Si el último corte no es posterior a `fechaSaldo`, la app no armó ese estado
   // de cuenta: usa lo que se registró (a mano o desde el PDF) como pendiente.
   const corteConocido = corteAnterior <= tarjeta.fechaSaldo;
+
+  // Estados de cuenta desde el que dio los saldos hasta el último corte. Cada
+  // uno cuenta los pagos hechos después de su corte (`desde`) hasta su último
+  // día de pago; lo que quede sin pagar genera intereses que se cobran en el
+  // corte siguiente.
+  const ciclos: Array<{ desde: string; limite: string }> = [];
+  if (corteConocido) {
+    ciclos.push({ desde: tarjeta.fechaSaldo, limite: fechaLimite });
+  } else {
+    const corteBase = ultimoDiaHasta(tarjeta.diaCorte, tarjeta.fechaSaldo);
+    const conEstadoBase = ue !== undefined && ue.fechaCorte <= tarjeta.fechaSaldo && Math.abs(diasEntre(ue.fechaCorte, corteBase)) <= 5;
+    ciclos.push({ desde: tarjeta.fechaSaldo, limite: conEstadoBase ? ue.fechaLimite : primerDiaDespues(tarjeta.diaPago, corteBase) });
+    let c = primerDiaDespues(tarjeta.diaCorte, tarjeta.fechaSaldo);
+    for (let i = 0; i < 24 && c < corteAnterior && diasEntre(c, corteAnterior) > 5; i++) {
+      ciclos.push({ desde: c, limite: primerDiaDespues(tarjeta.diaPago, c) });
+      const dc = aDate(c);
+      c = fechaConDia(dc.getFullYear(), dc.getMonth() + 1, tarjeta.diaCorte);
+    }
+    ciclos.push({ desde: corteAnterior, limite: fechaLimite });
+  }
+  const tasa = tarjeta.tasaAnual ?? 0;
+  const pagadoHasta = (fecha: string) => sumar(pagos.filter((x) => x.fecha <= fecha));
+  const pagadoEntre = (desde: string, hasta: string) => sumar(pagos.filter((x) => x.fecha > desde && x.fecha <= hasta));
+  /** Intereses de estados de cuenta anteriores, ya sumados al estado de cuenta actual. */
+  let interesCobrado = 0;
+  /** Intereses del estado de cuenta actual, que se cobrarán en el próximo corte. */
+  let interesPorCobrar = 0;
+  /** Lo que pedía el estado de cuenta actual el día de su corte. */
+  let saldoDelEstado = tarjeta.pendienteInicialCentavos;
+  ciclos.forEach((ciclo, k) => {
+    const esActual = k === ciclos.length - 1;
+    const alCorte = k === 0 ? tarjeta.pendienteInicialCentavos : Math.max(0, facturadoEn(ciclo.desde) + interesCobrado - pagadoHasta(ciclo.desde));
+    if (esActual) saldoDelEstado = alCorte;
+    if (hoy <= ciclo.limite || tasa <= 0) return;
+    const sinPagar = Math.max(0, alCorte - pagadoEntre(ciclo.desde, ciclo.limite));
+    // Una diferencia chica (una compra sin anotar, un redondeo) no es dejar de pagar: sin intereses.
+    if (sinPagar <= Math.max(DIFERENCIA_SIN_INTERES, alCorte * 0.03)) return;
+    const interes = interesMensual(sinPagar, tasa);
+    if (esActual) interesPorCobrar = interes;
+    else interesCobrado += interes;
+  });
+  const interesEstimadoCentavos = interesCobrado + interesPorCobrar;
+
   const pendienteCentavos = corteConocido
     ? Math.min(deuda, Math.max(0, tarjeta.pendienteInicialCentavos - pagado))
-    : pendienteDelCorte(corteAnterior);
+    : pendienteDelCorte(corteAnterior, interesCobrado);
+
+  // Pago mínimo. Solo cuentan los pagos hechos después del corte; una devolución
+  // del comercio baja la deuda, pero el banco no la cuenta como pago.
+  const inicioPlazo = ciclos[ciclos.length - 1].desde;
+  const pagadoAlMinimo = sumar(pagos.filter((x) => !x.esDevolucion && x.fecha > inicioPlazo));
   const pagoMinimoCentavos =
     corteConocido && segunEstado && ue.pagoMinimoCentavos !== undefined
-      ? Math.min(pendienteCentavos, Math.max(0, ue.pagoMinimoCentavos - pagado))
+      ? Math.min(pendienteCentavos, Math.max(0, ue.pagoMinimoCentavos - pagadoAlMinimo))
       : null;
+  let minimoPendienteCentavos: number;
+  if (pagoMinimoCentavos !== null) {
+    minimoPendienteCentavos = pagoMinimoCentavos;
+  } else {
+    // Sin estado de cuenta importado: un cálculo sobre lo que pedía el estado de
+    // cuenta. Como es aproximado, se da por cubierto al pagar casi todo (80 %).
+    const base = Math.min(saldoDelEstado, minimoEstimado(saldoDelEstado, tasa));
+    minimoPendienteCentavos =
+      pagadoAlMinimo >= base * PARTE_MINIMO_CUBIERTO ? 0 : Math.min(pendienteCentavos, Math.max(0, base - pagadoAlMinimo));
+  }
 
-  const vencido = pendienteCentavos > 0 && hoy > fechaLimite;
-  const interesEstimadoCentavos = vencido && tarjeta.tasaAnual ? interesMensual(pendienteCentavos, tarjeta.tasaAnual) : 0;
+  const vencido = minimoPendienteCentavos > 0 && hoy > fechaLimite;
 
   return {
     saldoCentavos,
     planes,
     planesCentavos,
-    deudaTotalCentavos: deuda + planesCentavos + interesEstimadoCentavos,
+    deudaTotalCentavos: Math.max(0, saldoCentavos + interesEstimadoCentavos) + planesCentavos,
     interesEstimadoCentavos,
     // Si los saldos vienen del estado de cuenta, parte del disponible que dio el
     // banco y solo resta compras y suma pagos posteriores: las cuotas de las
@@ -213,12 +285,26 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
     fechaLimite,
     pendienteCentavos,
     pagoMinimoCentavos,
+    minimoPendienteCentavos,
+    minimoEsEstimado: pagoMinimoCentavos === null,
     segunEstado: segunEstado && corteConocido,
     vencido,
     diasParaLimite: diasEntre(hoy, fechaLimite),
-    proximoEstadoCentavos: pendienteDelCorte(proximoCorte) + interesEstimadoCentavos,
+    proximoEstadoCentavos: pendienteDelCorte(proximoCorte, interesEstimadoCentavos),
     proximaFechaLimite: primerDiaDespues(tarjeta.diaPago, proximoCorte),
   };
+}
+
+/** Si del estado de cuenta queda sin pagar esto o menos (o el 3 %), no se estiman intereses. */
+const DIFERENCIA_SIN_INTERES = 500;
+
+/** Con un mínimo aproximado, pagar esta parte lo da por cubierto. */
+const PARTE_MINIMO_CUBIERTO = 0.8;
+
+/** Mínimo estimado cuando no hay estado de cuenta: intereses del mes más 2.5% del saldo, al menos $10. */
+export function minimoEstimado(saldoCentavos: number, tasaAnual: number): number {
+  const estimado = interesMensual(saldoCentavos, tasaAnual) + Math.round(saldoCentavos * 0.025);
+  return Math.min(saldoCentavos, Math.max(1000, estimado));
 }
 
 // ---------- Préstamos ----------
@@ -348,7 +434,9 @@ const TOLERANCIA_CUOTA = 100;
 /**
  * Cuenta las cuotas pagadas: un pago de casi toda la cuota (90 % o más) cuenta
  * como una; los más chicos se van sumando hasta completarla. Devuelve también
- * lo que llevan los pagos parciales de la cuota en curso.
+ * lo que llevan los pagos parciales de la cuota en curso. Cada pago se compara
+ * con la cuota que había cuando se hizo (`cuotaCentavos` del pago), para que
+ * una cuota que sube después no convierta los pagos viejos en parciales.
  */
 export function contarCuotas(
   pagos: Movimiento[],
@@ -360,14 +448,15 @@ export function contarCuotas(
   let parcial = 0;
   let parcialNoCapital = 0;
   for (const m of ordenados) {
-    if (parcial === 0 && m.montoCentavos >= cuotaCentavos * PARTE_CUOTA_COMPLETA) {
+    const cuotaDelPago = m.cuotaCentavos ?? cuotaCentavos;
+    if (parcial === 0 && m.montoCentavos >= cuotaDelPago * PARTE_CUOTA_COMPLETA) {
       cuotas++;
       ultimaCompleta = m.fecha;
       continue;
     }
     parcial += m.montoCentavos;
     parcialNoCapital += m.montoCentavos - (m.capitalCentavos ?? 0);
-    if (parcial >= cuotaCentavos - TOLERANCIA_CUOTA) {
+    if (parcial >= cuotaDelPago - TOLERANCIA_CUOTA) {
       cuotas++;
       ultimaCompleta = m.fecha;
       parcial = 0;
@@ -612,6 +701,8 @@ export interface ProximoPago {
   dias: number;
   /** true si el monto todavía puede cambiar (estado de cuenta que aún no corta). */
   estimado: boolean;
+  /** Tarjetas que se pagan con el mínimo: el monto es el pago mínimo. */
+  esMinimo?: boolean;
 }
 
 /** Lo que hay que pagar de tarjetas y préstamos, ordenado por fecha. */
@@ -624,16 +715,22 @@ export function proximosPagos(
   const lista: ProximoPago[] = [];
   for (const t of tarjetas) {
     const e = estadoTarjeta(t, movimientos, hoy);
-    if (e.pendienteCentavos > 0) {
+    // Lo que la persona piensa pagar de este estado de cuenta: el total o el mínimo.
+    const esMinimo = t.formaPago === 'minimo';
+    const porPagar = esMinimo ? e.minimoPendienteCentavos : e.pendienteCentavos;
+    // Sigue vigente hasta el último día de pago; después, solo si no se cubrió el
+    // mínimo (vencido). Lo demás pasa al siguiente estado de cuenta.
+    if (porPagar > 0 && (hoy <= e.fechaLimite || e.vencido)) {
       lista.push({
         tipo: 'tarjeta',
         id: t.id,
         nombre: t.nombre,
         fecha: e.fechaLimite,
-        montoCentavos: e.pendienteCentavos,
+        montoCentavos: porPagar,
         vencido: e.vencido,
         dias: e.diasParaLimite,
-        estimado: false,
+        estimado: esMinimo && e.minimoEsEstimado,
+        esMinimo: esMinimo || undefined,
       });
     } else if (e.proximoEstadoCentavos > 0) {
       lista.push({
@@ -641,10 +738,11 @@ export function proximosPagos(
         id: t.id,
         nombre: t.nombre,
         fecha: e.proximaFechaLimite,
-        montoCentavos: e.proximoEstadoCentavos,
+        montoCentavos: esMinimo ? Math.min(e.proximoEstadoCentavos, minimoEstimado(e.proximoEstadoCentavos, t.tasaAnual ?? 0)) : e.proximoEstadoCentavos,
         vencido: false,
         dias: diasEntre(hoy, e.proximaFechaLimite),
         estimado: true,
+        esMinimo: esMinimo || undefined,
       });
     }
   }

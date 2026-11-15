@@ -14,6 +14,8 @@ interface Props {
   alAbrir: (d: Detalle | 'movimientos') => void;
   /** Lo apartado en el fondo de emergencia, para responder cuánto queda libre. */
   fondoCentavos?: number;
+  /** Corrección de «¿Cuánto dinero tienes hoy?». */
+  ajusteSaldoCentavos?: number;
 }
 
 // Ejemplos de frases; al tocarlos se escriben en la barra para completarlos.
@@ -31,7 +33,7 @@ const textoDia = (fecha: string) => {
  * Si escribes una pregunta («¿cuánto debo?») también la responde, pero no se
  * sugieren preguntas porque Inicio y Deudas ya muestran esas cifras.
  */
-export function Asistente({ datos, alAbrirFormulario, alAbrir, fondoCentavos = 0 }: Props) {
+export function Asistente({ datos, alAbrirFormulario, alAbrir, fondoCentavos = 0, ajusteSaldoCentavos = 0 }: Props) {
   const [texto, setTexto] = useState('');
   const [resultado, setResultado] = useState<Intencion | null>(null);
   const [guardado, setGuardado] = useState<{ id: string; texto: string } | null>(null);
@@ -47,7 +49,7 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir, fondoCentavos = 0
 
   const preguntar = (frase: string) => {
     setGuardado(null);
-    setResultado(interpretar(frase, datos, hoy(), fondoCentavos));
+    setResultado(interpretar(frase, datos, hoy(), fondoCentavos, ajusteSaldoCentavos));
   };
 
   function enviar(e: FormEvent) {
@@ -87,6 +89,7 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir, fondoCentavos = 0
           esExtra: r.extra,
           capitalCentavos: reparto.capitalCentavos,
           cargosCentavos: r.extra ? undefined : reparto.cargosCentavos,
+          cuotaCentavos: r.extra ? undefined : p.cuotaCentavos,
         };
       }
       default:
@@ -132,7 +135,7 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir, fondoCentavos = 0
       case 'gasto':
         return [`Gasto de ${monto}`, nombreCategoria(r.categoriaId) ?? 'sin categoría', nombreTarjeta(r.tarjetaId) ? `con ${nombreTarjeta(r.tarjetaId)}` : 'en efectivo', textoDia(r.fecha)].join(' · ');
       case 'ingreso':
-        return [`${r.esPago ? 'Tu pago' : 'Ingreso'} de ${monto}`, textoDia(r.fecha)].join(' · ');
+        return [`${r.esPago ? 'Tu sueldo' : 'Ingreso'} de ${monto}`, textoDia(r.fecha)].join(' · ');
       case 'pagoTarjeta':
         return [`Pago de ${monto} a ${nombreTarjeta(r.tarjetaId)}`, textoDia(r.fecha)].join(' · ');
       case 'pagoPrestamo':

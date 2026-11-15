@@ -28,8 +28,10 @@ export function calcularLibre(
   datos: { movimientos: Movimiento[]; tarjetas: Tarjeta[]; prestamos: Prestamo[] },
   hoy: string,
   fondoCentavos = 0,
+  /** Corrección de «¿Cuánto dinero tienes hoy?» (ajustes.saldo). */
+  ajusteSaldoCentavos = 0,
 ): Libre {
-  const disponible = calcularDisponible(datos.movimientos);
+  const disponible = calcularDisponible(datos.movimientos) + ajusteSaldoCentavos;
   const porApartar = totalPorPagar(proximosPagos(datos.tarjetas, datos.prestamos, datos.movimientos, hoy), DIAS_A_APARTAR);
   const fondo = Math.max(0, fondoCentavos);
   const conLibre = porApartar > 0 || fondo > 0;

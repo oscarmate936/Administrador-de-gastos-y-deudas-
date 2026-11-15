@@ -101,7 +101,7 @@ export function agenda(datos: FuenteAgenda, desde: string, hasta: string, hoy: s
   for (const r of datos.recurrentes) {
     if (!r.activo || r.tipo === 'pago') continue;
     const c = r.categoriaId ? datos.mapaCategorias.get(r.categoriaId) : undefined;
-    const titulo = r.nota || (r.tipo === 'ingreso' ? (r.esPago ? 'Mi pago' : 'Ingreso') : (c?.nombre ?? 'Gasto'));
+    const titulo = r.nota || (r.tipo === 'ingreso' ? (r.esPago ? 'Mi sueldo' : 'Ingreso') : (c?.nombre ?? 'Gasto'));
     let f = r.proxima;
     for (let i = 0; f <= hasta && i < 36; i++) {
       if (f >= desde) {

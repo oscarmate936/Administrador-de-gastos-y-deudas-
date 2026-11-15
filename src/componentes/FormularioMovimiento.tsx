@@ -330,7 +330,7 @@ export function FormularioMovimiento(props: Props) {
             <legend>¿Qué tipo de ingreso es?</legend>
             <div className="chips">
               <button type="button" className="chip" aria-pressed={esPago} onClick={() => setEsPago(true)}>
-                <Simbolo nombre="ingreso" tamano={16} /> Mi pago
+                <Simbolo nombre="ingreso" tamano={16} /> Mi sueldo
               </button>
               <button type="button" className="chip" aria-pressed={!esPago} onClick={() => setEsPago(false)}>
                 <Simbolo nombre="dinero" tamano={16} /> Otro ingreso
@@ -338,8 +338,8 @@ export function FormularioMovimiento(props: Props) {
             </div>
             <p className="ayuda">
               {esPago
-                ? 'Al guardarlo, Inicio empieza a contar tus gastos desde este pago.'
-                : 'Suma a tu disponible sin reiniciar la cuenta desde tu último pago.'}
+                ? 'Al guardarlo, Inicio empieza a contar tus gastos desde este sueldo.'
+                : 'Suma a tu disponible sin reiniciar la cuenta desde tu último sueldo.'}
             </p>
           </fieldset>
         )}

@@ -15,6 +15,8 @@ export interface ClavePago {
   modo?: 'total' | 'minimo';
   /** En el aviso de una tarjeta: se conoce el mínimo y se ofrece «Pagué el mínimo». */
   conMinimo?: boolean;
+  /** La tarjeta se paga con el mínimo: «Pagué el mínimo» va primero. */
+  prefiereMinimo?: boolean;
 }
 
 export type ResultadoPago =
@@ -51,15 +53,17 @@ export function pagoRapido(
     const t = datos.tarjetas.find((x) => x.id === c.id);
     if (!t) return { ok: false, motivo: 'Esa tarjeta ya no existe.' };
     const e = estadoTarjeta(t, datos.movimientos, hoy);
-    if (e.pendienteCentavos > 0 && e.fechaLimite < c.fecha) {
+    if (e.vencido && e.fechaLimite < c.fecha) {
       return { ok: false, motivo: `Falta el pago de ${t.nombre} del ${fechaCorta(e.fechaLimite)}.`, abrirPago: true };
     }
     if (e.pendienteCentavos <= 0 || e.fechaLimite !== c.fecha) {
       return { ok: false, motivo: `El pago de ${t.nombre} ya está registrado.` };
     }
     if (c.modo === 'minimo') {
-      if (!e.pagoMinimoCentavos) return { ok: false, motivo: `No sé el pago mínimo de ${t.nombre}: escribe cuánto pagaste.`, abrirPago: true };
-      return { ok: true, nombre: t.nombre, movimiento: { ...base, montoCentavos: e.pagoMinimoCentavos, tarjetaId: t.id } };
+      if (e.minimoPendienteCentavos <= 0) return { ok: false, motivo: `El mínimo de ${t.nombre} ya está cubierto.` };
+      // Un mínimo aproximado no se registra a ciegas: se abre el pago para escribir el monto real.
+      if (e.minimoEsEstimado) return { ok: false, motivo: `No sé el pago mínimo exacto de ${t.nombre}: escribe cuánto pagaste.`, abrirPago: true };
+      return { ok: true, nombre: t.nombre, movimiento: { ...base, montoCentavos: e.minimoPendienteCentavos, tarjetaId: t.id } };
     }
     return { ok: true, nombre: t.nombre, movimiento: { ...base, montoCentavos: e.pendienteCentavos, tarjetaId: t.id } };
   }
@@ -75,5 +79,5 @@ export function pagoRapido(
   }
   const monto = e.proximaCuotaCentavos;
   const { capitalCentavos, cargosCentavos } = repartirPago(p, e, monto, false, hoy);
-  return { ok: true, nombre: p.nombre, movimiento: { ...base, montoCentavos: monto, prestamoId: p.id, capitalCentavos, cargosCentavos } };
+  return { ok: true, nombre: p.nombre, movimiento: { ...base, montoCentavos: monto, prestamoId: p.id, capitalCentavos, cargosCentavos, cuotaCentavos: p.cuotaCentavos } };
 }

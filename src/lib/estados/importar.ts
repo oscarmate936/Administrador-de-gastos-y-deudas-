@@ -135,6 +135,7 @@ export function tarjetaDesdeEstado(
     creadoEn: base?.creadoEn ?? Date.now(),
     ultimos4: estado.ultimos4 ?? base?.ultimos4,
     tasaAnual: estado.tasaAnual ?? base?.tasaAnual,
+    formaPago: base?.formaPago,
     ultimoEstado: {
       fechaCorte: estado.fechaCorte,
       fechaLimite: estado.fechaLimite,

@@ -19,12 +19,17 @@ describe('actualizar desde versiones anteriores', () => {
     await vieja.table('movimientos').bulkAdd([
       { id: 'a', tipo: 'ingreso', esPago: true, montoCentavos: 90000, fecha: '2026-11-01', nota: '', creadoEn: 1 },
       { id: 'b', tipo: 'gasto', montoCentavos: 1250, fecha: '2026-11-10', categoriaId: 'comida', tarjetaId: 't', nota: 'Almuerzo', creadoEn: 2 },
+      { id: 'c', tipo: 'pago', montoCentavos: 10000, fecha: '2026-11-30', prestamoId: 'p', capitalCentavos: 9000, nota: '', creadoEn: 3 },
+      { id: 'd', tipo: 'pago', montoCentavos: 5000, fecha: '2026-12-05', prestamoId: 'p', capitalCentavos: 5000, esExtra: true, nota: '', creadoEn: 4 },
     ]);
     vieja.close();
 
     const nueva = new BaseDeDatos(nombre);
-    expect(nueva.verno).toBe(4);
-    expect(await nueva.movimientos.count()).toBe(2);
+    expect(nueva.verno).toBe(5);
+    expect(await nueva.movimientos.count()).toBe(4);
+    // Las cuotas ya pagadas guardan cuánto era la cuota; los abonos extra, no.
+    expect((await nueva.movimientos.get('c'))?.cuotaCentavos).toBe(10000);
+    expect((await nueva.movimientos.get('d'))?.cuotaCentavos).toBeUndefined();
     expect((await nueva.tarjetas.get('t'))?.fechaSaldo).toBe('2026-11-06');
     expect(await nueva.prestamos.count()).toBe(1);
     // Las tablas nuevas existen y están vacías.
@@ -33,7 +38,7 @@ describe('actualizar desde versiones anteriores', () => {
     expect(await nueva.recurrentes.count()).toBe(0);
     // Y se puede respaldar y volver a leer.
     const r = leerRespaldo(await textoRespaldo(await crearRespaldo(nueva)));
-    expect(r.movimientos).toHaveLength(2);
+    expect(r.movimientos).toHaveLength(4);
     expect(r.tarjetas[0].nombre).toBe('Visa');
   });
 });

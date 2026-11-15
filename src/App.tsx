@@ -5,6 +5,7 @@ import { db, type Movimiento } from './db';
 import { FormularioMovimiento } from './componentes/FormularioMovimiento';
 import { FormularioPago } from './componentes/FormularioPago';
 import { FormularioPrestamo } from './componentes/FormularioPrestamo';
+import { FormularioSaldo } from './componentes/FormularioSaldo';
 import { FormularioTarjeta } from './componentes/FormularioTarjeta';
 import { Bloqueo } from './componentes/Bloqueo';
 import { FormularioRecordatorios } from './componentes/FormularioRecordatorios';
@@ -25,6 +26,7 @@ import { guardarAjuste, useAjustes } from './lib/ajustes';
 import { copiarSiToca } from './lib/copias';
 import { hoy, mesDe } from './lib/fechas';
 import { formatearDinero } from './lib/dinero';
+import { calcularDisponible } from './lib/resumen';
 import { esClavePago, pagoRapido, type ClavePago } from './lib/pagoRapido';
 import { compartirRespaldo, leerClave, respaldarSiToca } from './lib/respaldoAuto';
 import { fotoDeHoy, guardarFoto } from './lib/historial';
@@ -189,12 +191,13 @@ export function App() {
     };
   }, []);
 
+  const ajusteSaldo = ajustes?.saldo.ajusteCentavos ?? 0;
   // Foto mensual de deudas y disponible para las gráficas, y copia diaria.
   useEffect(() => {
     if (!datos) return;
-    const t = setTimeout(() => void guardarFoto(db, fotoDeHoy(datos, dia)), 800);
+    const t = setTimeout(() => void guardarFoto(db, fotoDeHoy(datos, dia, ajusteSaldo)), 800);
     return () => clearTimeout(t);
-  }, [datos, dia]);
+  }, [datos, dia, ajusteSaldo]);
   const desbloqueada = bloqueado === false;
   const hayDatos = !!datos && datos.movimientos.length + datos.tarjetas.length + datos.prestamos.length > 0;
   useEffect(() => {
@@ -285,6 +288,7 @@ export function App() {
     [],
   );
   const [verRecordatorios, setVerRecordatorios] = useState(false);
+  const [verSaldo, setVerSaldo] = useState(false);
   const [recurrenteAbierto, setRecurrenteAbierto] = useState<Recurrente | null>(null);
 
   async function exportarCsv(d: Datos) {
@@ -333,9 +337,9 @@ export function App() {
   const enFondo = ajustes?.fondo.apartadoCentavos ?? 0;
   useEffect(() => {
     if (!datos || conBloqueo === undefined) return;
-    const t = setTimeout(() => void actualizarWidget({ ...resumenWidget(datos, dia, new Date(), enFondo), oculto: conBloqueo }), 1000);
+    const t = setTimeout(() => void actualizarWidget({ ...resumenWidget(datos, dia, new Date(), enFondo, ajusteSaldo), oculto: conBloqueo }), 1000);
     return () => clearTimeout(t);
-  }, [datos, conBloqueo, enFondo, dia]);
+  }, [datos, conBloqueo, enFondo, ajusteSaldo, dia]);
 
   // Metas del camino a «libre de deudas»: se celebran una sola vez.
   const [celebracion, setCelebracion] = useState<{ titulo: string; texto: string } | null>(null);
@@ -486,6 +490,7 @@ export function App() {
             diasSinRespaldo={diasSinRespaldo}
             alRespaldar={() => void respaldarAhora()}
             alAbrirFormulario={setFormulario}
+            alCorregirSaldo={() => setVerSaldo(true)}
           />
         );
       case 'movimientos':
@@ -557,6 +562,15 @@ export function App() {
                 }
                 valor={ajustes!.recordatorios.activo ? 'Activados' : 'Desactivados'}
                 alTocar={() => setVerRecordatorios(true)}
+              />
+            }
+            saldo={
+              <Opcion
+                icono={<Insignia color="var(--positivo)" simbolo="dinero" cuadrada />}
+                titulo="Mi dinero de hoy"
+                detalle="Corrígelo si no coincide con lo que tienes"
+                valor={formatearDinero(calcularDisponible(d.movimientos) + ajustes!.saldo.ajusteCentavos)}
+                alTocar={() => setVerSaldo(true)}
               />
             }
             exportar={
@@ -765,6 +779,14 @@ export function App() {
           categorias={datos.categorias}
           tarjetas={datos.tarjetas}
           alCerrar={() => setRecurrenteAbierto(null)}
+        />
+      )}
+      {verSaldo && datos && ajustes && (
+        <FormularioSaldo
+          movimientos={datos.movimientos}
+          saldo={ajustes.saldo}
+          alCerrar={() => setVerSaldo(false)}
+          alGuardar={(texto) => setAviso({ texto, tipo: 'info' })}
         />
       )}
       {verRecordatorios && datos && (

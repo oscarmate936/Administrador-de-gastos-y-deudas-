@@ -39,6 +39,11 @@ export interface Movimiento {
    */
   cargosCentavos?: number;
   /**
+   * Solo en cuotas de préstamos: cuánto era la cuota cuando se hizo el pago.
+   * Sirve para saber si el pago la completó aunque la cuota cambie después.
+   */
+  cuotaCentavos?: number;
+  /**
    * Solo en pagos a tarjetas: una devolución o reverso del comercio. Baja la
    * deuda de la tarjeta, pero no es dinero que salió de tu bolsa.
    */
@@ -70,6 +75,12 @@ export interface Tarjeta {
   /** Últimos 4 dígitos, para reconocer la tarjeta al importar un estado de cuenta. */
   ultimos4?: string;
   tasaAnual?: number;
+  /**
+   * Cómo se suele pagar: el total del estado de cuenta (lo normal si falta) o
+   * solo el mínimo. Decide cuánto se aparta de lo libre para gastar, qué piden
+   * los avisos y el monto que propone el formulario de pago.
+   */
+  formaPago?: 'total' | 'minimo';
   /** Datos del último estado de cuenta importado. */
   ultimoEstado?: UltimoEstado;
 }
@@ -247,6 +258,19 @@ export class BaseDeDatos extends Dexie {
       historial: 'mes',
       recurrentes: 'id, proxima',
       copias: 'id, creadaEn',
+    });
+    // Versión 5: cada cuota de préstamo guarda cuánto era la cuota ese día.
+    this.version(5).upgrade(async (tx) => {
+      const prestamos = await tx.table<Prestamo, string>('prestamos').toArray();
+      const cuotas = new Map(prestamos.map((p) => [p.id, p.cuotaCentavos]));
+      await tx
+        .table<Movimiento, string>('movimientos')
+        .toCollection()
+        .modify((m) => {
+          if (m.tipo === 'pago' && m.prestamoId && !m.esExtra && m.cuotaCentavos === undefined && cuotas.has(m.prestamoId)) {
+            m.cuotaCentavos = cuotas.get(m.prestamoId);
+          }
+        });
     });
     // Solo corre la primera vez que se crea la base en el dispositivo.
     this.on('populate', (tx) => {

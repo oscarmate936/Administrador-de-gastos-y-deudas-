@@ -24,24 +24,40 @@ describe('próximos pagos del mes', () => {
   it('lo ya pagado se descuenta y lo cubierto desaparece', () => {
     const abono = mov({ tipo: 'pago', montoCentavos: 5000, fecha: '2026-11-10', tarjetaId: 'v' });
     expect(pagosDelMes({ tarjetas: [visa], prestamos: [], movimientos: [abono] }, '2026-11-14')[0].montoCentavos).toBe(2420);
-    const minimo = mov({ tipo: 'pago', montoCentavos: 7420, fecha: '2026-11-10', tarjetaId: 'v' });
-    expect(pagosDelMes({ tarjetas: [visa], prestamos: [], movimientos: [minimo] }, '2026-11-14')).toEqual([]);
     const cuota = mov({ tipo: 'pago', montoCentavos: 6600, fecha: '2026-11-28', prestamoId: 'p', capitalCentavos: 3600 });
     expect(pagosDelMes({ tarjetas: [], prestamos: [prestamo], movimientos: [cuota] }, '2026-11-29')).toEqual([]);
   });
 
-  it('lo que vence el mes siguiente no aparece; lo vencido de antes, sí', () => {
+  it('lo del mes siguiente aparece solo si faltan 7 días o menos; lo vencido, siempre', () => {
     const diciembre = { ...prestamo, primeraCuota: '2026-12-03' };
     expect(pagosDelMes({ tarjetas: [], prestamos: [diciembre], movimientos: [] }, '2026-11-14')).toEqual([]);
+    expect(pagosDelMes({ tarjetas: [], prestamos: [diciembre], movimientos: [] }, '2026-11-27')).toHaveLength(1);
     const vencida = { ...prestamo, primeraCuota: '2026-10-28' };
     expect(pagosDelMes({ tarjetas: [], prestamos: [vencida], movimientos: [] }, '2026-11-14')[0]).toMatchObject({ vencido: true, fecha: '2026-10-28' });
   });
 
-  it('sin estado de cuenta importado, el mínimo es un cálculo', () => {
+  it('la tarjeta muestra el mínimo y, como dato, el pago de contado', () => {
+    const [p] = pagosDelMes({ tarjetas: [visa], prestamos: [], movimientos: [] }, '2026-11-14');
+    expect(p).toMatchObject({ clase: 'minimo', montoCentavos: 7420, totalCentavos: 64152, vencido: false });
+  });
+
+  it('con el mínimo cubierto: quien paga el total ve lo que falta; quien paga el mínimo, nada', () => {
+    const minimo = mov({ tipo: 'pago', montoCentavos: 7420, fecha: '2026-11-10', tarjetaId: 'v' });
+    expect(pagosDelMes({ tarjetas: [visa], prestamos: [], movimientos: [minimo] }, '2026-11-14')).toMatchObject([{ clase: 'total', montoCentavos: 56732 }]);
+    expect(pagosDelMes({ tarjetas: [{ ...visa, formaPago: 'minimo' }], prestamos: [], movimientos: [minimo] }, '2026-11-14')).toEqual([]);
+    // Pasado el último día de pago ya no se pide: lo que quedó pasa al siguiente estado de cuenta.
+    expect(pagosDelMes({ tarjetas: [visa], prestamos: [], movimientos: [minimo] }, '2026-11-19')).toEqual([]);
+    // Sin cubrir el mínimo, queda vencida.
+    expect(pagosDelMes({ tarjetas: [visa], prestamos: [], movimientos: [] }, '2026-11-19')).toMatchObject([{ clase: 'minimo', vencido: true, montoCentavos: 7420 }]);
+  });
+
+  it('sin estado de cuenta importado, el mínimo es un cálculo que desaparece al pagarlo', () => {
     const manual: Tarjeta = { ...visa, ultimoEstado: undefined };
     const [p] = pagosDelMes({ tarjetas: [manual], prestamos: [], movimientos: [] }, '2026-11-14');
     expect(p.estimado).toBe(true);
     expect(p.montoCentavos).toBeGreaterThan(0);
     expect(p.montoCentavos).toBeLessThanOrEqual(64152);
+    const pagado = mov({ tipo: 'pago', montoCentavos: p.montoCentavos, fecha: '2026-11-13', tarjetaId: 'v' });
+    expect(pagosDelMes({ tarjetas: [{ ...manual, formaPago: 'minimo' }], prestamos: [], movimientos: [pagado] }, '2026-11-14')).toEqual([]);
   });
 });

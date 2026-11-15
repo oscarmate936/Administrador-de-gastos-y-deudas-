@@ -22,6 +22,18 @@ describe('fondo de emergencia', () => {
     expect(calcularLibre({ movimientos: [pago], tarjetas: [], prestamos: [] }, '2026-11-15')).toMatchObject({ cifra: 90000, conLibre: false });
   });
 
+  it('«¿Cuánto dinero tienes hoy?» corrige lo disponible y lo libre', () => {
+    // Sin ingresos anotados y con $50 de gastos, la app calculaba −$50; la persona dice tener $300.
+    const gasto = mov({ tipo: 'gasto', montoCentavos: 5000, fecha: '2026-11-10' });
+    const datos = { movimientos: [gasto], tarjetas: [], prestamos: [prestamo] };
+    expect(calcularLibre(datos, '2026-11-15').disponible).toBe(-5000);
+    const ajuste = 30000 - -5000;
+    expect(calcularLibre(datos, '2026-11-15', 0, ajuste)).toMatchObject({ disponible: 30000, porApartar: 10000, cifra: 20000 });
+    // Un gasto posterior sigue restando.
+    const otro = mov({ tipo: 'gasto', montoCentavos: 2500, fecha: '2026-11-16' });
+    expect(calcularLibre({ ...datos, movimientos: [gasto, otro] }, '2026-11-16', 0, ajuste).disponible).toBe(27500);
+  });
+
   it('sugiere como meta un mes de gastos, redondeado a $50', () => {
     expect(sugerirMeta([], '2026-11-15')).toBe(META_INICIAL);
     const gastos = [

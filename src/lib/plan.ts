@@ -1,6 +1,17 @@
 import type { Movimiento, Prestamo, Tarjeta } from '../db';
 import { diasEntre } from './fechas';
-import { cargosConSaldo, estadoPrestamo, estadoTarjeta, factorCargos, interesMensual, interesPorDias, periodosDe, sumarMeses, type Periodos } from './deudas';
+import {
+  cargosConSaldo,
+  estadoPrestamo,
+  estadoTarjeta,
+  factorCargos,
+  interesMensual,
+  interesPorDias,
+  minimoEstimado,
+  periodosDe,
+  sumarMeses,
+  type Periodos,
+} from './deudas';
 
 // Simulador del plan para salir de deudas.
 
@@ -42,11 +53,7 @@ export interface ResultadoPlan {
 
 const MAX_MESES = 600;
 
-/** Mínimo estimado cuando no hay estado de cuenta: intereses del mes más 2.5% del saldo, al menos $10. */
-export function minimoEstimado(saldoCentavos: number, tasaAnual: number): number {
-  const estimado = interesMensual(saldoCentavos, tasaAnual) + Math.round(saldoCentavos * 0.025);
-  return Math.min(saldoCentavos, Math.max(1000, estimado));
-}
+export { minimoEstimado };
 
 /** Las deudas con saldo, listas para simular. */
 export function deudasParaPlan(

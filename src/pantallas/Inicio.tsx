@@ -9,7 +9,6 @@ import { IconoAnterior, IconoFlecha, IconoSiguiente } from '../componentes/Icono
 import { Insignia, InsigniaCategoria, Simbolo } from '../componentes/Simbolo';
 import { pagosDelMes, type PagoDelMes } from '../lib/pagosDelMes';
 import { guardarAjuste, ordenInicio, type Ajustes, type AjustesFondo, type SeccionInicio } from '../lib/ajustes';
-import { proximosPagos, type ProximoPago } from '../lib/deudas';
 import { DIAS_A_APARTAR, calcularLibre, moverFondo, sugerirMeta } from '../lib/fondo';
 import { cierreDelMes, mesParaResumen, type CierreMes } from '../lib/cierreMes';
 import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
@@ -19,8 +18,6 @@ import { calcularRitmo, type Ritmo } from '../lib/ritmo';
 import { estadoLimites } from '../lib/limites';
 import { omitirRecurrente, pendientes, registrarRecurrente } from '../lib/recurrentes';
 
-/** Pagos que se muestran en "Requiere atención": vencidos o de los próximos días. */
-const DIAS_ATENCION = 3;
 /** Cada cuántos días se recuerda hacer un respaldo. */
 const DIAS_ENTRE_RESPALDOS = 7;
 
@@ -49,9 +46,10 @@ interface Props {
   alAbrirFormulario: (f: Formulario) => void;
   alImportar: () => void;
   alRecordatorios: () => void;
+  /** Abre «¿Cuánto dinero tienes hoy?». */
+  alCorregirSaldo: () => void;
 }
 
-const mayuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 export function Inicio(props: Props) {
   const { datos, ajustes, alAgregarIngreso, alAgregarGasto, alEditar, alVerTodos, alVerDeudas, alVerAnalisis, alAbrirDeuda } = props;
@@ -64,10 +62,10 @@ export function Inicio(props: Props) {
     return (
       <section className="vacio">
         <Insignia color="var(--primario)" simbolo="dinero" />
-        <h2>Empieza con tu último pago</h2>
+        <h2>Empieza con tu último sueldo</h2>
         <p>Registra cuánto te pagaron y la app irá restando cada gasto que anotes, para que siempre sepas cuánto te queda.</p>
         <button type="button" className="boton primario" onClick={alAgregarIngreso}>
-          Registrar mi pago
+          Registrar mi sueldo
         </button>
         <button type="button" className="boton" onClick={alAgregarGasto}>
           Registrar un gasto
@@ -80,18 +78,17 @@ export function Inicio(props: Props) {
   }
 
   const recientes = ordenarRecientes(movimientos).slice(0, 5);
-  const proximos = proximosPagos(tarjetas, prestamos, movimientos, fechaHoy);
-  const { disponible, porApartar, fondo, cifra, conLibre } = calcularLibre(datos, fechaHoy, ajustes.fondo.apartadoCentavos);
+  const { disponible, porApartar, fondo, cifra, conLibre } = calcularLibre(datos, fechaHoy, ajustes.fondo.apartadoCentavos, ajustes.saldo.ajusteCentavos);
   const mes = mesDe(fechaHoy);
   const limites = estadoLimites(movimientos, datos.categorias, mes).filter((l) => l.porcentaje >= 80);
   const porConfirmar = pendientes(datos.recurrentes, fechaHoy);
-  const atender = proximos.filter((p) => p.vencido || p.dias <= DIAS_ATENCION);
   const pasos = primerosPasos(props);
   const mesCierre = mesParaResumen(fechaHoy, ajustes.inicio.resumenVisto);
   const cierre = mesCierre ? cierreDelMes(datos, mesCierre) : null;
   const mostrarPasos = !ajustes.inicio.primerosPasosOculto && pasos.some((p) => !p.hecho);
-  const pedirRespaldo =
-    (diasSinRespaldo === null || diasSinRespaldo >= DIAS_ENTRE_RESPALDOS) && !(mostrarPasos && diasSinRespaldo === null);
+  // El primer respaldo no se pide dos veces: si es el paso que «Primeros pasos» está mostrando, basta con ese.
+  const pasoVisible = mostrarPasos ? pasos.find((p) => !p.hecho)?.id : undefined;
+  const pedirRespaldo = (diasSinRespaldo === null || diasSinRespaldo >= DIAS_ENTRE_RESPALDOS) && pasoVisible !== 'respaldo';
 
   const ritmo = calcularRitmo(movimientos, fechaHoy, cifra);
 
@@ -102,10 +99,17 @@ export function Inicio(props: Props) {
   const gastado = suma(delMes.filter((m) => m.tipo === 'gasto'));
   const aDeudas = suma(delMes.filter(esPagoDeDeuda));
 
-  const hayAtencion = atender.length > 0 || porConfirmar.length > 0 || limites.length > 0 || pedirRespaldo;
-  // Lo mínimo que pagar este mes a cada tarjeta y préstamo.
-  const pagosMes = pagosDelMes(datos, fechaHoy);
+  // Una fila por deuda: lo vencido va en «Requiere atención» y lo demás en
+  // «Próximos pagos» (todo junto si esa sección está oculta).
+  const pagosPendientes = pagosDelMes(datos, fechaHoy);
+  const atencionVisible = !ajustes.inicio.ocultas.includes('atencion');
+  const atender = atencionVisible ? pagosPendientes.filter((p) => p.vencido) : [];
+  const pagosMes = atencionVisible ? pagosPendientes.filter((p) => !p.vencido) : pagosPendientes;
   const totalMes = pagosMes.reduce((t, p) => t + p.montoCentavos, 0);
+  const hayAtencion = atender.length > 0 || porConfirmar.length > 0 || limites.length > 0 || pedirRespaldo;
+  /** Abre el pago de esa deuda con el monto ya puesto. */
+  const pagar = (p: PagoDelMes) =>
+    alAbrirFormulario(p.tipo === 'tarjeta' ? { clase: 'pago', tarjetaId: p.id, monto: p.montoCentavos } : { clase: 'pago', prestamoId: p.id, monto: p.montoCentavos });
 
   const secciones: Record<SeccionInicio, ReactNode> = {
     asistente: (
@@ -113,6 +117,7 @@ export function Inicio(props: Props) {
         key="asistente"
         datos={datos}
         fondoCentavos={ajustes.fondo.apartadoCentavos}
+        ajusteSaldoCentavos={ajustes.saldo.ajusteCentavos}
         alAbrirFormulario={alAbrirFormulario}
         alAbrir={(d) => (d === 'movimientos' ? alVerTodos() : alAbrirDeuda(d))}
       />
@@ -129,11 +134,11 @@ export function Inicio(props: Props) {
         </div>
         <ul className="lista tarjeta">
           {atender.map((p) => (
-            <FilaPago key={`${p.tipo}-${p.id}`} pago={p} color={colorDeuda(datos, p)} alTocar={() => alAbrirDeuda({ tipo: p.tipo, id: p.id })} />
+            <FilaPagoDelMes key={`${p.tipo}-${p.id}`} pago={p} color={colorDeuda(datos, p)} hoy={fechaHoy} alTocar={() => pagar(p)} />
           ))}
           {porConfirmar.map((r) => {
             const c = r.categoriaId ? mapaCategorias.get(r.categoriaId) : undefined;
-            const titulo = r.nota || (r.tipo === 'ingreso' ? (r.esPago ? 'Mi pago' : 'Otro ingreso') : (c?.nombre ?? 'Gasto'));
+            const titulo = r.nota || (r.tipo === 'ingreso' ? (r.esPago ? 'Mi sueldo' : 'Otro ingreso') : (c?.nombre ?? 'Gasto'));
             return (
               <li key={r.id} className="fila-confirmar">
                 {r.tipo === 'ingreso' ? <Insignia color="var(--positivo)" simbolo="ingreso" /> : <InsigniaCategoria categoria={c} />}
@@ -200,9 +205,9 @@ export function Inicio(props: Props) {
         {pagosMes.length === 0 ? (
           <p className="tarjeta texto-tenue">No te queda ningún pago pendiente en {nombreMes(mes).split(' ')[0].toLowerCase()}.</p>
         ) : (
-          <ul className="lista tarjeta" aria-label="Lo mínimo que pagar este mes a cada deuda">
+          <ul className="lista tarjeta" aria-label="Lo que falta pagar a cada deuda; toca una para registrar el pago">
             {pagosMes.map((p) => (
-              <FilaPagoDelMes key={`${p.tipo}-${p.id}`} pago={p} color={colorDeuda(datos, p)} hoy={fechaHoy} alTocar={() => alAbrirDeuda({ tipo: p.tipo, id: p.id })} />
+              <FilaPagoDelMes key={`${p.tipo}-${p.id}`} pago={p} color={colorDeuda(datos, p)} hoy={fechaHoy} alTocar={() => pagar(p)} />
             ))}
           </ul>
         )}
@@ -267,14 +272,23 @@ export function Inicio(props: Props) {
             ? textoApartado(disponible, porApartar, fondo)
             : disponible < 0
               ? 'Ha salido más dinero del que has registrado como ingreso.'
-              : 'Lo que has recibido menos lo que ha salido.'}
+              : ajustes.saldo.ajusteCentavos !== 0
+                ? `Lo que dijiste tener${ajustes.saldo.fecha ? ` el ${fechaCorta(ajustes.saldo.fecha)}` : ''}, con lo que has anotado desde entonces.`
+                : 'Lo que has recibido menos lo que ha salido.'}
         </p>
-        {ritmo ? (
-          <HeroeRitmo ritmo={ritmo} hoy={fechaHoy} />
-        ) : (
-          <button type="button" className="boton boton-heroe" onClick={alAgregarIngreso}>
-            Registrar mi pago
-          </button>
+        {ritmo && <HeroeRitmo ritmo={ritmo} hoy={fechaHoy} />}
+        {/* Sin sueldo registrado o con la cifra en negativo: dos formas de ponerla al día. */}
+        {(!ritmo || disponible < 0) && (
+          <div className="acciones-heroe">
+            {!ritmo && (
+              <button type="button" className="boton boton-heroe" onClick={alAgregarIngreso}>
+                Registrar mi sueldo
+              </button>
+            )}
+            <button type="button" className="boton boton-heroe" onClick={props.alCorregirSaldo}>
+              Decir cuánto tengo hoy
+            </button>
+          </div>
         )}
       </section>
 
@@ -298,7 +312,7 @@ function HeroeRitmo({ ritmo: r, hoy: fechaHoy }: { ritmo: Ritmo; hoy: string }) 
   const estimado = r.intervalo.supuesto ? ' (estimado)' : '';
   let alcance: string;
   if (r.porDiaCentavos === null) alcance = 'No queda libre';
-  else if (!r.alcanzaHasta || r.alcanzaHasta >= r.proximoPago) alcance = 'Tu próximo pago';
+  else if (!r.alcanzaHasta || r.alcanzaHasta >= r.proximoPago) alcance = 'Tu próximo sueldo';
   else alcance = fechaCorta(r.alcanzaHasta);
 
   return (
@@ -317,8 +331,8 @@ function HeroeRitmo({ ritmo: r, hoy: fechaHoy }: { ritmo: Ritmo; hoy: string }) 
       <p className="pie-heroe">
         <span>
           {r.pagoAtrasado
-            ? 'Tu pago suele llegar antes de hoy'
-            : `Próximo pago ${fechaCorta(r.proximoPago)}${estimado} · ${textoFaltan(diasEntre(fechaHoy, r.proximoPago))}`}
+            ? 'Tu sueldo suele llegar antes de hoy'
+            : `Próximo sueldo ${fechaCorta(r.proximoPago)}${estimado} · ${textoFaltan(diasEntre(fechaHoy, r.proximoPago))}`}
         </span>
       </p>
     </>
@@ -342,7 +356,7 @@ function GraficaRitmo({ ritmo: r }: { ritmo: Ritmo }) {
       viewBox={`0 0 ${ANCHO} ${ALTO}`}
       preserveAspectRatio="none"
       role="img"
-      aria-label={`Ritmo de gasto: llevas ${formatearDinero(real)} desde tu pago; a ritmo parejo serían ${formatearDinero(r.idealHoyCentavos)}.`}
+      aria-label={`Ritmo de gasto: llevas ${formatearDinero(real)} desde tu sueldo; a ritmo parejo serían ${formatearDinero(r.idealHoyCentavos)}.`}
     >
       <line className="ideal" x1="0" y1={y(0)} x2={ANCHO} y2={y(r.totalPeriodoCentavos)} />
       <polygon className="area" points={area} />
@@ -354,10 +368,12 @@ function GraficaRitmo({ ritmo: r }: { ritmo: Ritmo }) {
 
 // ---------- Próximos pagos ----------
 
-/** Un pago del mes: el mínimo de una tarjeta o la cuota de un préstamo. */
+/** Un pago pendiente: el mínimo (o lo que falta del total) de una tarjeta o la cuota de un préstamo. Al tocarlo se registra. */
 function FilaPagoDelMes({ pago: p, color, hoy: fechaHoy, alTocar }: { pago: PagoDelMes; color: string; hoy: string; alTocar: () => void }) {
   const dias = diasEntre(fechaHoy, p.fecha);
   const clase = p.vencido ? 'fila-detalle envolver texto-peligro' : dias <= 5 ? 'fila-detalle envolver texto-alerta' : 'fila-detalle envolver';
+  const que = p.clase === 'minimo' ? (p.estimado ? 'Mínimo aprox.' : 'Mínimo') : p.clase === 'total' ? 'Resto del total' : 'Cuota';
+  const cuando = p.vencido ? `venció ${fechaCorta(p.fecha)}` : dias === 0 ? 'vence hoy' : dias === 1 ? 'vence mañana' : `vence ${fechaCorta(p.fecha)}`;
   return (
     <li>
       <button type="button" className="fila" onClick={alTocar}>
@@ -365,8 +381,10 @@ function FilaPagoDelMes({ pago: p, color, hoy: fechaHoy, alTocar }: { pago: Pago
         <span className="fila-texto">
           <span className="fila-titulo">{p.nombre}</span>
           <span className={clase}>
-            {p.clase === 'minimo' ? (p.estimado ? 'Mínimo aprox.' : 'Mínimo') : 'Cuota'} · {p.vencido ? 'venció' : 'vence'} {fechaCorta(p.fecha)}
+            {que} · {cuando}
           </span>
+          {p.totalCentavos !== undefined && <span className="fila-detalle envolver">Para no pagar intereses: {formatearDinero(p.totalCentavos)}</span>}
+          {p.clase === 'total' && <span className="fila-detalle envolver">El mínimo ya está cubierto</span>}
         </span>
         <span className="fila-monto">{formatearDinero(p.montoCentavos)}</span>
       </button>
@@ -389,7 +407,7 @@ function primerosPasos(p: Props): Paso[] {
   return [
     {
       id: 'pago',
-      titulo: 'Registra tu pago',
+      titulo: 'Registra tu sueldo',
       detalle: 'Desde ahí se cuenta lo que gastas.',
       hecho: datos.movimientos.some((m) => m.tipo === 'ingreso' && m.esPago),
       alTocar: p.alAgregarIngreso,
@@ -427,14 +445,18 @@ function primerosPasos(p: Props): Paso[] {
 
 function PrimerosPasos({ pasos }: { pasos: Paso[] }) {
   const hechos = pasos.filter((p) => p.hecho).length;
+  // Cerrado muestra solo el paso que sigue, para no ocupar toda la pantalla.
+  const [abierto, setAbierto] = useState(false);
+  const siguiente = pasos.findIndex((p) => !p.hecho);
+  const visibles = abierto ? pasos.map((p, i) => ({ p, i })) : [{ p: pasos[siguiente], i: siguiente }];
   return (
     <section className="grupo">
       <div className="cabecera-grupo">
         <h2>
           Primeros pasos · {hechos} de {pasos.length}
         </h2>
-        <button type="button" className="enlace" onClick={() => void guardarAjuste('inicio', { primerosPasosOculto: true })}>
-          Ocultar
+        <button type="button" className="enlace" aria-expanded={abierto} onClick={() => setAbierto(!abierto)}>
+          {abierto ? 'Ver menos' : 'Ver los pasos'}
         </button>
       </div>
       <div className="tarjeta pasos">
@@ -449,7 +471,7 @@ function PrimerosPasos({ pasos }: { pasos: Paso[] }) {
           <div className="barra-relleno" style={{ width: `${(hechos / pasos.length) * 100}%` }} />
         </div>
         <ul className="lista">
-          {pasos.map((p, i) => (
+          {visibles.map(({ p, i }) => (
             <li key={p.id}>
               <button type="button" className={p.hecho ? 'fila paso hecho' : 'fila paso'} onClick={p.alTocar} disabled={p.hecho}>
                 <span className="paso-marca" aria-hidden="true">
@@ -471,6 +493,11 @@ function PrimerosPasos({ pasos }: { pasos: Paso[] }) {
             </li>
           ))}
         </ul>
+        {abierto && (
+          <button type="button" className="enlace" onClick={() => void guardarAjuste('inicio', { primerosPasosOculto: true })}>
+            No mostrar más
+          </button>
+        )}
       </div>
     </section>
   );
@@ -544,26 +571,6 @@ export function colorDeuda(datos: Datos, p: { tipo: 'tarjeta' | 'prestamo'; id: 
   return p.tipo === 'tarjeta' ? (datos.tarjetas.find((t) => t.id === p.id)?.color ?? 'var(--tenue)') : 'var(--primario)';
 }
 
-/** Fila de un pago por hacer: vencido en rojo, en 5 días o menos en naranja. */
-export function FilaPago({ pago: p, color, alTocar }: { pago: ProximoPago; color: string; alTocar: () => void }) {
-  const clase = p.vencido ? 'fila-detalle texto-peligro' : p.dias <= 5 ? 'fila-detalle texto-alerta' : 'fila-detalle';
-  return (
-    <li>
-      <button type="button" className="fila" onClick={alTocar}>
-        <Insignia color={color} simbolo={p.tipo === 'tarjeta' ? 'tarjeta' : 'prestamo'} />
-        <span className="fila-texto">
-          <span className="fila-titulo">{p.tipo === 'tarjeta' ? `Pagar ${p.nombre}` : `Cuota ${p.nombre}`}</span>
-          <span className={clase}>
-            {mayuscula(textoFaltan(p.dias))} · {fechaCorta(p.fecha)}
-            {p.estimado && ' · estimado'}
-          </span>
-        </span>
-        <span className="fila-monto">{formatearDinero(p.montoCentavos)}</span>
-      </button>
-    </li>
-  );
-}
-
 // ---------- Fondo de emergencia ----------
 
 /** «Tienes $X; $Y son de pagos de los próximos 15 días y $Z están en tu fondo.» */
@@ -579,58 +586,66 @@ function TarjetaFondo({ fondo, sugerida, cifra }: { fondo: AjustesFondo; sugerid
   const [hoja, setHoja] = useState<'crear' | 'apartar' | 'usar' | null>(null);
   const meta = fondo.metaCentavos;
   const porcentaje = meta ? Math.min(100, Math.round((fondo.apartadoCentavos / meta) * 100)) : 0;
+  // Sin fondo todavía: una sola fila, para no alargar Inicio.
+  if (meta === undefined) {
+    return (
+      <section className="grupo" aria-label="Fondo de emergencia">
+        <ul className="lista tarjeta">
+          <li>
+            <button type="button" className="fila" onClick={() => setHoja('crear')}>
+              <Insignia color="var(--positivo)" simbolo="objetivo" />
+              <span className="fila-texto">
+                <span className="fila-titulo">Crear fondo de emergencia</span>
+                <span className="fila-detalle envolver">Para que un imprevisto no termine en la tarjeta. Sugerido: {formatearDinero(sugerida)}</span>
+              </span>
+              <span className="opcion-flecha" aria-hidden="true">
+                <IconoFlecha />
+              </span>
+            </button>
+          </li>
+        </ul>
+        {hoja === 'crear' && <MetaFondo fondo={fondo} sugerida={sugerida} alCerrar={() => setHoja(null)} />}
+      </section>
+    );
+  }
   return (
     <section className="grupo">
       <div className="cabecera-grupo">
         <h2>
           Fondo de emergencia <Ayuda termino="fondo de emergencia" />
         </h2>
-        {meta !== undefined && (
-          <button type="button" className="enlace" onClick={() => setHoja('crear')}>
-            Cambiar meta
-          </button>
-        )}
+        <button type="button" className="enlace" onClick={() => setHoja('crear')}>
+          Cambiar meta
+        </button>
       </div>
       <div className="tarjeta fondo">
-        {meta === undefined ? (
-          <>
-            <p className="sin-margen">Aparta poco a poco para que un imprevisto no termine en la tarjeta.</p>
-            <p className="ayuda sin-margen">Te sugiero empezar con {formatearDinero(sugerida)}: más o menos lo que gastas en un mes.</p>
-            <button type="button" className="boton primario" onClick={() => setHoja('crear')}>
-              Crear mi fondo
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="fondo-cifras">
-              <strong className="monto-medio">{formatearDinero(fondo.apartadoCentavos)}</strong>
-              <span className="texto-tenue">de {formatearDinero(meta)}</span>
-            </div>
-            <div
-              className="barra"
-              role="progressbar"
-              aria-label="Avance del fondo de emergencia"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={porcentaje}
-            >
-              <div className="barra-relleno" style={{ width: `${Math.max(2, porcentaje)}%` }} />
-            </div>
-            <p className="ayuda sin-margen">
-              {porcentaje >= 100
-                ? '¡Meta cumplida! Ese dinero ya no cuenta como libre para gastar.'
-                : `Te faltan ${formatearDinero(meta - fondo.apartadoCentavos)} para tu meta.`}
-            </p>
-            <div className="acciones">
-              <button type="button" className="boton" disabled={fondo.apartadoCentavos === 0} onClick={() => setHoja('usar')}>
-                Usar
-              </button>
-              <button type="button" className="boton primario" onClick={() => setHoja('apartar')}>
-                Apartar
-              </button>
-            </div>
-          </>
-        )}
+        <div className="fondo-cifras">
+          <strong className="monto-medio">{formatearDinero(fondo.apartadoCentavos)}</strong>
+          <span className="texto-tenue">de {formatearDinero(meta)}</span>
+        </div>
+        <div
+          className="barra"
+          role="progressbar"
+          aria-label="Avance del fondo de emergencia"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={porcentaje}
+        >
+          <div className="barra-relleno" style={{ width: `${Math.max(2, porcentaje)}%` }} />
+        </div>
+        <p className="ayuda sin-margen">
+          {porcentaje >= 100
+            ? '¡Meta cumplida! Ese dinero ya no cuenta como libre para gastar.'
+            : `Te faltan ${formatearDinero(meta - fondo.apartadoCentavos)} para tu meta.`}
+        </p>
+        <div className="acciones">
+          <button type="button" className="boton" disabled={fondo.apartadoCentavos === 0} onClick={() => setHoja('usar')}>
+            Usar
+          </button>
+          <button type="button" className="boton primario" onClick={() => setHoja('apartar')}>
+            Apartar
+          </button>
+        </div>
       </div>
       {hoja === 'crear' && <MetaFondo fondo={fondo} sugerida={sugerida} alCerrar={() => setHoja(null)} />}
       {(hoja === 'apartar' || hoja === 'usar') && <MoverFondo accion={hoja} fondo={fondo} cifra={cifra} alCerrar={() => setHoja(null)} />}

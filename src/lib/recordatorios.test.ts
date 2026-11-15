@@ -94,6 +94,27 @@ describe('recordatorios', () => {
     expect(lista.find((r) => r.clave === 'tarjeta:t1:pago:2026-11-15:2')?.pagoDirecto).toEqual({ tipo: 'tarjeta', id: 't1', fecha: '2026-11-15', conMinimo: true });
   });
 
+  it('con el mínimo pagado no avisa «venció»; la tarjeta que se paga con el mínimo deja de avisar', () => {
+    const conMinimo: Tarjeta = {
+      ...tarjeta,
+      fechaSaldo: '2026-10-20',
+      ultimoEstado: { fechaCorte: '2026-10-20', fechaLimite: '2026-11-15', pagoContadoCentavos: 10000, pagoMinimoCentavos: 2500, saldoCentavos: 30000 },
+    };
+    const minimo: Movimiento = { id: 'x', tipo: 'pago', montoCentavos: 2500, fecha: '2026-11-12', tarjetaId: 't1', nota: '', creadoEn: 1 };
+    const claves = (t: Tarjeta, movs: Movimiento[]) =>
+      generarRecordatorios({ tarjetas: [t], prestamos: [], movimientos: movs, ajustes }, ahora).map((r) => r.clave).filter((c) => c.includes(':pago:2026-11-15') || c.includes('vencido'));
+    // Paga el total: sigue recordando el pago de contado hasta la fecha, pero ya no hay «venció».
+    expect(claves(conMinimo, [minimo])).toEqual(['tarjeta:t1:pago:2026-11-15:2', 'tarjeta:t1:pago:2026-11-15:0']);
+    // Paga el mínimo: cubierto, no queda ningún aviso de ese estado de cuenta.
+    expect(claves({ ...conMinimo, formaPago: 'minimo' }, [minimo])).toEqual([]);
+    // Sin pagar: pide el mínimo, lo ofrece primero y avisa si vence.
+    const lista = generarRecordatorios({ tarjetas: [{ ...conMinimo, formaPago: 'minimo' }], prestamos: [], movimientos: [], ajustes }, ahora);
+    const aviso = lista.find((r) => r.clave === 'tarjeta:t1:pago:2026-11-15:2')!;
+    expect(aviso.cuerpo).toBe('Pago mínimo: $25.00 · de contado $100.00. Último día: 15 nov.');
+    expect(aviso.pagoDirecto).toMatchObject({ conMinimo: true, prefiereMinimo: true });
+    expect(lista.find((r) => r.clave.includes('vencido'))?.cuerpo).toBe('No se cubrió el pago mínimo ($25.00). Paga cuanto antes para evitar más cargos por mora.');
+  });
+
   it('cada mes pide actualizar el préstamo con el banco, salvo si se hizo hace poco', () => {
     const sin = { ...ajustes, recordatorios: { ...ajustes.recordatorios, respaldo: false, pagos: false } };
     const lista = generarRecordatorios({ tarjetas: [], prestamos: [prestamo], movimientos: [], ajustes: sin }, ahora);

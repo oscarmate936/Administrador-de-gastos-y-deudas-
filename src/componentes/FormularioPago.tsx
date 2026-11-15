@@ -37,6 +37,8 @@ export function FormularioPago(props: Props) {
     if (movimiento) return centavosATexto(movimiento.montoCentavos);
     if (montoInicial) return centavosATexto(montoInicial);
     if (ePrestamo && !extraInicial && ePrestamo.proximaCuotaCentavos > 0) return centavosATexto(ePrestamo.proximaCuotaCentavos);
+    // La tarjeta que se paga con el mínimo propone el mínimo; las demás, el pago de contado.
+    if (eTarjeta && tarjeta?.formaPago === 'minimo' && eTarjeta.minimoPendienteCentavos > 0) return centavosATexto(eTarjeta.minimoPendienteCentavos);
     if (eTarjeta && eTarjeta.pendienteCentavos > 0) return centavosATexto(eTarjeta.pendienteCentavos);
     return '';
   });
@@ -128,6 +130,7 @@ export function FormularioPago(props: Props) {
       capitalCentavos: prestamo ? (capitalCentavos ?? 0) : undefined,
       esExtra: prestamo ? esExtra : undefined,
       cargosCentavos: prestamo && !esExtra ? cargosDelPago(capitalCentavos ?? 0) : undefined,
+      cuotaCentavos: prestamo && !esExtra ? (movimiento?.cuotaCentavos ?? prestamo.cuotaCentavos) : undefined,
       esDevolucion: tarjeta && movimiento?.esDevolucion ? true : undefined,
       nota: nota.trim(),
       creadoEn: movimiento?.creadoEn ?? Date.now(),
@@ -185,13 +188,11 @@ export function FormularioPago(props: Props) {
 
         {eTarjeta && (
           <div className="chips">
-            {eTarjeta.pagoMinimoCentavos !== null &&
-              eTarjeta.pagoMinimoCentavos > 0 &&
-              eTarjeta.pagoMinimoCentavos < eTarjeta.pendienteCentavos && (
-                <button type="button" className="chip" onClick={() => cambiarMonto(centavosATexto(eTarjeta.pagoMinimoCentavos!))}>
-                  Pago mínimo {formatearDinero(eTarjeta.pagoMinimoCentavos)}
-                </button>
-              )}
+            {eTarjeta.minimoPendienteCentavos > 0 && eTarjeta.minimoPendienteCentavos < eTarjeta.pendienteCentavos && (
+              <button type="button" className="chip" onClick={() => cambiarMonto(centavosATexto(eTarjeta.minimoPendienteCentavos))}>
+                {eTarjeta.minimoEsEstimado ? 'Mínimo aprox.' : 'Pago mínimo'} {formatearDinero(eTarjeta.minimoPendienteCentavos)}
+              </button>
+            )}
             {eTarjeta.pendienteCentavos > 0 && (
               <button type="button" className="chip" onClick={() => cambiarMonto(centavosATexto(eTarjeta.pendienteCentavos))}>
                 Pago de contado {formatearDinero(eTarjeta.pendienteCentavos)}
@@ -215,7 +216,8 @@ export function FormularioPago(props: Props) {
         {eTarjeta && tarjeta && eTarjeta.pendienteCentavos > 0 && montoCentavos !== null && montoCentavos > 0 && (
           <ConsecuenciaPago
             pendienteCentavos={eTarjeta.pendienteCentavos}
-            minimoCentavos={eTarjeta.pagoMinimoCentavos}
+            minimoCentavos={eTarjeta.minimoPendienteCentavos}
+            minimoEsEstimado={eTarjeta.minimoEsEstimado}
             pagoCentavos={montoCentavos}
             tasaAnual={tarjeta.tasaAnual}
           />
@@ -287,9 +289,11 @@ function ConsecuenciaPago({
   minimoCentavos,
   pagoCentavos,
   tasaAnual,
+  minimoEsEstimado,
 }: {
   pendienteCentavos: number;
-  minimoCentavos: number | null;
+  minimoCentavos: number;
+  minimoEsEstimado: boolean;
   pagoCentavos: number;
   tasaAnual?: number;
 }) {
@@ -297,7 +301,8 @@ function ConsecuenciaPago({
     return <p className="aviso">Pagas el estado de cuenta completo: no te cobran intereses por él.</p>;
   }
   const queda = pendienteCentavos - pagoCentavos;
-  const noCubreMinimo = minimoCentavos !== null && pagoCentavos < minimoCentavos;
+  // Con un mínimo aproximado solo se avisa si el pago queda claramente por debajo.
+  const noCubreMinimo = minimoCentavos > 0 && pagoCentavos < minimoCentavos * (minimoEsEstimado ? 0.8 : 1);
   const intereses = tasaAnual ? interesMensual(queda, tasaAnual) : null;
   return (
     <p className={noCubreMinimo ? 'aviso error' : 'aviso alerta'}>
@@ -305,7 +310,8 @@ function ConsecuenciaPago({
       {intereses !== null
         ? `Te cobrarían al menos ${formatearDinero(intereses)} de intereses en el próximo corte.`
         : 'Generan intereses; agrega la tasa de la tarjeta para calcular cuánto.'}
-      {noCubreMinimo && ` No cubre el pago mínimo (${formatearDinero(minimoCentavos!)}): también te cobrarían mora.`}
+      {noCubreMinimo &&
+        ` No cubre el pago mínimo (${formatearDinero(minimoCentavos)}${minimoEsEstimado ? ' aprox.' : ''}): también te cobrarían mora.`}
     </p>
   );
 }

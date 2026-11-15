@@ -36,6 +36,8 @@ una versión instalable que se actualiza encima de la anterior sin borrar datos.
 | — | Auditoría: quitar lo repetido | Hecho (1.9.2) |
 | — | Préstamos con interés por día y seguros que bajan con el saldo, «Ya pagué» en los avisos, respaldo automático en Documentos, fondo de emergencia y resumen del mes | Hecho (2.0) |
 | — | Auditoría completa: 18 errores corregidos | Hecho (2.1) |
+| — | «Próximos pagos» con el mínimo de cada deuda | Hecho (2.2) |
+| — | Tarjetas que se pagan con el mínimo, cuota que sube, «sueldo», «¿Cuánto dinero tienes hoy?» e Inicio más corto | Hecho (2.3) |
 | — | Registrar compras desde los SMS del banco | Pendiente: hacen falta ejemplos de los mensajes |
 
 La fase 3 puede adelantarse en cuanto lleguen los PDF; no depende de las demás.

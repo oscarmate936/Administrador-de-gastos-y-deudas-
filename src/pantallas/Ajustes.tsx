@@ -40,6 +40,8 @@ interface Props {
   ajustes: AjustesApp;
   /** Filas del grupo Avisos (recordatorios). */
   avisos: React.ReactNode;
+  /** Fila «Mi dinero de hoy», dentro de Tus datos. */
+  saldo: React.ReactNode;
   /** Fila para exportar, dentro de Tus datos. */
   exportar: React.ReactNode;
   /** Sección de movimientos que se repiten. */
@@ -57,7 +59,7 @@ const TEMAS: Array<{ id: Tema; nombre: string }> = [
 
 const fechaHora = new Intl.DateTimeFormat('es-SV', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 
-export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, exportar, recurrentes }: Props) {
+export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, saldo, exportar, recurrentes }: Props) {
   const [categoria, setCategoria] = useState<Categoria | 'nueva' | null>(null);
   const [hoja, setHoja] = useState<Hojas>(null);
   const [aviso, setAviso] = useState<Aviso | null>(null);
@@ -122,9 +124,7 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, exporta
             {ultimo
               ? `Tu último respaldo fuera del celular fue ${haceCuanto(aFechaTexto(new Date(ultimo)))}.`
               : 'Aún no guardas un respaldo fuera del celular.'}{' '}
-            Si pierdes el celular, puedes perder tus datos: guarda uno en Drive o en otro lugar cada semana. (Android también
-            puede guardar los datos de la app en tu cuenta de Google si tienes activada su copia de seguridad, pero no
-            dependas solo de eso.)
+            Si pierdes el celular puedes perder tus datos: guarda un respaldo en Drive cada semana.
           </p>
         )}
         <ul className="lista tarjeta">
@@ -170,6 +170,7 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, exporta
             }
             alTocar={() => setHoja('copias')}
           />
+          {saldo}
           {exportar}
         </ul>
         <input

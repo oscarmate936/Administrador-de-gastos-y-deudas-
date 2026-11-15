@@ -139,12 +139,12 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImpo
                       <span className="plastico-etiqueta">Debes</span>
                       <span className="plastico-monto">{formatearDinero(e.deudaTotalCentavos)}</span>
                     </span>
-                    <span className={e.vencido ? 'pastilla peligro' : e.pendienteCentavos > 0 && e.diasParaLimite <= 5 ? 'pastilla alerta' : 'pastilla'}>
-                      {e.pendienteCentavos > 0
-                        ? e.vencido
-                          ? `Vencido ${fechaCorta(e.fechaLimite)}`
-                          : `Pagar antes del ${fechaCorta(e.fechaLimite)}`
-                        : `Corte el ${fechaCorta(e.proximoCorte)}`}
+                    <span className={e.vencido ? 'pastilla peligro' : porPagar(t, e) > 0 && e.diasParaLimite <= 5 ? 'pastilla alerta' : 'pastilla'}>
+                      {e.vencido
+                        ? `Vencido ${fechaCorta(e.fechaLimite)}`
+                        : porPagar(t, e) > 0
+                          ? `${t.formaPago === 'minimo' ? 'Mínimo' : 'Pagar'} antes del ${fechaCorta(e.fechaLimite)}`
+                          : `Corte el ${fechaCorta(e.proximoCorte)}`}
                     </span>
                   </span>
                   <span className="plastico-barra" aria-hidden="true">
@@ -186,6 +186,12 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImpo
     </>
   );
 }
+
+/** Lo que falta pagar de este estado de cuenta según cómo se paga la tarjeta; 0 si ya pasó el plazo y no hay mora. */
+const porPagar = (t: Tarjeta, e: ReturnType<typeof estadoTarjeta>) => {
+  if (e.diasParaLimite < 0 && !e.vencido) return 0;
+  return t.formaPago === 'minimo' ? e.minimoPendienteCentavos : e.pendienteCentavos;
+};
 
 const uso = (t: Tarjeta, saldo: number) => (t.limiteCentavos > 0 ? Math.min(100, Math.max(0, (saldo / t.limiteCentavos) * 100)) : 0);
 

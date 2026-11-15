@@ -78,25 +78,42 @@ export function generarRecordatorios(e: Entrada, ahora: Date, horizonte = HORIZO
     const est = estadoTarjeta(t, e.movimientos, hoy);
     const destino = { tipo: 'tarjeta' as const, id: t.id };
 
-    if (r.pagos && est.pendienteCentavos > 0) {
-      const minimo = est.pagoMinimoCentavos ? ` · mínimo ${formatearDinero(est.pagoMinimoCentavos)}` : '';
-      const conMinimo = !!est.pagoMinimoCentavos && est.pagoMinimoCentavos < est.pendienteCentavos;
+    // Lo que la persona piensa pagar: el total o, si así paga la tarjeta, el mínimo.
+    const esMinimo = t.formaPago === 'minimo';
+    const porPagar = esMinimo ? est.minimoPendienteCentavos : est.pendienteCentavos;
+    const aprox = est.minimoEsEstimado ? ' aprox.' : '';
+    // «Pagué el mínimo» solo se ofrece cuando se sabe el mínimo exacto.
+    const conMinimo = est.minimoPendienteCentavos > 0 && !est.minimoEsEstimado && est.minimoPendienteCentavos < est.pendienteCentavos;
+    const pagoDirecto = {
+      tipo: 'tarjeta' as const,
+      id: t.id,
+      fecha: est.fechaLimite,
+      conMinimo: conMinimo || undefined,
+      prefiereMinimo: (esMinimo && conMinimo) || undefined,
+    };
+    if (r.pagos && porPagar > 0) {
+      const cuerpo = esMinimo
+        ? `Pago mínimo: ${formatearDinero(est.minimoPendienteCentavos)}${aprox} · de contado ${formatearDinero(est.pendienteCentavos)}. Último día: ${fechaCorta(est.fechaLimite)}.`
+        : `Pago de contado: ${formatearDinero(est.pendienteCentavos)}${est.minimoPendienteCentavos > 0 && !est.minimoEsEstimado ? ` · mínimo ${formatearDinero(est.minimoPendienteCentavos)}` : ''}. Último día: ${fechaCorta(est.fechaLimite)}.`;
       for (const dias of r.diasTarjeta) {
         agregar(`tarjeta:${t.id}:pago:${est.fechaLimite}:${dias}`, sumarDias(est.fechaLimite, -dias), {
           titulo: dias === 0 ? `Hoy es el último día para pagar ${t.nombre}` : `Pago de ${t.nombre} ${cuandoFalta(dias)}`,
-          cuerpo: `Pago de contado: ${formatearDinero(est.pendienteCentavos)}${minimo}. Último día: ${fechaCorta(est.fechaLimite)}.`,
+          cuerpo,
           destino,
           pagar: true,
-          pagoDirecto: { tipo: 'tarjeta', id: t.id, fecha: est.fechaLimite, conMinimo: conMinimo || undefined },
+          pagoDirecto,
         });
       }
+    }
+    // «Venció» solo si no se cubrió el mínimo: con el mínimo pagado no hay mora.
+    if (r.pagos && est.minimoPendienteCentavos > 0) {
       const vence = est.vencido ? sumarDias(hoy, 1) : sumarDias(est.fechaLimite, 1);
       agregar(`tarjeta:${t.id}:vencido:${est.fechaLimite}:${vence}`, vence, {
         titulo: `Venció el pago de ${t.nombre}`,
-        cuerpo: 'Paga cuanto antes para evitar intereses y cargos por mora.',
+        cuerpo: `No se cubrió el pago mínimo (${formatearDinero(est.minimoPendienteCentavos)}${aprox}). Paga cuanto antes para evitar más cargos por mora.`,
         destino,
         pagar: true,
-        pagoDirecto: { tipo: 'tarjeta', id: t.id, fecha: est.fechaLimite, conMinimo: conMinimo || undefined },
+        pagoDirecto,
       });
     }
     if (r.pagos && est.proximoEstadoCentavos > 0) {

@@ -46,8 +46,11 @@ no hay servidor ni cuentas.
 - Atajos al mantener presionado el ícono (gasto, ticket, pago) y widget de Android
   con lo libre para gastar.
 - Inicio: cuánto puedes gastar por día, hasta cuándo te alcanza, gráfica de ritmo,
-  «Próximos pagos» (el mínimo de cada tarjeta y la cuota de cada préstamo pendientes
-  del mes, con el total), primeros pasos y secciones que se pueden ocultar u ordenar.
+  «Próximos pagos» (una fila por deuda: el mínimo de cada tarjeta, con el pago de contado
+  como dato, y la cuota de cada préstamo; al tocarla se abre el pago con el monto puesto),
+  primeros pasos y secciones que se pueden ocultar u ordenar.
+- «¿Cuánto dinero tienes hoy?» fija el dinero disponible sin anotar ingresos pasados.
+- El ingreso principal se llama «sueldo», para no confundirlo con los pagos de deudas.
 - Deudas: camino a «libre de deudas» con metas, calendario de pagos, cuánto ahorras
   pagando un poco más, costo de pagar solo el mínimo y explicación de cada término.
 - Análisis: comparación con el mes anterior, gastos fijos y variables, y el detalle
@@ -68,10 +71,14 @@ no hay servidor ni cuentas.
   bajan con el saldo: la fecha de término coincide con la del banco. Con el desglose
   de la captura se deduce la fecha del último pago.
 - Los seguros y otros cargos de la cuota no se cuentan como capital ni como intereses.
-- Pagos parciales: se suman hasta completar la cuota.
-- Tarjetas: si pasa el último día de pago sin pagar el total, se suman intereses estimados
-  hasta importar el siguiente estado de cuenta. Las devoluciones del estado de cuenta bajan
-  la deuda sin restar del disponible.
+- Pagos parciales: se suman hasta completar la cuota. Cada pago guarda cuánto era la cuota,
+  para que una cuota que sube después no convierta los pagos viejos en parciales.
+- Tarjetas: cada una se marca como «pago el total» o «pago el mínimo»; eso decide cuánto se
+  aparta de lo libre para gastar, qué piden los avisos y el monto del formulario de pago.
+  Con el mínimo cubierto no hay «vencido»: lo que queda sin pagar genera intereses estimados,
+  que se arrastran de un estado de cuenta al siguiente hasta importar el PDF. Sin PDF, el
+  mínimo es un cálculo fijo por estado de cuenta. Las devoluciones bajan la deuda sin restar
+  del disponible ni contar como pago del mínimo.
 - Compras a plazos y extrafinanciamiento (Davivienda): se leen del estado de
   cuenta, se suman a la deuda total y cada corte cobra su cuota en la tarjeta.
 - Cuánto cuestan las deudas (intereses, comisiones, IVA, avances de efectivo).

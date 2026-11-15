@@ -7,6 +7,7 @@ import { calcularDisponible } from './resumen';
 export function fotoDeHoy(
   datos: { movimientos: Movimiento[]; tarjetas: Tarjeta[]; prestamos: Prestamo[] },
   hoy: string,
+  ajusteSaldoCentavos = 0,
 ): Foto {
   const deudas: Foto['deudas'] = [
     ...datos.tarjetas.map((t) => ({
@@ -25,7 +26,7 @@ export function fotoDeHoy(
   return {
     mes: mesDe(hoy),
     fecha: hoy,
-    disponibleCentavos: calcularDisponible(datos.movimientos),
+    disponibleCentavos: calcularDisponible(datos.movimientos) + ajusteSaldoCentavos,
     deudaTotalCentavos: deudas.reduce((t, d) => t + d.saldoCentavos, 0),
     deudas,
   };

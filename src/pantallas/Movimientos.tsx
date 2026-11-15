@@ -46,8 +46,8 @@ export function Movimientos({ datos, alEditar, alBorrar }: Props) {
         <Simbolo nombre="buscar" tamano={18} />
         <input
           type="search"
-          placeholder="Buscar por nota, categoría, tarjeta o monto"
-          aria-label="Buscar movimientos"
+          placeholder="Buscar nota, categoría o monto"
+          aria-label="Buscar movimientos por nota, categoría, tarjeta o monto"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
         />

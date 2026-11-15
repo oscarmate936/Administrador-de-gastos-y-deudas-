@@ -35,7 +35,13 @@ export function Agregar({ datos, alCerrar, alAbrir, alImportarPdf, empezarEnPago
                   key={t.id}
                   insignia={<Insignia color={t.color} simbolo="tarjeta" />}
                   titulo={t.nombre}
-                  detalle={e.pendienteCentavos > 0 ? `De contado: ${formatearDinero(e.pendienteCentavos)}` : 'Al día'}
+                  detalle={
+                    e.pendienteCentavos <= 0
+                      ? 'Al día'
+                      : t.formaPago === 'minimo' && e.minimoPendienteCentavos > 0
+                        ? `Mínimo: ${formatearDinero(e.minimoPendienteCentavos)}${e.minimoEsEstimado ? ' aprox.' : ''}`
+                        : `De contado: ${formatearDinero(e.pendienteCentavos)}`
+                  }
                   alTocar={() => alAbrir({ clase: 'pago', tarjetaId: t.id })}
                 />
               );

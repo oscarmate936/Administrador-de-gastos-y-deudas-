@@ -27,6 +27,7 @@ export function FormularioTarjeta({ tarjeta, cantidad, alCerrar }: Props) {
   const [pendiente, setPendiente] = useState(tarjeta ? centavosATexto(tarjeta.pendienteInicialCentavos) : '');
   const [tasa, setTasa] = useState(tarjeta?.tasaAnual !== undefined ? String(tarjeta.tasaAnual) : '');
   const [color, setColor] = useState(tarjeta?.color ?? COLORES[(2 + cantidad * 3) % COLORES.length]);
+  const [formaPago, setFormaPago] = useState<'total' | 'minimo'>(tarjeta?.formaPago ?? 'total');
   const [error, setError] = useState('');
   // Fijo mientras el formulario está abierto: guardar dos veces seguidas no crea un duplicado.
   const [idNuevo] = useState(nuevoId);
@@ -67,6 +68,7 @@ export function FormularioTarjeta({ tarjeta, cantidad, alCerrar }: Props) {
       creadoEn: tarjeta?.creadoEn ?? Date.now(),
       ultimos4: tarjeta?.ultimos4,
       tasaAnual,
+      formaPago,
       ultimoEstado: tarjeta?.ultimoEstado,
     });
     alCerrar();
@@ -173,6 +175,23 @@ export function FormularioTarjeta({ tarjeta, cantidad, alCerrar }: Props) {
             Opcional. Viene en tu estado de cuenta ("tasa de interés anual" o "interés normal"). Sirve para el plan de pago.
           </span>
         </label>
+
+        <fieldset className="campo">
+          <legend>Cada mes pago</legend>
+          <div className="segmentos" role="group" aria-label="Cómo pagas esta tarjeta">
+            <button type="button" aria-pressed={formaPago === 'total'} onClick={() => setFormaPago('total')}>
+              El total
+            </button>
+            <button type="button" aria-pressed={formaPago === 'minimo'} onClick={() => setFormaPago('minimo')}>
+              El mínimo
+            </button>
+          </div>
+          <span className="ayuda sin-margen">
+            {formaPago === 'total'
+              ? 'La app aparta el pago de contado y te avisa hasta que lo pagues completo.'
+              : 'La app aparta solo el pago mínimo y deja de avisarte cuando lo cubres. Lo demás genera intereses.'}
+          </span>
+        </fieldset>
 
         <fieldset className="campo">
           <legend>Color</legend>

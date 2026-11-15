@@ -187,6 +187,14 @@ const TIPOS_DE_ACCIONES = [
     ],
   },
   {
+    id: 'PAGO_TARJETA_PREFIERE_MINIMO',
+    actions: [
+      { id: 'pagueMinimo', title: 'Pagué el mínimo' },
+      { id: 'yaPague', title: 'Pagué el total' },
+      { id: 'pagar', title: 'Otro monto' },
+    ],
+  },
+  {
     id: 'PAGO_TARJETA_MINIMO',
     actions: [
       { id: 'yaPague', title: 'Pagué el total' },
@@ -287,8 +295,11 @@ export async function pedirAlarmasExactas(): Promise<boolean> {
 
 /** Qué botones lleva el aviso: «Ya pagué» en préstamos; total, mínimo u otro monto en tarjetas. */
 function tipoDeAcciones(r: { pagar?: boolean; pagoDirecto?: unknown }): string | undefined {
-  const directo = r.pagoDirecto as { tipo?: string; conMinimo?: boolean } | undefined;
-  if (directo?.tipo === 'tarjeta') return directo.conMinimo ? 'PAGO_TARJETA_MINIMO' : 'PAGO_TARJETA';
+  const directo = r.pagoDirecto as { tipo?: string; conMinimo?: boolean; prefiereMinimo?: boolean } | undefined;
+  if (directo?.tipo === 'tarjeta') {
+    if (!directo.conMinimo) return 'PAGO_TARJETA';
+    return directo.prefiereMinimo ? 'PAGO_TARJETA_PREFIERE_MINIMO' : 'PAGO_TARJETA_MINIMO';
+  }
   if (directo) return 'PAGO_DIRECTO';
   return r.pagar ? 'PAGO' : undefined;
 }

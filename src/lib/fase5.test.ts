@@ -85,7 +85,7 @@ describe('CSV', () => {
     );
     expect(csv.startsWith('﻿Fecha,Tipo,Monto,Categoría')).toBe(true);
     const lineas = csv.trim().split('\r\n');
-    expect(lineas[1]).toBe('2026-11-01,Mi pago,800.00,,,,Quincena');
+    expect(lineas[1]).toBe('2026-11-01,Mi sueldo,800.00,,,,Quincena');
     expect(lineas[2]).toBe('2026-11-10,Gasto,-125.50,Supermercado,Visa Clásica,,"Compra, ""grande"""');
     expect(lineas[3]).toBe(`2026-11-10,Gasto,-5.00,Sin categoría,Efectivo o débito,,"'=HYPERLINK(""x"")"`);
   });

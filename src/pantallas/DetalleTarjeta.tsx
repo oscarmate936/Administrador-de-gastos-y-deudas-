@@ -1,5 +1,5 @@
 import type { Datos } from '../datos';
-import type { Movimiento, Tarjeta } from '../db';
+import { db, type Movimiento, type Tarjeta } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { IconoAnterior } from '../componentes/Iconos';
 import { Plastico } from './Deudas';
@@ -63,10 +63,21 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
         </div>
         {e.vencido && (
           <p className="aviso error">
-            El pago de contado venció el {fechaCorta(e.fechaLimite)}. Págalo cuanto antes para evitar intereses y cargos por mora.
-            {e.interesEstimadoCentavos > 0 &&
-              ` La app ya suma unos ${formatearDinero(e.interesEstimadoCentavos)} de intereses a tu deuda; la cifra exacta llega con el próximo estado de cuenta.`}
-            {!t.tasaAnual && ' Agrega la tasa de la tarjeta para estimar los intereses.'}
+            El último día de pago fue el {fechaCorta(e.fechaLimite)} y no se cubrió el pago mínimo. Paga al menos{' '}
+            {formatearDinero(e.minimoPendienteCentavos)}
+            {e.minimoEsEstimado ? ' (aprox.)' : ''} cuanto antes para evitar más cargos por mora.
+          </p>
+        )}
+        {!e.vencido && e.diasParaLimite < 0 && e.interesEstimadoCentavos > 0 && (
+          <p className="aviso alerta">
+            Cubriste el mínimo, así que no hay mora. Lo que quedó sin pagar genera intereses: la app ya suma unos{' '}
+            {formatearDinero(e.interesEstimadoCentavos)} a tu deuda. La cifra exacta llega con el próximo estado de cuenta.
+          </p>
+        )}
+        {!e.vencido && e.diasParaLimite < 0 && e.pendienteCentavos > 0 && !t.tasaAnual && (
+          <p className="aviso alerta">
+            Cubriste el mínimo, así que no hay mora, pero lo que quedó sin pagar genera intereses. Agrega la tasa de la tarjeta para
+            estimarlos.
           </p>
         )}
         <dl className="datos-lista">
@@ -87,10 +98,12 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
               {e.pendienteCentavos > 0 ? formatearDinero(e.pendienteCentavos) : 'Pagado'}
             </dd>
           </div>
-          {e.pagoMinimoCentavos !== null && (
+          {(e.pendienteCentavos > 0 || e.pagoMinimoCentavos !== null) && (
             <div>
               <dt>Pago mínimo pendiente <Ayuda termino="pago mínimo" /></dt>
-              <dd>{e.pagoMinimoCentavos > 0 ? formatearDinero(e.pagoMinimoCentavos) : 'Cubierto'}</dd>
+              <dd>
+                {e.minimoPendienteCentavos > 0 ? `${formatearDinero(e.minimoPendienteCentavos)}${e.minimoEsEstimado ? ' aprox.' : ''}` : 'Cubierto'}
+              </dd>
             </div>
           )}
           {e.interesEstimadoCentavos > 0 && (
@@ -110,6 +123,22 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
             </dd>
           </div>
         </dl>
+        <div className="campo">
+          <span>Cada mes pago</span>
+          <div className="segmentos" role="group" aria-label="Cómo pagas esta tarjeta">
+            <button type="button" aria-pressed={t.formaPago !== 'minimo'} onClick={() => void db.tarjetas.update(t.id, { formaPago: 'total' })}>
+              El total
+            </button>
+            <button type="button" aria-pressed={t.formaPago === 'minimo'} onClick={() => void db.tarjetas.update(t.id, { formaPago: 'minimo' })}>
+              El mínimo
+            </button>
+          </div>
+          <span className="ayuda sin-margen">
+            {t.formaPago === 'minimo'
+              ? 'La app aparta solo el mínimo de lo libre para gastar y deja de avisarte cuando lo cubres.'
+              : 'La app aparta el pago de contado de lo libre para gastar y te avisa hasta que lo pagues.'}
+          </span>
+        </div>
         <p className="ayuda sin-margen">
           {e.segunEstado
             ? `Cifras de tu estado de cuenta del ${fechaCorta(e.corteAnterior)}, menos los pagos que registraste después. Lo del próximo corte es un cálculo con lo que registras aquí.`

@@ -67,9 +67,17 @@ describe('compras a plazos y extrafinanciamiento', () => {
       ['TIENDA A', 16, 6210],
       ['Extrafinanciamiento', 4, 125600 + 2098 - 3150],
     ]);
-    // Solo crece por los intereses del extrafinanciamiento.
-    expect(e.deudaTotalCentavos).toBe(70310 + 9310 + 125600 + 2098);
-    expect(e.pendienteCentavos).toBe(70310 + 3100 + 3150);
+    // Crece por los intereses del extrafinanciamiento y por los del estado de
+    // cuenta de octubre, que nadie pagó (47 % anual sobre 703.10 = 27.54).
+    expect(e.interesEstimadoCentavos).toBe(2754);
+    expect(e.deudaTotalCentavos).toBe(70310 + 9310 + 125600 + 2098 + 2754);
+    expect(e.pendienteCentavos).toBe(70310 + 3100 + 3150 + 2754);
+    // Pagado a tiempo, no hay intereses estimados.
+    const pago: Movimiento = { id: 'p', tipo: 'pago', montoCentavos: 70310, fecha: '2026-11-10', tarjetaId: 'v', nota: '', creadoEn: 1 };
+    const alDia = estadoTarjeta(tarjeta, [pago], '2026-11-25');
+    expect(alDia.interesEstimadoCentavos).toBe(0);
+    expect(alDia.deudaTotalCentavos).toBe(9310 + 125600 + 2098);
+    expect(alDia.pendienteCentavos).toBe(3100 + 3150);
   });
 
   it('los pagos bajan la tarjeta pero no los planes', () => {

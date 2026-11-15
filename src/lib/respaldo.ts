@@ -102,6 +102,7 @@ function leerTarjeta(v: unknown, i: number): Tarjeta {
     creadoEn: typeof v.creadoEn === 'number' ? v.creadoEn : Date.now(),
     ultimos4: typeof v.ultimos4 === 'string' && /^\d{4}$/.test(v.ultimos4) ? v.ultimos4 : undefined,
     tasaAnual: typeof v.tasaAnual === 'number' && Number.isFinite(v.tasaAnual) && v.tasaAnual >= 0 ? v.tasaAnual : undefined,
+    formaPago: v.formaPago === 'minimo' || v.formaPago === 'total' ? v.formaPago : undefined,
     ultimoEstado: leerUltimoEstado(v.ultimoEstado),
   };
 }
@@ -195,6 +196,7 @@ function leerMovimiento(v: unknown, i: number): Movimiento {
     capitalCentavos: prestamoId ? (esCentavos(v.capitalCentavos) ? v.capitalCentavos : 0) : undefined,
     esExtra: prestamoId ? v.esExtra === true : undefined,
     cargosCentavos: prestamoId && esCentavos(v.cargosCentavos) ? v.cargosCentavos : undefined,
+    cuotaCentavos: prestamoId && v.esExtra !== true && esCentavos(v.cuotaCentavos) && v.cuotaCentavos > 0 ? v.cuotaCentavos : undefined,
     esDevolucion: v.tipo === 'pago' && tarjetaId && !prestamoId && v.esDevolucion === true ? true : undefined,
     nota: typeof v.nota === 'string' ? v.nota : '',
     creadoEn: typeof v.creadoEn === 'number' ? v.creadoEn : Date.now(),
@@ -291,14 +293,21 @@ export function leerRespaldo(texto: string): Respaldo {
   }
   // Un mismo dato repetido (por ejemplo, de un archivo editado a mano) haría
   // fallar la restauración: se queda el último.
+  const prestamos = sinRepetidos(Array.isArray(datos.prestamos) ? datos.prestamos.map(leerPrestamo) : [], (p) => p.id);
+  // Respaldos anteriores a la 2.3: las cuotas no traen cuánto era la cuota; se toma la del préstamo.
+  const cuotaDe = new Map(prestamos.map((p) => [p.id, p.cuotaCentavos]));
+  const conCuota = (m: Movimiento): Movimiento =>
+    m.tipo === 'pago' && m.prestamoId && !m.esExtra && m.cuotaCentavos === undefined && cuotaDe.has(m.prestamoId)
+      ? { ...m, cuotaCentavos: cuotaDe.get(m.prestamoId) }
+      : m;
   return {
     app: 'mis-finanzas',
     version: 3,
     exportadoEn: typeof datos.exportadoEn === 'string' ? datos.exportadoEn : '',
-    movimientos: sinRepetidos(datos.movimientos.map(leerMovimiento), (m) => m.id),
+    movimientos: sinRepetidos(datos.movimientos.map(leerMovimiento), (m) => m.id).map(conCuota),
     categorias: sinRepetidos(datos.categorias.map(leerCategoria), (c) => c.id),
     tarjetas: sinRepetidos(Array.isArray(datos.tarjetas) ? datos.tarjetas.map(leerTarjeta) : [], (t) => t.id),
-    prestamos: sinRepetidos(Array.isArray(datos.prestamos) ? datos.prestamos.map(leerPrestamo) : [], (p) => p.id),
+    prestamos,
     ajustes: sinRepetidos(Array.isArray(datos.ajustes) ? datos.ajustes.map(leerAjuste).filter((a): a is Ajuste => a !== null) : [], (a) => a.id),
     historial: sinRepetidos(Array.isArray(datos.historial) ? datos.historial.map(leerFoto).filter((f): f is Foto => f !== null) : [], (f) => f.mes),
     recurrentes: sinRepetidos(Array.isArray(datos.recurrentes) ? datos.recurrentes.map(leerRecurrente) : [], (r) => r.id),

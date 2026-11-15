@@ -93,6 +93,68 @@ describe('estadoTarjeta', () => {
   const enCuotas = mov({ tipo: 'gasto', montoCentavos: 12000, fecha: '2026-11-21', tarjetaId: 't1', cuotas: 3 });
   const deOtraTarjeta = mov({ tipo: 'gasto', montoCentavos: 99999, fecha: '2026-11-18', tarjetaId: 't2' });
 
+  it('pagar el mínimo a tiempo no deja la tarjeta vencida; solo genera intereses', () => {
+    const conEstado: Tarjeta = {
+      ...tarjeta, saldoInicialCentavos: 70000, pendienteInicialCentavos: 64152, fechaSaldo: '2026-10-20', diaPago: 17, tasaAnual: 40,
+      ultimoEstado: { fechaCorte: '2026-10-20', fechaLimite: '2026-11-17', pagoContadoCentavos: 64152, pagoMinimoCentavos: 7420, saldoCentavos: 70000 },
+    };
+    const minimo = mov({ tipo: 'pago', montoCentavos: 7420, fecha: '2026-11-15', tarjetaId: 't1' });
+    // Sin pagar nada: vencida.
+    expect(estadoTarjeta(conEstado, [], '2026-11-19')).toMatchObject({ vencido: true, minimoPendienteCentavos: 7420, minimoEsEstimado: false });
+    // Con el mínimo pagado: no hay mora, pero lo que quedó genera intereses.
+    const e = estadoTarjeta(conEstado, [minimo], '2026-11-19');
+    expect(e).toMatchObject({ vencido: false, minimoPendienteCentavos: 0, pendienteCentavos: 56732, interesEstimadoCentavos: 1891 });
+    expect(e.deudaTotalCentavos).toBe(62580 + 1891);
+    // Tras el corte del 20 nov los intereses no desaparecen: pasan al nuevo estado de cuenta.
+    const tras = estadoTarjeta(conEstado, [minimo], '2026-11-23');
+    expect(tras.interesEstimadoCentavos).toBe(1891);
+    expect(tras.deudaTotalCentavos).toBe(62580 + 1891);
+    expect(tras.pendienteCentavos).toBe(62580 + 1891);
+    expect(tras.vencido).toBe(false);
+    // Si tampoco se paga ese estado de cuenta, se suma otro mes de intereses.
+    const dosMeses = estadoTarjeta(conEstado, [minimo], '2026-12-19');
+    expect(dosMeses.interesEstimadoCentavos).toBe(1891 + Math.round(((62580 + 1891) * 40) / 1200));
+  });
+
+  it('pagar casi todo el estado de cuenta no genera intereses estimados', () => {
+    const conTasa = { ...tarjeta, tasaAnual: 36 };
+    // Debía $100.00 y pagó $97.50: la diferencia es chica (una compra sin anotar, un redondeo).
+    const casi = mov({ tipo: 'pago', montoCentavos: 9750, fecha: '2026-11-14', tarjetaId: 't1' });
+    expect(estadoTarjeta(conTasa, [casi], '2026-11-16').interesEstimadoCentavos).toBe(0);
+    // Si quedan $20 sin pagar, sí.
+    const menos = mov({ tipo: 'pago', montoCentavos: 8000, fecha: '2026-11-14', tarjetaId: 't1' });
+    expect(estadoTarjeta(conTasa, [menos], '2026-11-16').interesEstimadoCentavos).toBe(60);
+  });
+
+  it('una devolución no cuenta como pago del mínimo', () => {
+    const conEstado: Tarjeta = {
+      ...tarjeta, saldoInicialCentavos: 70000, pendienteInicialCentavos: 64152, fechaSaldo: '2026-10-20', diaPago: 17,
+      ultimoEstado: { fechaCorte: '2026-10-20', fechaLimite: '2026-11-17', pagoContadoCentavos: 64152, pagoMinimoCentavos: 7420, saldoCentavos: 70000 },
+    };
+    const devolucion = mov({ tipo: 'pago', montoCentavos: 8000, fecha: '2026-11-05', tarjetaId: 't1', esDevolucion: true });
+    const e = estadoTarjeta(conEstado, [devolucion], '2026-11-10');
+    expect(e.pagoMinimoCentavos).toBe(7420);
+    // Pero sí baja lo pendiente del estado de cuenta.
+    expect(e.pendienteCentavos).toBe(64152 - 8000);
+  });
+
+  it('sin estado de cuenta, el mínimo aproximado se calcula una vez y baja al pagarlo', () => {
+    const manual: Tarjeta = { ...tarjeta, saldoInicialCentavos: 87822, pendienteInicialCentavos: 82912, fechaSaldo: '2026-11-01', tasaAnual: 39.9 };
+    const antes = estadoTarjeta(manual, [], '2026-11-10');
+    expect(antes).toMatchObject({ pagoMinimoCentavos: null, minimoEsEstimado: true });
+    const minimo = antes.minimoPendienteCentavos;
+    expect(minimo).toBe(Math.round((82912 * 39.9) / 1200) + Math.round(82912 * 0.025));
+    // Pagado completo, ya no pide más.
+    const pagado = mov({ tipo: 'pago', montoCentavos: minimo, fecha: '2026-11-09', tarjetaId: 't1' });
+    expect(estadoTarjeta(manual, [pagado], '2026-11-10').minimoPendienteCentavos).toBe(0);
+    // Con la mitad pagada, pide la otra mitad (no un mínimo nuevo sobre el saldo).
+    const mitad = mov({ tipo: 'pago', montoCentavos: 2000, fecha: '2026-11-09', tarjetaId: 't1' });
+    expect(estadoTarjeta(manual, [mitad], '2026-11-10').minimoPendienteCentavos).toBe(minimo - 2000);
+    // Como es aproximado, pagar casi todo (80 %) lo da por cubierto y no marca vencido.
+    const casi = mov({ tipo: 'pago', montoCentavos: Math.ceil(minimo * 0.8), fecha: '2026-11-09', tarjetaId: 't1' });
+    expect(estadoTarjeta(manual, [casi], '2026-11-16')).toMatchObject({ minimoPendienteCentavos: 0, vencido: false });
+  });
+
   it('si pasa el último día de pago sin pagar el total, suma los intereses estimados', () => {
     const conTasa = { ...tarjeta, tasaAnual: 36 };
     // Antes del 15 nov no hay intereses; después, 3% de lo pendiente ($100).
@@ -312,6 +374,22 @@ describe('préstamos', () => {
     expect(contarCuotas([mov({ tipo: 'pago', montoCentavos: 10000, fecha: '2026-11-30', prestamoId: 'p1', esExtra: true })], 10000).cuotas).toBe(0);
   });
 
+  it('si la cuota sube, los pagos anteriores siguen contando como cuotas completas', () => {
+    const p: Prestamo = { ...prestamo, saldoInicialCentavos: 300000, cuotaCentavos: 6600, primeraCuota: '2026-08-03' };
+    const pagos = ['2026-08-03', '2026-09-03', '2026-10-03'].map((f) =>
+      mov({ tipo: 'pago', montoCentavos: 6600, fecha: f, prestamoId: 'p1', capitalCentavos: 3600, cuotaCentavos: 6600 }),
+    );
+    expect(estadoPrestamo(p, pagos, '2026-10-20').proximaFecha).toBe('2026-11-03');
+    // El banco sube la cuota a $81: la próxima sigue siendo la de noviembre y no está vencida.
+    const act = ajustarPrestamo(p, pagos, '2026-10-20', { saldoCentavos: 289000, cuotaCentavos: 8100, proximaFecha: '2026-11-03' });
+    expect(estadoPrestamo(act, pagos, '2026-10-20')).toMatchObject({ proximaFecha: '2026-11-03', cuotasPagadas: 3, parcialCentavos: 0, vencido: false, proximaCuotaCentavos: 8100 });
+    // Lo mismo al editar la cuota en el formulario.
+    expect(estadoPrestamo({ ...p, cuotaCentavos: 8100 }, pagos, '2026-10-20')).toMatchObject({ proximaFecha: '2026-11-03', vencido: false });
+    // Un pago nuevo de $66 con la cuota ya en $81 sí es parcial.
+    const corto = mov({ tipo: 'pago', montoCentavos: 6600, fecha: '2026-11-03', prestamoId: 'p1', capitalCentavos: 3600, cuotaCentavos: 8100 });
+    expect(estadoPrestamo(act, [...pagos, corto], '2026-11-04')).toMatchObject({ proximaFecha: '2026-11-03', parcialCentavos: 6600 });
+  });
+
   it('deduce el último pago a partir del desglose del banco', () => {
     // Cuota de $66.00: $18.40 a capital y $6.40 de seguro, así que $41.20 son intereses de 42 días.
     const datos = { saldoCentavos: 431520, tasaAnual: 8.25, cuotaCentavos: 6600, cargosCentavos: 640, capitalCentavos: 1840, fecha: '2026-12-03' };
@@ -399,6 +477,32 @@ describe('préstamos', () => {
     expect(textoDuracion(12)).toBe('1 año');
     expect(textoDuracion(27)).toBe('2 años y 3 meses');
     expect(textoDuracion(0)).toBe('0 meses');
+  });
+
+  it('una tarjeta que se paga con el mínimo pide el mínimo, y cubierto ya no pide nada de ese estado', () => {
+    const base: Tarjeta = {
+      id: 't1', nombre: 'Visa', banco: '', limiteCentavos: 200000, diaCorte: 20, diaPago: 17, saldoInicialCentavos: 70000,
+      pendienteInicialCentavos: 64152, fechaSaldo: '2026-10-20', color: '#000', creadoEn: 0, tasaAnual: 40,
+      ultimoEstado: { fechaCorte: '2026-10-20', fechaLimite: '2026-11-17', pagoContadoCentavos: 64152, pagoMinimoCentavos: 7420, saldoCentavos: 70000 },
+    };
+    const conMinimo: Tarjeta = { ...base, formaPago: 'minimo' };
+    const ver = (t: Tarjeta, movs: Movimiento[], hoy: string) => proximosPagos([t], [], movs, hoy).map((p) => [p.fecha, p.montoCentavos, p.vencido, p.estimado]);
+    expect(ver(base, [], '2026-11-10')).toEqual([['2026-11-17', 64152, false, false]]);
+    expect(ver(conMinimo, [], '2026-11-10')).toEqual([['2026-11-17', 7420, false, false]]);
+    // Con el mínimo pagado: la que paga el mínimo pasa al estado de cuenta siguiente (un mínimo aproximado).
+    const minimo = mov({ tipo: 'pago', montoCentavos: 7420, fecha: '2026-11-12', tarjetaId: 't1' });
+    const siguiente = ver(conMinimo, [minimo], '2026-11-14');
+    expect(siguiente).toHaveLength(1);
+    expect(siguiente[0][0]).toBe('2026-12-17');
+    expect(siguiente[0][3]).toBe(true);
+    expect(siguiente[0][1] as number).toBeLessThan(10000);
+    // La que paga el total sigue pidiendo el resto hasta el último día de pago…
+    expect(ver(base, [minimo], '2026-11-14')).toEqual([['2026-11-17', 56732, false, false]]);
+    // …y después ya no aparece como vencida: lo que quedó pasa al siguiente estado de cuenta.
+    expect(ver(base, [minimo], '2026-11-19')[0].slice(0, 3)).toEqual(['2026-12-17', 62580 + 1891, false]);
+    // Sin cubrir el mínimo, las dos quedan vencidas.
+    expect(ver(conMinimo, [], '2026-11-19')).toEqual([['2026-11-17', 7420, true, false]]);
+    expect(ver(base, [], '2026-11-19')).toEqual([['2026-11-17', 64152, true, false]]);
   });
 
   it('junta los próximos pagos por fecha y suma los que vencen pronto', () => {
