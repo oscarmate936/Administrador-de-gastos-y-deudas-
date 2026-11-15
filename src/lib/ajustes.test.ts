@@ -8,3 +8,13 @@ describe('ordenInicio', () => {
     ).toEqual(['mes', 'asistente', 'atencion', 'semana', 'fondo', 'ultimos']);
   });
 });
+
+describe('ajustes dañados', () => {
+  it('descarta valores de tipo equivocado y deja el valor normal', async () => {
+    const { limpiarGrupo, AJUSTES_INICIALES } = await import('./ajustes');
+    expect(limpiarGrupo(AJUSTES_INICIALES.fondo, { apartadoCentavos: 'mucho', metaCentavos: 30000 })).toEqual({ metaCentavos: 30000 });
+    expect(limpiarGrupo(AJUSTES_INICIALES.recordatorios, { activo: 'si', diasTarjeta: 5, hora: '07:30' })).toEqual({ hora: '07:30' });
+    expect(limpiarGrupo(AJUSTES_INICIALES.fondo, { apartadoCentavos: Number.NaN, extra: { a: 1 } })).toEqual({});
+    expect(limpiarGrupo(AJUSTES_INICIALES.fondo, 'texto')).toEqual({});
+  });
+});

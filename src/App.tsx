@@ -26,7 +26,7 @@ import { copiarSiToca } from './lib/copias';
 import { hoy, mesDe } from './lib/fechas';
 import { formatearDinero } from './lib/dinero';
 import { esClavePago, pagoRapido, type ClavePago } from './lib/pagoRapido';
-import { compartirRespaldo, respaldarSiToca } from './lib/respaldoAuto';
+import { compartirRespaldo, leerClave, respaldarSiToca } from './lib/respaldoAuto';
 import { fotoDeHoy, guardarFoto } from './lib/historial';
 import { generarRecordatorios } from './lib/recordatorios';
 import { avisoLimite, gastadoEnMes } from './lib/limites';
@@ -162,19 +162,46 @@ export function App() {
     };
   }, [movimientos, categorias, tarjetas, prestamos, recurrentes, historial]);
 
+  // La fecha de hoy. Cambia al volver a la app o a medianoche aunque siga abierta,
+  // y con ella se recalculan las pantallas, la copia diaria, el respaldo
+  // automático, los avisos y el widget.
+  const [dia, setDia] = useState(hoy);
+  useEffect(() => {
+    let reloj: ReturnType<typeof setTimeout> | undefined;
+    const programar = () => {
+      clearTimeout(reloj);
+      const ahora = new Date();
+      const medianoche = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 1, 0, 0, 5);
+      reloj = setTimeout(() => {
+        setDia(hoy());
+        programar();
+      }, medianoche.getTime() - ahora.getTime());
+    };
+    programar();
+    const quitar = escucharPrimerPlano((activa) => {
+      if (!activa) return;
+      setDia(hoy());
+      programar();
+    });
+    return () => {
+      clearTimeout(reloj);
+      quitar();
+    };
+  }, []);
+
   // Foto mensual de deudas y disponible para las gráficas, y copia diaria.
   useEffect(() => {
     if (!datos) return;
-    const t = setTimeout(() => void guardarFoto(db, fotoDeHoy(datos, hoy())), 800);
+    const t = setTimeout(() => void guardarFoto(db, fotoDeHoy(datos, dia)), 800);
     return () => clearTimeout(t);
-  }, [datos]);
+  }, [datos, dia]);
   const desbloqueada = bloqueado === false;
   const hayDatos = !!datos && datos.movimientos.length + datos.tarjetas.length + datos.prestamos.length > 0;
   useEffect(() => {
     if (!desbloqueada || !hayDatos) return;
     void copiarSiToca().catch(() => undefined);
     void respaldarSiToca();
-  }, [desbloqueada, hayDatos]);
+  }, [desbloqueada, hayDatos, dia]);
 
   /**
    * Respaldo fuera del celular: con el automático activo abre directo el menú de
@@ -182,13 +209,14 @@ export function App() {
    */
   async function respaldarAhora() {
     const auto = ajustesActuales.current?.respaldoAuto;
-    if (!auto?.activo || !auto.clave) {
+    const clave = auto?.activo ? await leerClave() : undefined;
+    if (!clave) {
       setPestana('ajustes');
       setDetalle(null);
       return;
     }
     try {
-      await compartirRespaldo(auto.clave);
+      await compartirRespaldo(clave);
       setAviso({ texto: 'Respaldo enviado. Ábrelo con la contraseña del respaldo automático.', tipo: 'info' });
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
@@ -206,7 +234,7 @@ export function App() {
       void agendarNotificaciones(lista).catch(() => undefined);
     }, 1500);
     return () => clearTimeout(t);
-  }, [datos, recordatorios, respaldoAjustes]);
+  }, [datos, recordatorios, respaldoAjustes, dia]);
 
   // Tocar una notificación abre la deuda; «Registrar pago» u «Otro monto» abre el
   // formulario; «Ya pagué» registra el pago exacto (al desbloquear, si hay PIN).
@@ -222,9 +250,18 @@ export function App() {
   }, [respaldoPedido, bloqueado, ajustes]);
   useEffect(
     () =>
-      escucharNotificaciones(({ destino, pagar, yaPague, pago }) => {
+      escucharNotificaciones(({ destino, pagar, yaPague, minimo, pago, prueba }) => {
+        if (prueba) {
+          setAviso({
+            texto: yaPague
+              ? 'Funciona: el botón «Ya pagué» abrió la app. Era una prueba, no se registró nada.'
+              : 'Funciona: el aviso de prueba abrió la app.',
+            tipo: 'info',
+          });
+          return;
+        }
         if (yaPague && esClavePago(pago)) {
-          setPagoAviso(pago);
+          setPagoAviso({ ...pago, modo: minimo ? 'minimo' : 'total' });
           return;
         }
         const d = destino as { tipo?: string; id?: string } | null;
@@ -296,9 +333,9 @@ export function App() {
   const enFondo = ajustes?.fondo.apartadoCentavos ?? 0;
   useEffect(() => {
     if (!datos || conBloqueo === undefined) return;
-    const t = setTimeout(() => void actualizarWidget({ ...resumenWidget(datos, hoy(), new Date(), enFondo), oculto: conBloqueo }), 1000);
+    const t = setTimeout(() => void actualizarWidget({ ...resumenWidget(datos, dia, new Date(), enFondo), oculto: conBloqueo }), 1000);
     return () => clearTimeout(t);
-  }, [datos, conBloqueo, enFondo]);
+  }, [datos, conBloqueo, enFondo, dia]);
 
   // Metas del camino a «libre de deudas»: se celebran una sola vez.
   const [celebracion, setCelebracion] = useState<{ titulo: string; texto: string } | null>(null);
@@ -339,6 +376,9 @@ export function App() {
     setDetalle({ tipo: pagoAviso.tipo, id: pagoAviso.id });
     if (!r.ok) {
       setAviso({ texto: r.motivo, tipo: 'info' });
+      if (r.abrirPago) {
+        setFormulario(pagoAviso.tipo === 'tarjeta' ? { clase: 'pago', tarjetaId: pagoAviso.id } : { clase: 'pago', prestamoId: pagoAviso.id });
+      }
       return;
     }
     const m = r.movimiento;
@@ -621,7 +661,7 @@ export function App() {
       case 'tarjeta':
         return <FormularioTarjeta tarjeta={f.tarjeta} cantidad={d.tarjetas.length} alCerrar={cerrar} />;
       case 'prestamo':
-        return <FormularioPrestamo prestamo={f.prestamo} alCerrar={cerrar} leerAlAbrir={f.leer} />;
+        return <FormularioPrestamo prestamo={f.prestamo} movimientos={d.movimientos} alCerrar={cerrar} leerAlAbrir={f.leer} />;
       case 'estado':
         return (
           <RevisionEstado

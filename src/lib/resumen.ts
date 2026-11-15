@@ -14,7 +14,10 @@ const sumar = (movs: Movimiento[]) => movs.reduce((total, m) => total + m.montoC
 export const esGastoConTarjeta = (m: Movimiento) => m.tipo === 'gasto' && m.tarjetaId !== undefined;
 
 /** Dinero que sale del disponible: gastos en efectivo o débito y pagos a deudas. */
-export const esSalida = (m: Movimiento) => m.tipo === 'pago' || (m.tipo === 'gasto' && m.tarjetaId === undefined);
+export const esSalida = (m: Movimiento) => esPagoDeDeuda(m) || (m.tipo === 'gasto' && m.tarjetaId === undefined);
+
+/** Un pago a una tarjeta o préstamo hecho con tu dinero (no una devolución del comercio). */
+export const esPagoDeDeuda = (m: Movimiento) => m.tipo === 'pago' && !m.esDevolucion;
 
 /**
  * Lo recibido menos lo que ha salido: gastos en efectivo y pagos de tarjetas
@@ -61,7 +64,7 @@ export function resumenDesdeUltimoPago(
 
   const enPeriodo = movimientos.filter((m) => m.fecha >= pago.fecha && m.fecha <= fechaHoy);
   const gastos = enPeriodo.filter((m) => m.tipo === 'gasto' && !esGastoConTarjeta(m));
-  const pagosDeudasCentavos = sumar(enPeriodo.filter((m) => m.tipo === 'pago'));
+  const pagosDeudasCentavos = sumar(enPeriodo.filter(esPagoDeDeuda));
   const otrosIngresos = enPeriodo.filter((m) => m.tipo === 'ingreso' && m.id !== pago.id);
 
   const gastadoCentavos = sumar(gastos) + pagosDeudasCentavos;

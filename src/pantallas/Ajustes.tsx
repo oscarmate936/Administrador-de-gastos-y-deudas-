@@ -7,7 +7,18 @@ import { IconoFlecha } from '../componentes/Iconos';
 import { Opcion } from '../componentes/Opcion';
 import { Insignia, InsigniaCategoria } from '../componentes/Simbolo';
 import { guardarAjuste, type Ajustes as AjustesApp, type AjustesRespaldoAuto, type Tema } from '../lib/ajustes';
-import { CARPETA, LARGO_CLAVE, compartirRespaldo, guardarRespaldoAuto, nuevoNombreArchivo, permisoDocumentos } from '../lib/respaldoAuto';
+import {
+  CARPETA,
+  LARGO_CLAVE,
+  compartirRespaldo,
+  fechasDeArchivos,
+  guardarClave,
+  guardarRespaldoAuto,
+  leerClave,
+  moverClaveVieja,
+  nuevoNombreArchivo,
+  permisoDocumentos,
+} from '../lib/respaldoAuto';
 import { leerCopia, listarCopias, type InfoCopia } from '../lib/copias';
 import { descifrar, type Sobre } from '../lib/cripto';
 import { formatearDinero } from '../lib/dinero';
@@ -60,7 +71,13 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, exporta
       `y ${respaldo.prestamos.length} préstamos. Reemplazará todo lo que hay ahora en este dispositivo ` +
       `(${totalMovimientos} movimientos). ¿Continuar?`;
     if (!window.confirm(mensaje)) return;
-    await restaurarRespaldo(db, respaldo);
+    try {
+      await restaurarRespaldo(db, respaldo);
+    } catch {
+      // La restauración es una sola transacción: si falla, no se borra nada.
+      setAviso({ tipo: 'error', texto: 'No se pudo restaurar: el archivo tiene datos que no cuadran. Tus datos actuales no se tocaron.' });
+      return;
+    }
     setAviso({ tipo: 'ok', texto: `Se restauraron ${respaldo.movimientos.length} movimientos.` });
   }
 
@@ -105,7 +122,9 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, exporta
             {ultimo
               ? `Tu último respaldo fuera del celular fue ${haceCuanto(aFechaTexto(new Date(ultimo)))}.`
               : 'Aún no guardas un respaldo fuera del celular.'}{' '}
-            Tus datos viven solo en este dispositivo: guarda uno en Drive o en otro lugar cada semana.
+            Si pierdes el celular, puedes perder tus datos: guarda uno en Drive o en otro lugar cada semana. (Android también
+            puede guardar los datos de la app en tu cuenta de Google si tienes activada su copia de seguridad, pero no
+            dependas solo de eso.)
           </p>
         )}
         <ul className="lista tarjeta">
@@ -385,6 +404,19 @@ function RespaldoAutomatico({
   const [repetir, setRepetir] = useState('');
   const [error, setError] = useState('');
   const [trabajando, setTrabajando] = useState(false);
+  // La contraseña guardada en este celular (fuera de la copia de Google); null mientras se lee.
+  const [guardada, setGuardada] = useState<string | undefined | null>(null);
+  const [fechas, setFechas] = useState<{ actual?: Date; anterior?: Date }>({});
+  useEffect(() => {
+    void moverClaveVieja()
+      .then(leerClave)
+      .then(setGuardada);
+  }, []);
+  useEffect(() => {
+    if (r.archivo) void fechasDeArchivos(r.archivo).then(setFechas);
+  }, [r.archivo, r.ultimo]);
+  // Activo pero sin contraseña aquí: se restauró en otro celular y hay que escribirla otra vez.
+  const sinClaveAqui = r.activo && guardada === undefined;
 
   async function activar() {
     if (clave.length < LARGO_CLAVE) return setError(`Usa una contraseña de al menos ${LARGO_CLAVE} caracteres.`);
@@ -393,7 +425,9 @@ function RespaldoAutomatico({
     setError('');
     await permisoDocumentos();
     const archivo = nuevoNombreArchivo();
-    await guardarAjuste('respaldoAuto', { activo: true, clave, archivo, ultimo: undefined, error: undefined });
+    await guardarClave(clave);
+    setGuardada(clave);
+    await guardarAjuste('respaldoAuto', { activo: true, archivo, ultimo: undefined, error: undefined });
     try {
       await guardarRespaldoAuto(clave, archivo);
       alTerminar(`Respaldo automático activado. El primero ya está en Documentos › ${CARPETA}.`);
@@ -409,7 +443,7 @@ function RespaldoAutomatico({
     setTrabajando(true);
     setError('');
     try {
-      await compartirRespaldo(r.clave!);
+      await compartirRespaldo(guardada!);
       alTerminar('Respaldo enviado. Ábrelo con la misma contraseña.');
     } catch (e) {
       setTrabajando(false);
@@ -420,7 +454,8 @@ function RespaldoAutomatico({
 
   async function desactivar() {
     if (!window.confirm('¿Desactivar el respaldo automático? Los archivos que ya están en Documentos no se borran.')) return;
-    await guardarAjuste('respaldoAuto', { activo: false, clave: undefined, error: undefined });
+    await guardarClave(undefined);
+    await guardarAjuste('respaldoAuto', { activo: false, error: undefined });
     alTerminar('Respaldo automático desactivado.');
   }
 
@@ -431,13 +466,21 @@ function RespaldoAutomatico({
           Cada día que abres la app se guarda un respaldo cifrado en <strong>Documentos › {CARPETA}</strong>. Ese archivo se
           queda aunque borres la app y lo puedes pasar a tu computadora.
         </p>
-        {r.activo && r.clave ? (
+        {guardada === null ? (
+          <p className="texto-tenue">Cargando…</p>
+        ) : r.activo && guardada ? (
           <>
             {r.error ? (
               <p className="aviso error">No se pudo guardar el último respaldo: {r.error}</p>
             ) : (
               <p className="aviso">
                 {r.ultimo ? `Último respaldo: ${fechaHora.format(new Date(r.ultimo))}.` : 'El primero se guarda la próxima vez que abras la app.'}
+              </p>
+            )}
+            {(fechas.actual || fechas.anterior) && (
+              <p className="ayuda sin-margen">
+                En la carpeta: {fechas.actual ? `respaldo del ${fechaHora.format(fechas.actual)}` : 'falta el respaldo'}
+                {fechas.anterior ? ` y copia anterior del ${fechaHora.format(fechas.anterior)}.` : '; la copia anterior aparece desde el segundo día.'}
               </p>
             )}
             <p className="texto-tenue">
@@ -460,6 +503,12 @@ function RespaldoAutomatico({
           </>
         ) : (
           <>
+            {sinClaveAqui && (
+              <p className="aviso alerta">
+                El respaldo automático estaba activo en tu otro celular. Por seguridad la contraseña no viaja con tus datos:
+                escríbela otra vez (o una nueva) para seguir.
+              </p>
+            )}
             <label className="campo">
               <span>Contraseña de los respaldos</span>
               <input type="password" autoComplete="new-password" value={clave} onChange={(e) => { setClave(e.target.value); setError(''); }} />
@@ -468,7 +517,8 @@ function RespaldoAutomatico({
               <span>Repite la contraseña</span>
               <input type="password" autoComplete="new-password" value={repetir} onChange={(e) => { setRepetir(e.target.value); setError(''); }} />
               <span className="ayuda sin-margen">
-                Anótala en un lugar seguro: la necesitarás para abrir el respaldo en otro celular. Se guarda solo en este.
+                Anótala en un lugar seguro: la necesitarás para abrir el respaldo en otro celular. Se guarda solo en este y no va
+                a la copia de seguridad de Google.
               </span>
             </label>
             {error && (

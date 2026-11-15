@@ -64,6 +64,9 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
         {e.vencido && (
           <p className="aviso error">
             El pago de contado venció el {fechaCorta(e.fechaLimite)}. Págalo cuanto antes para evitar intereses y cargos por mora.
+            {e.interesEstimadoCentavos > 0 &&
+              ` La app ya suma unos ${formatearDinero(e.interesEstimadoCentavos)} de intereses a tu deuda; la cifra exacta llega con el próximo estado de cuenta.`}
+            {!t.tasaAnual && ' Agrega la tasa de la tarjeta para estimar los intereses.'}
           </p>
         )}
         <dl className="datos-lista">
@@ -88,6 +91,12 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
             <div>
               <dt>Pago mínimo pendiente <Ayuda termino="pago mínimo" /></dt>
               <dd>{e.pagoMinimoCentavos > 0 ? formatearDinero(e.pagoMinimoCentavos) : 'Cubierto'}</dd>
+            </div>
+          )}
+          {e.interesEstimadoCentavos > 0 && (
+            <div>
+              <dt>Intereses estimados</dt>
+              <dd className="texto-peligro">{formatearDinero(e.interesEstimadoCentavos)} aprox.</dd>
             </div>
           )}
           <div>

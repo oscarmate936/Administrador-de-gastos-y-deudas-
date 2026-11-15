@@ -47,6 +47,15 @@ function vistaDe(m: Movimiento, datos: Datos): Vista {
       };
     }
     const tarjeta = datos.tarjetas.find((t) => t.id === m.tarjetaId);
+    if (m.esDevolucion) {
+      return {
+        insignia: <Insignia color={tarjeta?.color ?? 'var(--tenue)'} simbolo="pago" />,
+        titulo: `Devolución · ${tarjeta?.nombre ?? 'Tarjeta eliminada'}`,
+        detalle: 'Baja la deuda; no sale de tu dinero',
+        monto: dinero,
+        claseMonto: 'fila-monto',
+      };
+    }
     return {
       insignia: <Insignia color={tarjeta?.color ?? 'var(--tenue)'} simbolo="pago" />,
       titulo: `Pago · ${tarjeta?.nombre ?? 'Tarjeta eliminada'}`,

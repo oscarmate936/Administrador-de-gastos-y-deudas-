@@ -1,5 +1,6 @@
 import type { Movimiento, Prestamo, Tarjeta } from '../db';
-import { estadoPrestamo, estadoTarjeta, interesMensual } from './deudas';
+import { diasEntre } from './fechas';
+import { cargosConSaldo, estadoPrestamo, estadoTarjeta, factorCargos, interesMensual, interesPorDias, periodosDe, sumarMeses, type Periodos } from './deudas';
 
 // Simulador del plan para salir de deudas.
 
@@ -17,6 +18,12 @@ export interface DeudaPlan {
   minimoEstimado: boolean;
   /** Tarjeta o préstamo a abrir al tocarla (las compras a plazos abren su tarjeta). */
   abrir: { tipo: 'tarjeta' | 'prestamo'; id: string };
+  /**
+   * Solo préstamos: se simulan igual que en su detalle. Cada cuota paga primero
+   * los intereses de los días del período y los seguros (parte del saldo) y el
+   * resto baja el saldo.
+   */
+  prestamo?: { factorCargos: number; periodos?: Periodos };
 }
 
 export type Metodo = 'avalancha' | 'bola';
@@ -93,10 +100,11 @@ export function deudasParaPlan(
       saldoCentavos: e.saldoCentavos,
       tasaAnual: p.tasaAnual,
       tasaConocida: p.tasaAnual > 0,
-      // Sin los seguros y otros cargos: esa parte de la cuota no baja la deuda.
-      minimoCentavos: Math.min(p.cuotaCentavos - e.cargosCuotaCentavos, e.saldoCentavos + interesMensual(e.saldoCentavos, p.tasaAnual)),
+      // La cuota completa, con seguros: es lo que se paga cada mes.
+      minimoCentavos: p.cuotaCentavos,
       minimoEstimado: false,
       abrir: { tipo: 'prestamo', id: p.id },
+      prestamo: { factorCargos: factorCargos(p), periodos: periodosDe(p, e) },
     });
   }
   return lista;
@@ -127,6 +135,21 @@ export function simularPlan(
   let primerMes: ResultadoPlan['primerMes'] = [];
   let intereses = 0;
 
+  /** Intereses y seguros de la cuota de este mes de un préstamo (se cobran antes de bajar el saldo). */
+  const cargoDelMes = (d: DeudaPlan, mes: number) => {
+    const saldo = saldos.get(d.id)!;
+    const p = d.prestamo!;
+    let interes: number;
+    if (p.periodos) {
+      const hasta = sumarMeses(p.periodos.primera, mes - 1, p.periodos.ancla);
+      const desde = mes === 1 ? p.periodos.desde : sumarMeses(p.periodos.primera, mes - 2, p.periodos.ancla);
+      interes = interesPorDias(saldo, d.tasaAnual, diasEntre(desde, hasta));
+    } else {
+      interes = interesMensual(saldo, d.tasaAnual);
+    }
+    return { interes, seguros: cargosConSaldo(saldo, p.factorCargos) };
+  };
+
   const prioridad = (a: DeudaPlan, b: DeudaPlan) =>
     metodo === 'avalancha'
       ? b.tasaAnual - a.tasaAnual || saldos.get(a.id)! - saldos.get(b.id)!
@@ -139,22 +162,38 @@ export function simularPlan(
     if (activas.length === 0) return { alcanza, meses: mes - 1, interesesCentavos: intereses, fines, primerMes };
 
     const pagos = new Map<string, number>();
+    // En los préstamos, lo que la cuota paga antes de bajar el saldo.
+    const cargos = new Map(activas.filter((d) => d.prestamo).map((d) => [d.id, cargoDelMes(d, mes)]));
+    const deudaDelMes = (d: DeudaPlan) => saldos.get(d.id)! + (cargos.get(d.id) ? cargos.get(d.id)!.interes + cargos.get(d.id)!.seguros : 0);
     let disponible = reinvertir ? pagoMensualCentavos : minimos;
     for (const d of activas) {
-      const pago = Math.min(d.minimoCentavos, saldos.get(d.id)!, disponible);
+      const pago = Math.min(d.minimoCentavos, deudaDelMes(d), disponible);
       pagos.set(d.id, pago);
       disponible -= pago;
     }
     if (reinvertir) {
       for (const d of [...activas].sort(prioridad)) {
         if (disponible <= 0) break;
-        const resta = saldos.get(d.id)! - pagos.get(d.id)!;
+        const resta = deudaDelMes(d) - pagos.get(d.id)!;
         const extra = Math.min(resta, disponible);
         pagos.set(d.id, pagos.get(d.id)! + extra);
         disponible -= extra;
       }
     }
     for (const d of activas) {
+      const c = cargos.get(d.id);
+      if (c) {
+        // Préstamo: el pago cubre intereses y seguros; el resto baja el saldo.
+        intereses += c.interes;
+        const nuevoPrestamo = deudaDelMes(d) - pagos.get(d.id)!;
+        if (nuevoPrestamo <= 0) {
+          saldos.set(d.id, 0);
+          fines.push({ id: d.id, mes });
+        } else {
+          saldos.set(d.id, Math.min(saldos.get(d.id)!, nuevoPrestamo));
+        }
+        continue;
+      }
       const nuevo = saldos.get(d.id)! - pagos.get(d.id)!;
       if (nuevo <= 0) {
         saldos.set(d.id, 0);

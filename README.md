@@ -67,7 +67,11 @@ no hay servidor ni cuentas.
 - Intereses por día desde el último pago (como los cobran los bancos) y seguros que
   bajan con el saldo: la fecha de término coincide con la del banco. Con el desglose
   de la captura se deduce la fecha del último pago.
-- Los seguros y otros cargos de la cuota no se cuentan como capital.
+- Los seguros y otros cargos de la cuota no se cuentan como capital ni como intereses.
+- Pagos parciales: se suman hasta completar la cuota.
+- Tarjetas: si pasa el último día de pago sin pagar el total, se suman intereses estimados
+  hasta importar el siguiente estado de cuenta. Las devoluciones del estado de cuenta bajan
+  la deuda sin restar del disponible.
 - Compras a plazos y extrafinanciamiento (Davivienda): se leen del estado de
   cuenta, se suman a la deuda total y cada corte cobra su cuota en la tarjeta.
 - Cuánto cuestan las deudas (intereses, comisiones, IVA, avances de efectivo).
@@ -78,7 +82,8 @@ no hay servidor ni cuentas.
 - Recordatorios en el celular: último día de pago, cuotas, corte, estado de
   cuenta listo, actualizar préstamos cada mes, resumen del mes y respaldo.
 - «Ya pagué» en el aviso de pago: registra el pago exacto sin abrir el formulario
-  (con deshacer); «Otro monto» abre el formulario.
+  (con deshacer); en tarjetas, «Pagué el total» o «Pagué el mínimo»; «Otro monto» abre el
+  formulario. «Probar un aviso» en Recordatorios comprueba que lleguen.
 - Resumen del mes que terminó en Inicio la primera semana del mes.
 - Gráficas de ingresos y salidas, deuda total por mes y gasto por categoría.
 - Búsqueda y filtros en todos los movimientos; exportar a CSV (Excel).
@@ -87,7 +92,8 @@ no hay servidor ni cuentas.
 - Bloqueo con PIN y huella; contenido oculto en las apps recientes.
 - Respaldo cifrado con contraseña, copia automática diaria y aviso semanal.
 - Respaldo automático cifrado cada día en Documentos/MisFinanzas (queda aunque se
-  borre la app) y «Guardar en Drive» con un toque desde el aviso semanal.
+  borre la app) y «Guardar en Drive» con un toque desde el aviso semanal. Su contraseña
+  no va a la copia de seguridad de Google.
 
 **Ahorro**
 - Fondo de emergencia con meta sugerida (un mes de gastos): lo apartado sigue en la

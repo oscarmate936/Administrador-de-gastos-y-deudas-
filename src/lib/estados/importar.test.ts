@@ -77,6 +77,23 @@ describe('importar estado de cuenta', () => {
     expect(filas[3].categoriaId).toBe('ocio');
   });
 
+  it('distingue las devoluciones de los pagos y no las cuenta como dinero que salió', () => {
+    const conDevolucion = {
+      ...estado,
+      movimientos: [
+        { fecha: '2026-10-25', concepto: 'DEVOLUCION TIENDA X', montoCentavos: 1500, tipo: 'abono' as const },
+        { fecha: '2026-10-26', concepto: 'SU PAGO GRACIAS', montoCentavos: 5000, tipo: 'abono' as const },
+        { fecha: '2026-10-27', concepto: 'REVERSO COMPRA', montoCentavos: 700, tipo: 'abono' as const },
+      ],
+    };
+    const filas = prepararFilas(conDevolucion, [], 't1', categorias);
+    expect(filas.map((f) => f.devolucion)).toEqual([true, false, true]);
+    const movs = movimientosDesdeFilas(filas.map((f) => ({ ...f, incluir: true })), 't1');
+    expect(movs.map((m) => m.esDevolucion)).toEqual([true, undefined, true]);
+    // Solo el pago resta del dinero disponible.
+    expect(calcularDisponible(movs)).toBe(-5000);
+  });
+
   it('crea la tarjeta con las cifras del corte', () => {
     const t = tarjetaDesdeEstado(estado, undefined, { nombre: '', color: '#abcdef' });
     expect(t).toMatchObject({

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Movimiento, Prestamo, Tarjeta } from '../db';
 import { costosEntre } from './costos';
+import { estadoPrestamo } from './deudas';
 import { deudasParaPlan, minimoEstimado, simularPlan, sumaMinimos, type DeudaPlan } from './plan';
 
 const deuda = (id: string, saldo: number, tasa: number, minimo: number): DeudaPlan => ({
@@ -64,8 +65,25 @@ describe('plan para salir de deudas', () => {
     expect(deudasParaPlan({ tarjetas: [t, vacia], prestamos: [p], movimientos: [] }, '2026-11-14')).toEqual([
       // El mínimo del estado (8.20) no cubre ni los intereses: se usa intereses + 1%.
       { tipo: 'tarjeta', id: 't', nombre: 'Visa', saldoCentavos: 41250, tasaAnual: 39.9, tasaConocida: true, minimoCentavos: 1372 + 413, minimoEstimado: false, abrir: { tipo: 'tarjeta', id: 't' } },
-      { tipo: 'prestamo', id: 'p', nombre: 'Personal', saldoCentavos: 100000, tasaAnual: 12, tasaConocida: true, minimoCentavos: 10000, minimoEstimado: false, abrir: { tipo: 'prestamo', id: 'p' } },
+      {
+        tipo: 'prestamo', id: 'p', nombre: 'Personal', saldoCentavos: 100000, tasaAnual: 12, tasaConocida: true, minimoCentavos: 10000, minimoEstimado: false,
+        abrir: { tipo: 'prestamo', id: 'p' }, prestamo: { factorCargos: 0, periodos: { desde: '2026-10-30', primera: '2026-11-30', ancla: 30 } },
+      },
     ]);
+  });
+
+  it('pagando solo la cuota, el plan termina el préstamo el mismo mes que su detalle', () => {
+    const p: Prestamo = {
+      id: 'p', nombre: 'BAC', acreedor: '', saldoInicialCentavos: 431520, tasaAnual: 8.25, cuotaCentavos: 6600, cargosCentavos: 640,
+      cargosBaseCentavos: 431520, primeraCuota: '2026-12-03', inicioPeriodo: '2026-10-22', creadoEn: 0,
+    };
+    const datos = { tarjetas: [], prestamos: [p], movimientos: [] };
+    const e = estadoPrestamo(p, [], '2026-11-14');
+    const deudas = deudasParaPlan(datos, '2026-11-14');
+    expect(simularPlan(deudas, 6600, 'avalancha').meses).toBe(e.proyeccion!.meses);
+    expect(simularPlan(deudas, 6600, 'avalancha', { reinvertir: false }).meses).toBe(e.proyeccion!.meses);
+    // Con $20 más al mes, termina antes.
+    expect(simularPlan(deudas, 8600, 'avalancha').meses!).toBeLessThan(e.proyeccion!.meses);
   });
 });
 
@@ -96,5 +114,16 @@ describe('costo de las deudas', () => {
       ['Personal', 4813, 0],
       ['Visa', 4187, 452],
     ]);
+  });
+
+  it('los seguros de las cuotas no cuentan como intereses', () => {
+    const conSeguro: Prestamo = { ...p, saldoInicialCentavos: 431520, cargosCentavos: 640, cargosBaseCentavos: 431520 };
+    const nuevo = m({ tipo: 'pago', prestamoId: 'p', montoCentavos: 6600, capitalCentavos: 1840, cargosCentavos: 640 });
+    // Un pago viejo sin seguros anotados: se estiman con el saldo de antes del pago.
+    const viejo = m({ tipo: 'pago', prestamoId: 'p', montoCentavos: 6600, capitalCentavos: 1840, fecha: '2026-11-03' });
+    const c = costosEntre({ movimientos: [viejo, nuevo], tarjetas: [], prestamos: [conSeguro] }, '2026-11-01', '2026-11-30');
+    expect(c.segurosCentavos).toBe(640 + 640);
+    expect(c.interesesCentavos).toBe(2 * (6600 - 1840 - 640));
+    expect(c.totalCentavos).toBe(c.interesesCentavos);
   });
 });

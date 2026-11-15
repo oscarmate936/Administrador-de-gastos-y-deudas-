@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { db, nuevoId, type Movimiento, type Prestamo, type Tarjeta } from '../db';
-import { ahorroDelAbono, capitalDeCuota, capitalDelPago, estadoPrestamo, estadoTarjeta, interesMensual, textoDuracion } from '../lib/deudas';
+import { ahorroDelAbono, capitalDeCuota, capitalDelPago, estadoPrestamo, repartirPago, estadoTarjeta, interesMensual, textoDuracion } from '../lib/deudas';
 import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
-import { esFechaValida, hoy } from '../lib/fechas';
+import { esFechaValida, fechaCorta, hoy } from '../lib/fechas';
 import { Hoja } from './Hoja';
 
 interface Props {
@@ -66,6 +66,30 @@ export function FormularioPago(props: Props) {
       ? ahorroDelAbono(prestamo, ePrestamo!, montoCentavos)
       : null;
 
+  // Pagos parciales: se suman hasta completar la cuota (lib/deudas.ts, contarCuotas).
+  let avisoCuota = '';
+  if (prestamo && ePrestamo?.proximaFecha && !esExtra && !movimiento && montoCentavos) {
+    const llevas = ePrestamo.parcialCentavos;
+    const total = llevas + montoCentavos;
+    const cuota = prestamo.cuotaCentavos;
+    const completa = (llevas === 0 && montoCentavos >= cuota * 0.9) || total >= cuota - 100;
+    if (!completa) {
+      avisoCuota = `Pago parcial: ${llevas > 0 ? `con lo que ya pagaste (${formatearDinero(llevas)}) ` : ''}faltan ${formatearDinero(cuota - total)} para completar la cuota del ${fechaCorta(ePrestamo.proximaFecha)}.`;
+    } else if (llevas > 0) {
+      avisoCuota = `Con lo que ya pagaste (${formatearDinero(llevas)}) completas la cuota del ${fechaCorta(ePrestamo.proximaFecha)}.`;
+    } else if (montoCentavos > cuota) {
+      avisoCuota = `Pagas ${formatearDinero(montoCentavos - cuota)} más que la cuota: esa parte va a capital.`;
+    }
+  }
+
+  /** Seguros de este pago: los ya guardados si no cambió nada; si no, el cálculo. */
+  function cargosDelPago(capitalFinal: number): number {
+    if (movimiento?.cargosCentavos !== undefined && movimiento.montoCentavos === montoCentavos && movimiento.capitalCentavos === capitalFinal) {
+      return movimiento.cargosCentavos;
+    }
+    return repartirPago(prestamo!, ePrestamo!, montoCentavos!, false, fechaPago, capitalFinal).cargosCentavos;
+  }
+
   async function guardar(e: FormEvent) {
     e.preventDefault();
     if (!montoCentavos) {
@@ -74,6 +98,10 @@ export function FormularioPago(props: Props) {
     }
     if (!esFechaValida(fecha)) {
       setError('Elige una fecha válida.');
+      return;
+    }
+    if (fecha > hoy()) {
+      setError('Registra el pago cuando lo hagas: la fecha no puede ser futura.');
       return;
     }
     if (prestamo) {
@@ -99,6 +127,8 @@ export function FormularioPago(props: Props) {
       prestamoId: prestamo?.id,
       capitalCentavos: prestamo ? (capitalCentavos ?? 0) : undefined,
       esExtra: prestamo ? esExtra : undefined,
+      cargosCentavos: prestamo && !esExtra ? cargosDelPago(capitalCentavos ?? 0) : undefined,
+      esDevolucion: tarjeta && movimiento?.esDevolucion ? true : undefined,
       nota: nota.trim(),
       creadoEn: movimiento?.creadoEn ?? Date.now(),
     };
@@ -215,6 +245,8 @@ export function FormularioPago(props: Props) {
           </label>
         )}
 
+        {avisoCuota && <p className="aviso">{avisoCuota}</p>}
+
         {ahorro && ahorro.mesesMenos + ahorro.interesesAhorradosCentavos > 0 && (
           <p className="aviso">
             Con este abono terminas {ahorro.mesesMenos > 0 ? `${textoDuracion(ahorro.mesesMenos)} antes` : 'en el mismo plazo'} y
@@ -224,7 +256,7 @@ export function FormularioPago(props: Props) {
 
         <label className="campo">
           <span>Fecha</span>
-          <input type="date" value={fecha} max="2099-12-31" onChange={(e) => setFecha(e.target.value)} />
+          <input type="date" value={fecha} max={fechaHoy} onChange={(e) => setFecha(e.target.value)} />
         </label>
 
         <label className="campo">

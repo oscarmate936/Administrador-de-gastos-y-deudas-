@@ -169,40 +169,64 @@ export async function permisoNotificaciones(pedir: boolean): Promise<EstadoPermi
 
 let canalListo = false;
 
+/** Los botones de cada clase de aviso. */
+const TIPOS_DE_ACCIONES = [
+  { id: 'PAGO', actions: [{ id: 'pagar', title: 'Registrar pago' }] },
+  {
+    id: 'PAGO_DIRECTO',
+    actions: [
+      { id: 'yaPague', title: 'Ya pagué' },
+      { id: 'pagar', title: 'Otro monto' },
+    ],
+  },
+  {
+    id: 'PAGO_TARJETA',
+    actions: [
+      { id: 'yaPague', title: 'Pagué el total' },
+      { id: 'pagar', title: 'Otro monto' },
+    ],
+  },
+  {
+    id: 'PAGO_TARJETA_MINIMO',
+    actions: [
+      { id: 'yaPague', title: 'Pagué el total' },
+      { id: 'pagueMinimo', title: 'Pagué el mínimo' },
+      { id: 'pagar', title: 'Otro monto' },
+    ],
+  },
+];
+
+/** Id fijo del aviso de prueba: no se borra al reprogramar los demás. */
+const ID_PRUEBA = 7;
+
+/** Crea el canal y los botones de los avisos (una vez por sesión). */
+async function prepararCanal(): Promise<void> {
+  if (canalListo) return;
+  const { LocalNotifications } = await import('@capacitor/local-notifications');
+  await LocalNotifications.createChannel({
+    id: 'pagos',
+    name: 'Recordatorios de pago',
+    description: 'Fechas de pago, cortes de tarjeta y respaldos',
+    importance: 4,
+    visibility: 0,
+  });
+  await LocalNotifications.registerActionTypes({ types: TIPOS_DE_ACCIONES });
+  canalListo = true;
+}
+
 /** Reemplaza todas las notificaciones agendadas por estas. */
 export async function agendarNotificaciones(
   lista: Array<{ id: number; fecha: Date; titulo: string; cuerpo: string; pagar?: boolean; pagoDirecto?: unknown; destino?: unknown }>,
 ): Promise<void> {
   if (!esNativo) return;
   const { LocalNotifications } = await import('@capacitor/local-notifications');
-  const pendientes = await LocalNotifications.getPending();
-  if (pendientes.notifications.length > 0) {
-    await LocalNotifications.cancel({ notifications: pendientes.notifications.map((n) => ({ id: n.id })) });
+  const pendientes = (await LocalNotifications.getPending()).notifications.filter((n) => n.id !== ID_PRUEBA);
+  if (pendientes.length > 0) {
+    await LocalNotifications.cancel({ notifications: pendientes.map((n) => ({ id: n.id })) });
   }
   if (lista.length === 0) return;
   if ((await LocalNotifications.checkPermissions()).display !== 'granted') return;
-  if (!canalListo) {
-    await LocalNotifications.createChannel({
-      id: 'pagos',
-      name: 'Recordatorios de pago',
-      description: 'Fechas de pago, cortes de tarjeta y respaldos',
-      importance: 4,
-      visibility: 0,
-    });
-    await LocalNotifications.registerActionTypes({
-      types: [
-        { id: 'PAGO', actions: [{ id: 'pagar', title: 'Registrar pago' }] },
-        {
-          id: 'PAGO_DIRECTO',
-          actions: [
-            { id: 'yaPague', title: 'Ya pagué' },
-            { id: 'pagar', title: 'Otro monto' },
-          ],
-        },
-      ],
-    });
-    canalListo = true;
-  }
+  await prepararCanal();
   await LocalNotifications.schedule({
     notifications: lista.map((r) => ({
       id: r.id,
@@ -211,23 +235,82 @@ export async function agendarNotificaciones(
       largeBody: r.cuerpo,
       channelId: 'pagos',
       schedule: { at: r.fecha, allowWhileIdle: true },
-      actionTypeId: r.pagoDirecto ? 'PAGO_DIRECTO' : r.pagar ? 'PAGO' : undefined,
+      actionTypeId: tipoDeAcciones(r),
       extra: { destino: r.destino ?? null, pagar: r.pagar === true, pago: r.pagoDirecto ?? null },
     })),
   });
 }
 
+/**
+ * Aviso de prueba en un minuto, con los botones «Ya pagué» y «Otro monto», para
+ * comprobar en el celular que llegan y abren la app. No registra nada.
+ */
+export async function avisoDePrueba(): Promise<boolean> {
+  if (!esNativo) return false;
+  const { LocalNotifications } = await import('@capacitor/local-notifications');
+  if ((await permisoNotificaciones(true)) !== 'concedido') return false;
+  await prepararCanal();
+  await LocalNotifications.schedule({
+    notifications: [
+      {
+        id: ID_PRUEBA,
+        title: 'Aviso de prueba de Mis Finanzas',
+        body: 'Toca «Ya pagué» para comprobar que el botón abre la app. No se registra nada.',
+        channelId: 'pagos',
+        schedule: { at: new Date(Date.now() + 60_000), allowWhileIdle: true },
+        actionTypeId: 'PAGO_DIRECTO',
+        extra: { prueba: true },
+      },
+    ],
+  });
+  return true;
+}
+
+/** Si Android deja usar alarmas exactas (sin ellas, los avisos pueden llegar tarde). null fuera de Android. */
+export async function alarmasExactas(): Promise<boolean | null> {
+  if (!esNativo) return null;
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
+    return (await LocalNotifications.checkExactNotificationSetting()).exact_alarm === 'granted';
+  } catch {
+    return null;
+  }
+}
+
+/** Abre el ajuste de Android para permitir alarmas exactas. */
+export async function pedirAlarmasExactas(): Promise<boolean> {
+  if (!esNativo) return false;
+  marcarSalidaPropia();
+  const { LocalNotifications } = await import('@capacitor/local-notifications');
+  return (await LocalNotifications.changeExactNotificationSetting()).exact_alarm === 'granted';
+}
+
+/** Qué botones lleva el aviso: «Ya pagué» en préstamos; total, mínimo u otro monto en tarjetas. */
+function tipoDeAcciones(r: { pagar?: boolean; pagoDirecto?: unknown }): string | undefined {
+  const directo = r.pagoDirecto as { tipo?: string; conMinimo?: boolean } | undefined;
+  if (directo?.tipo === 'tarjeta') return directo.conMinimo ? 'PAGO_TARJETA_MINIMO' : 'PAGO_TARJETA';
+  if (directo) return 'PAGO_DIRECTO';
+  return r.pagar ? 'PAGO' : undefined;
+}
+
 /** Avisa cuando la persona toca una notificación o uno de sus botones. */
 export function escucharNotificaciones(
-  alTocar: (extra: { destino: unknown; pagar: boolean; yaPague: boolean; pago: unknown }) => void,
+  alTocar: (extra: { destino: unknown; pagar: boolean; yaPague: boolean; minimo: boolean; pago: unknown; prueba: boolean }) => void,
 ): () => void {
   if (!esNativo) return () => {};
   let cancelado = false;
   let quitar: (() => void) | undefined;
   void import('@capacitor/local-notifications').then(async ({ LocalNotifications }) => {
     const escucha = await LocalNotifications.addListener('localNotificationActionPerformed', ({ actionId, notification }) => {
-      const extra = (notification.extra ?? {}) as { destino?: unknown; pago?: unknown };
-      alTocar({ destino: extra.destino ?? null, pagar: actionId === 'pagar', yaPague: actionId === 'yaPague', pago: extra.pago ?? null });
+      const extra = (notification.extra ?? {}) as { destino?: unknown; pago?: unknown; prueba?: boolean };
+      alTocar({
+        destino: extra.destino ?? null,
+        pagar: actionId === 'pagar',
+        yaPague: actionId === 'yaPague' || actionId === 'pagueMinimo',
+        minimo: actionId === 'pagueMinimo',
+        pago: extra.pago ?? null,
+        prueba: extra.prueba === true,
+      });
     });
     if (cancelado) void escucha.remove();
     else quitar = () => void escucha.remove();

@@ -2,7 +2,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import type { Datos, Detalle, Formulario } from '../datos';
 import { db, nuevoId, type Movimiento } from '../db';
 import { interpretar, type Intencion } from '../lib/asistente/interpretar';
-import { capitalDelPago, estadoPrestamo } from '../lib/deudas';
+import { estadoPrestamo, repartirPago } from '../lib/deudas';
 import { formatearDinero } from '../lib/dinero';
 import { fechaCorta, hoy, sumarDias } from '../lib/fechas';
 import { IconoSiguiente } from './Iconos';
@@ -77,6 +77,7 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir, fondoCentavos = 0
         const e = estadoPrestamo(p, datos.movimientos, hoy());
         const monto = r.montoCentavos ?? (r.extra ? 0 : e.proximaCuotaCentavos);
         if (!monto) return null;
+        const reparto = repartirPago(p, e, monto, r.extra, r.fecha);
         return {
           ...base,
           tipo: 'pago',
@@ -84,7 +85,8 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir, fondoCentavos = 0
           fecha: r.fecha,
           prestamoId: p.id,
           esExtra: r.extra,
-          capitalCentavos: capitalDelPago(p, e, monto, r.extra, r.fecha),
+          capitalCentavos: reparto.capitalCentavos,
+          cargosCentavos: r.extra ? undefined : reparto.cargosCentavos,
         };
       }
       default:

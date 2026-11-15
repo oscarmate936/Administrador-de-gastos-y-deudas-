@@ -194,6 +194,8 @@ function leerMovimiento(v: unknown, i: number): Movimiento {
     prestamoId,
     capitalCentavos: prestamoId ? (esCentavos(v.capitalCentavos) ? v.capitalCentavos : 0) : undefined,
     esExtra: prestamoId ? v.esExtra === true : undefined,
+    cargosCentavos: prestamoId && esCentavos(v.cargosCentavos) ? v.cargosCentavos : undefined,
+    esDevolucion: v.tipo === 'pago' && tarjetaId && !prestamoId && v.esDevolucion === true ? true : undefined,
     nota: typeof v.nota === 'string' ? v.nota : '',
     creadoEn: typeof v.creadoEn === 'number' ? v.creadoEn : Date.now(),
   };
@@ -263,6 +265,11 @@ function leerRecurrente(v: unknown, i: number): Recurrente {
 }
 
 /** Valida el contenido de un archivo de respaldo. Lanza un Error con un mensaje para mostrar. */
+/** Deja una sola vez cada clave (la última que aparece). */
+function sinRepetidos<T>(lista: T[], clave: (x: T) => string): T[] {
+  return [...new Map(lista.map((x) => [clave(x), x])).values()];
+}
+
 export function leerRespaldo(texto: string): Respaldo {
   let datos: unknown;
   try {
@@ -282,17 +289,19 @@ export function leerRespaldo(texto: string): Respaldo {
   if (!Array.isArray(datos.movimientos) || !Array.isArray(datos.categorias)) {
     throw new Error('El respaldo está incompleto.');
   }
+  // Un mismo dato repetido (por ejemplo, de un archivo editado a mano) haría
+  // fallar la restauración: se queda el último.
   return {
     app: 'mis-finanzas',
     version: 3,
     exportadoEn: typeof datos.exportadoEn === 'string' ? datos.exportadoEn : '',
-    movimientos: datos.movimientos.map(leerMovimiento),
-    categorias: datos.categorias.map(leerCategoria),
-    tarjetas: Array.isArray(datos.tarjetas) ? datos.tarjetas.map(leerTarjeta) : [],
-    prestamos: Array.isArray(datos.prestamos) ? datos.prestamos.map(leerPrestamo) : [],
-    ajustes: Array.isArray(datos.ajustes) ? datos.ajustes.map(leerAjuste).filter((a): a is Ajuste => a !== null) : [],
-    historial: Array.isArray(datos.historial) ? datos.historial.map(leerFoto).filter((f): f is Foto => f !== null) : [],
-    recurrentes: Array.isArray(datos.recurrentes) ? datos.recurrentes.map(leerRecurrente) : [],
+    movimientos: sinRepetidos(datos.movimientos.map(leerMovimiento), (m) => m.id),
+    categorias: sinRepetidos(datos.categorias.map(leerCategoria), (c) => c.id),
+    tarjetas: sinRepetidos(Array.isArray(datos.tarjetas) ? datos.tarjetas.map(leerTarjeta) : [], (t) => t.id),
+    prestamos: sinRepetidos(Array.isArray(datos.prestamos) ? datos.prestamos.map(leerPrestamo) : [], (p) => p.id),
+    ajustes: sinRepetidos(Array.isArray(datos.ajustes) ? datos.ajustes.map(leerAjuste).filter((a): a is Ajuste => a !== null) : [], (a) => a.id),
+    historial: sinRepetidos(Array.isArray(datos.historial) ? datos.historial.map(leerFoto).filter((f): f is Foto => f !== null) : [], (f) => f.mes),
+    recurrentes: sinRepetidos(Array.isArray(datos.recurrentes) ? datos.recurrentes.map(leerRecurrente) : [], (r) => r.id),
   };
 }
 

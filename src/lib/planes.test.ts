@@ -31,6 +31,17 @@ describe('compras a plazos y extrafinanciamiento', () => {
     expect(proyectarPlan(compra, 10).cobradoCentavos).toBe(9310);
   });
 
+  it('el crédito disponible no baja por las cuotas que pasan al saldo, solo por sus intereses', () => {
+    const conDisponible: Tarjeta = { ...tarjeta, ultimoEstado: { ...tarjeta.ultimoEstado!, disponibleCentavos: 30000 } };
+    expect(estadoTarjeta(conDisponible, [], '2026-11-10').creditoDisponibleCentavos).toBe(30000);
+    // Tras el corte del 22 nov: la compra sin intereses no cambia nada; el extrafinanciamiento suma sus intereses (20.98).
+    expect(estadoTarjeta(conDisponible, [], '2026-11-25').creditoDisponibleCentavos).toBe(30000 - 2098);
+    // Una compra y un pago posteriores sí lo mueven.
+    const compraNueva: Movimiento = { id: 'n', tipo: 'gasto', montoCentavos: 5000, fecha: '2026-11-01', tarjetaId: 'v', nota: '', creadoEn: 1 };
+    const pagoNuevo: Movimiento = { id: 'q', tipo: 'pago', montoCentavos: 2000, fecha: '2026-11-02', tarjetaId: 'v', nota: '', creadoEn: 1 };
+    expect(estadoTarjeta(conDisponible, [compraNueva, pagoNuevo], '2026-11-10').creditoDisponibleCentavos).toBe(30000 - 5000 + 2000);
+  });
+
   it('el extrafinanciamiento cobra intereses sobre lo que falta', () => {
     const r = proyectarPlan(extra, 1);
     // 1.67% de 1,256.00 = 20.98 de interés; baja 31.50 - 20.98 = 10.52 de capital.

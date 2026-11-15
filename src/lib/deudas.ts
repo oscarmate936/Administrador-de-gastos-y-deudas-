@@ -107,8 +107,14 @@ export interface EstadoTarjeta {
   planes: PlanProyectado[];
   /** Lo que falta de esos planes (aparte del saldo). */
   planesCentavos: number;
-  /** Saldo más planes: todo lo que se debe por esta tarjeta. */
+  /** Saldo más planes (y los intereses estimados): todo lo que se debe por esta tarjeta. */
   deudaTotalCentavos: number;
+  /**
+   * Intereses que cobrará el banco por lo que quedó sin pagar del estado de
+   * cuenta (pasó el último día de pago). Es un cálculo aproximado hasta que se
+   * importe el siguiente estado de cuenta; 0 si no hay o no se sabe la tasa.
+   */
+  interesEstimadoCentavos: number;
   creditoDisponibleCentavos: number;
   /** Último corte que ya pasó (o es hoy). */
   corteAnterior: string;
@@ -159,6 +165,9 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
     .map((p) => proyectarPlan(p, cortesEntre(ue!.fechaCorte, corteAnterior)).plan)
     .filter((p) => p.saldoCentavos > 0);
   const planesCentavos = planes.reduce((t, p) => t + p.saldoCentavos, 0);
+  // De lo que los planes pasaron al saldo, solo los intereses son deuda nueva.
+  const capitalDePlanes = planesBase.reduce((t, p) => t + p.saldoCentavos, 0) - planesCentavos;
+  const interesesDePlanes = Math.max(0, cobradoHasta(corteAnterior) - capitalDePlanes);
 
   /** Lo que queda por pagar del estado de cuenta de ese corte, si es posterior a `fechaSaldo`. */
   const pendienteDelCorte = (corte: string): number => {
@@ -183,15 +192,21 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
       ? Math.min(pendienteCentavos, Math.max(0, ue.pagoMinimoCentavos - pagado))
       : null;
 
+  const vencido = pendienteCentavos > 0 && hoy > fechaLimite;
+  const interesEstimadoCentavos = vencido && tarjeta.tasaAnual ? interesMensual(pendienteCentavos, tarjeta.tasaAnual) : 0;
+
   return {
     saldoCentavos,
     planes,
     planesCentavos,
-    deudaTotalCentavos: deuda + planesCentavos,
-    // Si los saldos vienen del estado de cuenta, parte del disponible que dio el banco.
+    deudaTotalCentavos: deuda + planesCentavos + interesEstimadoCentavos,
+    interesEstimadoCentavos,
+    // Si los saldos vienen del estado de cuenta, parte del disponible que dio el
+    // banco y solo resta compras y suma pagos posteriores: las cuotas de las
+    // compras a plazos que pasan al saldo ya estaban descontadas del disponible.
     creditoDisponibleCentavos:
       ue?.disponibleCentavos !== undefined && ue.fechaCorte === tarjeta.fechaSaldo
-        ? ue.disponibleCentavos - (saldoCentavos - tarjeta.saldoInicialCentavos)
+        ? ue.disponibleCentavos - (sumar(gastos) - pagado) - interesesDePlanes
         : tarjeta.limiteCentavos - saldoCentavos,
     corteAnterior,
     proximoCorte,
@@ -199,9 +214,9 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
     pendienteCentavos,
     pagoMinimoCentavos,
     segunEstado: segunEstado && corteConocido,
-    vencido: pendienteCentavos > 0 && hoy > fechaLimite,
+    vencido,
     diasParaLimite: diasEntre(hoy, fechaLimite),
-    proximoEstadoCentavos: pendienteDelCorte(proximoCorte),
+    proximoEstadoCentavos: pendienteDelCorte(proximoCorte) + interesEstimadoCentavos,
     proximaFechaLimite: primerDiaDespues(tarjeta.diaPago, proximoCorte),
   };
 }
@@ -308,6 +323,10 @@ export interface EstadoPrestamo {
   /** Fecha de la próxima cuota sin pagar; null si ya está saldado. */
   proximaFecha: string | null;
   proximaCuotaCentavos: number;
+  /** Lo que llevan los pagos parciales de la cuota en curso (0 si no hay). */
+  parcialCentavos: number;
+  /** De esos pagos parciales, lo que no fue a capital (intereses y seguros ya cubiertos). */
+  parcialNoCapitalCentavos: number;
   /** Desde cuándo corre el interés de la próxima cuota (último pago de cuota). */
   inicioPeriodo: string | null;
   /** Seguros y otros cargos de la próxima cuota (bajan con el saldo). */
@@ -321,21 +340,64 @@ export interface EstadoPrestamo {
   avance: number;
 }
 
+/** Un pago de cuota de al menos esta parte de la cuota la completa por sí solo. */
+const PARTE_CUOTA_COMPLETA = 0.9;
+/** Pagos parciales que suman la cuota menos esto (en centavos) la completan. */
+const TOLERANCIA_CUOTA = 100;
+
+/**
+ * Cuenta las cuotas pagadas: un pago de casi toda la cuota (90 % o más) cuenta
+ * como una; los más chicos se van sumando hasta completarla. Devuelve también
+ * lo que llevan los pagos parciales de la cuota en curso.
+ */
+export function contarCuotas(
+  pagos: Movimiento[],
+  cuotaCentavos: number,
+): { cuotas: number; ultimaCompleta: string | null; parcialCentavos: number; parcialNoCapitalCentavos: number } {
+  const ordenados = pagos.filter((m) => !m.esExtra).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.creadoEn - b.creadoEn);
+  let cuotas = 0;
+  let ultimaCompleta: string | null = null;
+  let parcial = 0;
+  let parcialNoCapital = 0;
+  for (const m of ordenados) {
+    if (parcial === 0 && m.montoCentavos >= cuotaCentavos * PARTE_CUOTA_COMPLETA) {
+      cuotas++;
+      ultimaCompleta = m.fecha;
+      continue;
+    }
+    parcial += m.montoCentavos;
+    parcialNoCapital += m.montoCentavos - (m.capitalCentavos ?? 0);
+    if (parcial >= cuotaCentavos - TOLERANCIA_CUOTA) {
+      cuotas++;
+      ultimaCompleta = m.fecha;
+      parcial = 0;
+      parcialNoCapital = 0;
+    }
+  }
+  return { cuotas, ultimaCompleta, parcialCentavos: parcial, parcialNoCapitalCentavos: parcialNoCapital };
+}
+
 export function estadoPrestamo(prestamo: Prestamo, movimientos: Movimiento[], hoy: string): EstadoPrestamo {
   const pagos = movimientos.filter((m) => m.tipo === 'pago' && m.prestamoId === prestamo.id);
   const abonadoCentavos = pagos.reduce((t, p) => t + (p.capitalCentavos ?? 0), 0);
   const saldoCentavos = Math.max(0, prestamo.saldoInicialCentavos - abonadoCentavos);
-  const cuotas = pagos.filter((p) => !p.esExtra);
-  const cuotasPagadas = cuotas.length;
+  const conteo = contarCuotas(pagos, prestamo.cuotaCentavos);
+  const cuotasPagadas = conteo.cuotas;
   const saldado = saldoCentavos === 0;
 
   const diaAncla = aDate(prestamo.primeraCuota).getDate();
   const proximaFecha = saldado ? null : sumarMeses(prestamo.primeraCuota, cuotasPagadas, diaAncla);
-  // El interés corre desde el último pago de cuota (los abonos extra van todos a capital).
-  const ultimoPago = cuotas.reduce<string | null>((u, m) => (u === null || m.fecha > u ? m.fecha : u), null);
-  const inicioPeriodo = proximaFecha
-    ? (ultimoPago ?? prestamo.inicioPeriodo ?? sumarMeses(proximaFecha, -1, diaAncla))
-    : null;
+  // El interés corre desde el último pago que completó una cuota o, si es más
+  // reciente, desde la fecha que dio el banco al actualizarlo (los abonos extra
+  // van todos a capital y no reinician el período).
+  let inicioPeriodo: string | null = null;
+  if (proximaFecha) {
+    const mesAntes = sumarMeses(proximaFecha, -1, diaAncla);
+    const candidatos = [conteo.ultimaCompleta, prestamo.inicioPeriodo].filter((f): f is string => !!f && f < proximaFecha);
+    inicioPeriodo = candidatos.length > 0 ? candidatos.reduce((a, b) => (a > b ? a : b)) : mesAntes;
+    // Un período de más de dos meses es un dato viejo: se usa el mes anterior a la cuota.
+    if (inicioPeriodo < sumarMeses(proximaFecha, -2, diaAncla)) inicioPeriodo = mesAntes;
+  }
   const factor = factorCargos(prestamo);
   const periodos = proximaFecha && inicioPeriodo ? { desde: inicioPeriodo, primera: proximaFecha, ancla: diaAncla } : undefined;
   const proyeccion = saldado ? null : proyectar(saldoCentavos, prestamo.tasaAnual, prestamo.cuotaCentavos, factor, periodos);
@@ -343,13 +405,19 @@ export function estadoPrestamo(prestamo: Prestamo, movimientos: Movimiento[], ho
   const cargosCuotaCentavos = saldado ? 0 : cargosConSaldo(saldoCentavos, factor);
   const interesCuota =
     proximaFecha && inicioPeriodo ? interesPorDias(saldoCentavos, prestamo.tasaAnual, diasEntre(inicioPeriodo, proximaFecha)) : 0;
+  // Lo que falta de la cuota en curso, descontando los pagos parciales.
+  const faltaNoCapital = Math.max(0, interesCuota + cargosCuotaCentavos - conteo.parcialNoCapitalCentavos);
 
   return {
     saldoCentavos,
     abonadoCentavos,
     cuotasPagadas,
     proximaFecha,
-    proximaCuotaCentavos: saldado ? 0 : Math.min(prestamo.cuotaCentavos, saldoCentavos + interesCuota + cargosCuotaCentavos),
+    proximaCuotaCentavos: saldado
+      ? 0
+      : Math.max(0, Math.min(prestamo.cuotaCentavos - conteo.parcialCentavos, saldoCentavos + faltaNoCapital)),
+    parcialCentavos: conteo.parcialCentavos,
+    parcialNoCapitalCentavos: conteo.parcialNoCapitalCentavos,
     inicioPeriodo,
     cargosCuotaCentavos,
     vencido: proximaFecha !== null && hoy > proximaFecha,
@@ -401,12 +469,59 @@ export function capitalDeCuota(p: Prestamo, e: EstadoPrestamo, montoCentavos: nu
 }
 
 /**
+ * Capital y seguros de un pago a un préstamo, para guardarlo. Si se conoce el
+ * capital (desglose del banco o escrito por la persona), los seguros son los
+ * del cálculo, sin pasar de lo que no fue a capital.
+ */
+export function repartirPago(
+  p: Prestamo,
+  e: EstadoPrestamo,
+  montoCentavos: number,
+  esExtra: boolean,
+  fechaPago: string,
+  capitalConocido?: number,
+): { capitalCentavos: number; cargosCentavos: number } {
+  if (esExtra) return { capitalCentavos: capitalConocido ?? Math.max(0, Math.min(e.saldoCentavos, montoCentavos)), cargosCentavos: 0 };
+  const calculo = desglosePago(p, e, montoCentavos, false, fechaPago);
+  const capital = capitalConocido ?? capitalDeCuota(p, e, montoCentavos, fechaPago);
+  return { capitalCentavos: capital, cargosCentavos: Math.max(0, Math.min(calculo.cargosCentavos, montoCentavos - capital)) };
+}
+
+/**
  * Capital de un pago a un préstamo hecho en `fechaPago`: el interés es el de
  * los días desde el último pago de cuota hasta ese día.
  */
 export function capitalDelPago(p: Prestamo, e: EstadoPrestamo, montoCentavos: number, esExtra: boolean, fechaPago: string): number {
-  const dias = e.inicioPeriodo ? diasEntre(e.inicioPeriodo, fechaPago) : undefined;
-  return capitalSugerido(e.saldoCentavos, p.tasaAnual, montoCentavos, esExtra, factorCargos(p), dias);
+  return desglosePago(p, e, montoCentavos, esExtra, fechaPago).capitalCentavos;
+}
+
+export interface DesglosePago {
+  capitalCentavos: number;
+  interesCentavos: number;
+  /** Seguros y otros cargos que cubre este pago. */
+  cargosCentavos: number;
+}
+
+/**
+ * Cómo se reparte un pago hecho en `fechaPago`: primero los intereses de los
+ * días desde el último pago de cuota y los seguros (menos lo que ya cubrieron
+ * los pagos parciales de esta cuota) y el resto a capital. Un abono extra va
+ * todo a capital.
+ */
+export function desglosePago(p: Prestamo, e: EstadoPrestamo, montoCentavos: number, esExtra: boolean, fechaPago: string): DesglosePago {
+  if (esExtra) return { capitalCentavos: Math.max(0, Math.min(e.saldoCentavos, montoCentavos)), interesCentavos: 0, cargosCentavos: 0 };
+  const dias = e.inicioPeriodo ? Math.max(0, diasEntre(e.inicioPeriodo, fechaPago)) : undefined;
+  const interesTotal = dias === undefined ? interesMensual(e.saldoCentavos, p.tasaAnual) : interesPorDias(e.saldoCentavos, p.tasaAnual, dias);
+  const cargosTotal = cargosConSaldo(e.saldoCentavos, factorCargos(p));
+  // Los pagos parciales cubren primero los intereses y después los seguros.
+  let cubierto = e.parcialNoCapitalCentavos;
+  const interesFalta = Math.max(0, interesTotal - cubierto);
+  cubierto = Math.max(0, cubierto - interesTotal);
+  const cargosFalta = Math.max(0, cargosTotal - cubierto);
+  const interes = Math.min(montoCentavos, interesFalta);
+  const cargos = Math.min(montoCentavos - interes, cargosFalta);
+  const capital = Math.max(0, Math.min(e.saldoCentavos, montoCentavos - interes - cargos));
+  return { capitalCentavos: capital, interesCentavos: interes, cargosCentavos: cargos };
 }
 
 /**
@@ -443,7 +558,9 @@ export function ajustarPrestamo(
     cargosCentavos: banco.cargosCentavos ?? p.cargosCentavos,
     // Los cargos se midieron con el saldo que da el banco hoy.
     cargosBaseCentavos: banco.cargosCentavos !== undefined ? banco.saldoCentavos : p.cargosBaseCentavos,
-    inicioPeriodo: banco.inicioPeriodo ?? p.inicioPeriodo,
+    // El interés de la próxima cuota corre desde lo que dice el banco: con el
+    // desglose, la fecha deducida; sin él, un mes antes de esa cuota.
+    inicioPeriodo: banco.inicioPeriodo ?? (banco.proximaFecha ? sumarMeses(banco.proximaFecha, -1, ancla) : p.inicioPeriodo),
     desgloseCuota: banco.desgloseCuota,
     actualizadoEn: hoy,
   };

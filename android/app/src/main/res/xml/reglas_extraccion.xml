@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copia de seguridad de Google y paso a otro celular (Android 12 o más nuevo): todo menos la contraseña del respaldo automático. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="clave-respaldo.txt" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="clave-respaldo.txt" />
+    </device-transfer>
+</data-extraction-rules>

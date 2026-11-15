@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Datos } from '../datos';
 import { guardarAjuste, type Ajustes, type AjustesRecordatorios } from '../lib/ajustes';
-import { esNativo, permisoNotificaciones, type EstadoPermiso } from '../lib/nativo';
+import { alarmasExactas, avisoDePrueba, esNativo, pedirAlarmasExactas, permisoNotificaciones, type EstadoPermiso } from '../lib/nativo';
 import { generarRecordatorios } from '../lib/recordatorios';
 import { Hoja } from './Hoja';
 
@@ -18,9 +18,19 @@ const fechaHora = new Intl.DateTimeFormat('es-SV', { weekday: 'short', day: 'num
 export function FormularioRecordatorios({ ajustes, datos, alCerrar }: Props) {
   const r = ajustes.recordatorios;
   const [permiso, setPermiso] = useState<EstadoPermiso | null>(null);
+  // Sin alarmas exactas, Android puede retrasar los avisos varios minutos u horas.
+  const [exactas, setExactas] = useState<boolean | null>(null);
+  const [prueba, setPrueba] = useState('');
   useEffect(() => {
     void permisoNotificaciones(false).then(setPermiso);
+    void alarmasExactas().then(setExactas);
   }, []);
+
+  async function probar() {
+    const ok = await avisoDePrueba();
+    setPermiso(await permisoNotificaciones(false));
+    setPrueba(ok ? 'Listo: en un minuto te llega un aviso de prueba. Toca «Ya pagué» en él.' : 'No se pudo: revisa que las notificaciones estén permitidas.');
+  }
 
   const guardar = (cambios: Partial<AjustesRecordatorios>) => void guardarAjuste('recordatorios', cambios);
   const alternarDia = (clave: 'diasTarjeta' | 'diasPrestamo', d: number) => {
@@ -63,6 +73,15 @@ export function FormularioRecordatorios({ ajustes, datos, alCerrar }: Props) {
           </span>
           <input type="checkbox" role="switch" checked={r.activo} disabled={!esNativo} onChange={(e) => void activar(e.target.checked)} />
         </label>
+
+        {r.activo && exactas === false && (
+          <div className="aviso alerta">
+            <p className="sin-margen">Android puede retrasar los avisos porque la app no tiene permiso de alarmas exactas.</p>
+            <button type="button" className="enlace" onClick={() => void pedirAlarmasExactas().then(setExactas)}>
+              Permitir alarmas exactas
+            </button>
+          </div>
+        )}
 
         <label className="campo">
           <span>Hora de los avisos</span>
@@ -114,6 +133,21 @@ export function FormularioRecordatorios({ ajustes, datos, alCerrar }: Props) {
             ))}
           </div>
         </fieldset>
+
+        {esNativo && (
+          <section className="campo">
+            <h3 className="subtitulo">¿Llegan los avisos?</h3>
+            <p className="texto-tenue">Te mandamos un aviso de prueba en un minuto, con sus botones, sin registrar nada.</p>
+            <button type="button" className="boton" onClick={() => void probar()}>
+              Probar un aviso
+            </button>
+            {prueba && (
+              <p className="aviso" role="status">
+                {prueba}
+              </p>
+            )}
+          </section>
+        )}
 
         <section className="campo">
           <h3 className="subtitulo">Próximos avisos</h3>

@@ -33,6 +33,16 @@ export interface Movimiento {
   capitalCentavos?: number;
   /** Solo en pagos a préstamos: true si es un abono extra y no cuenta como cuota del mes. */
   esExtra?: boolean;
+  /**
+   * Solo en pagos a préstamos: la parte de seguros y otros cargos. El resto que
+   * no es capital son intereses. Ausente en pagos viejos: se estima.
+   */
+  cargosCentavos?: number;
+  /**
+   * Solo en pagos a tarjetas: una devolución o reverso del comercio. Baja la
+   * deuda de la tarjeta, pero no es dinero que salió de tu bolsa.
+   */
+  esDevolucion?: boolean;
   nota: string;
   creadoEn: number;
 }
