@@ -383,7 +383,12 @@ function FilaPagoDelMes({ pago: p, color, hoy: fechaHoy, alTocar }: { pago: Pago
           <span className={clase}>
             {que} · {cuando}
           </span>
-          {p.totalCentavos !== undefined && <span className="fila-detalle envolver">Para no pagar intereses: {formatearDinero(p.totalCentavos)}</span>}
+          {p.totalCentavos !== undefined && (
+            <span className="fila-detalle envolver">
+              {/* Pasada la fecha, los intereses ya se generaron: solo queda decir cuánto falta en total. */}
+              {p.vencido ? 'Total pendiente' : 'Para no pagar intereses'}: {formatearDinero(p.totalCentavos)}
+            </span>
+          )}
           {p.clase === 'total' && <span className="fila-detalle envolver">El mínimo ya está cubierto</span>}
         </span>
         <span className="fila-monto">{formatearDinero(p.montoCentavos)}</span>

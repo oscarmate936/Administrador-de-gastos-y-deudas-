@@ -52,6 +52,7 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImpo
   const estadosP = prestamos.map((p) => ({ p, e: estadoPrestamo(p, movimientos, fechaHoy) }));
   const deudaTotal =
     estadosT.reduce((s, { e }) => s + e.deudaTotalCentavos, 0) + estadosP.reduce((s, { e }) => s + e.saldoCentavos, 0);
+  const interesesEstimados = estadosT.reduce((s, { e }) => s + e.interesEstimadoCentavos, 0);
   const proximos = proximosPagos(tarjetas, prestamos, movimientos, fechaHoy);
   const vencidos = proximos.filter((p) => p.vencido);
   const porPagar30 = totalPorPagar(proximos, 30);
@@ -77,6 +78,12 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImpo
             <dd className={costoMes.totalCentavos > 0 ? 'texto-peligro' : ''}>{formatearDinero(costoMes.totalCentavos)}</dd>
           </div>
         </dl>
+        {interesesEstimados > 0 && (
+          <p className="ayuda sin-margen">
+            Además, tus tarjetas suman unos {formatearDinero(interesesEstimados)} de intereses estimados por lo que quedó sin pagar. Ya
+            están dentro de lo que debes.
+          </p>
+        )}
         {progreso && progreso.pagadoCentavos > 0 && (
           <div className="progreso-deudas">
             <div className="progreso-cabecera">

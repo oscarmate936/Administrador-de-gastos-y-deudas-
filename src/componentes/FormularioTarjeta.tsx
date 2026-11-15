@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { BANCOS, COLORES } from '../datos';
 import { db, nuevoId, type Tarjeta } from '../db';
+import { diasDePlazo } from '../lib/deudas';
 import { centavosATexto, textoACentavos, textoATasa } from '../lib/dinero';
 import { fechaCorta, hoy, sumarDias } from '../lib/fechas';
 import { Hoja } from './Hoja';
@@ -13,6 +14,9 @@ interface Props {
 }
 
 const DIAS = Array.from({ length: 31 }, (_, i) => i + 1);
+
+/** Menos días que estos entre el corte y el último día de pago pide confirmar. */
+const PLAZO_MINIMO = 10;
 
 /** Campo vacío = 0; texto inválido = null. */
 const montoOpcional = (texto: string) => (texto.trim() === '' ? 0 : textoACentavos(texto));
@@ -49,6 +53,16 @@ export function FormularioTarjeta({ tarjeta, cantidad, alCerrar }: Props) {
     if (saldoCentavos === null) return setError('La deuda actual no es un monto válido.');
     if (pendienteCentavos === null) return setError('El pago de contado pendiente no es un monto válido.');
     if (pendienteCentavos > saldoCentavos) return setError('Lo pendiente del estado de cuenta no puede ser mayor que la deuda total.');
+    // Los bancos dan de 15 a 25 días entre el corte y el último día de pago; menos suele ser un día mal escrito.
+    const dias = diasDePlazo(Number(diaCorte), Number(diaPago));
+    const cambioDias = !tarjeta || tarjeta.diaCorte !== Number(diaCorte) || tarjeta.diaPago !== Number(diaPago);
+    if (dias < PLAZO_MINIMO && cambioDias) {
+      const texto = dias === 1 ? 'solo 1 día' : `solo ${dias} días`;
+      const sigue = window.confirm(
+        `Entre el corte (día ${diaCorte}) y el último día de pago (día ${diaPago}) hay ${texto}. Lo normal son de 15 a 25. ¿Los dos días están bien?`,
+      );
+      if (!sigue) return setError('Revisa el día de corte y el último día de pago en tu estado de cuenta.');
+    }
     const tasaAnual = tasa.trim() === '' ? undefined : textoATasa(tasa);
     if (tasaAnual === null) return setError('La tasa de interés no es válida. Escribe un número, por ejemplo 39.9');
 

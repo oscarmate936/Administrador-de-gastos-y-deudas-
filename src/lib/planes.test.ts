@@ -35,7 +35,10 @@ describe('compras a plazos y extrafinanciamiento', () => {
     const conDisponible: Tarjeta = { ...tarjeta, ultimoEstado: { ...tarjeta.ultimoEstado!, disponibleCentavos: 30000 } };
     expect(estadoTarjeta(conDisponible, [], '2026-11-10').creditoDisponibleCentavos).toBe(30000);
     // Tras el corte del 22 nov: la compra sin intereses no cambia nada; el extrafinanciamiento suma sus intereses (20.98).
-    expect(estadoTarjeta(conDisponible, [], '2026-11-25').creditoDisponibleCentavos).toBe(30000 - 2098);
+    const pagoATiempo: Movimiento = { id: 'a', tipo: 'pago', montoCentavos: 70310, fecha: '2026-11-10', tarjetaId: 'v', nota: '', creadoEn: 1 };
+    expect(estadoTarjeta(conDisponible, [pagoATiempo], '2026-11-25').creditoDisponibleCentavos).toBe(30000 + 70310 - 2098);
+    // Sin pagar el estado de cuenta, también lo bajan sus intereses estimados (27.54).
+    expect(estadoTarjeta(conDisponible, [], '2026-11-25').creditoDisponibleCentavos).toBe(30000 - 2098 - 2754);
     // Una compra y un pago posteriores sí lo mueven.
     const compraNueva: Movimiento = { id: 'n', tipo: 'gasto', montoCentavos: 5000, fecha: '2026-11-01', tarjetaId: 'v', nota: '', creadoEn: 1 };
     const pagoNuevo: Movimiento = { id: 'q', tipo: 'pago', montoCentavos: 2000, fecha: '2026-11-02', tarjetaId: 'v', nota: '', creadoEn: 1 };
@@ -62,7 +65,8 @@ describe('compras a plazos y extrafinanciamiento', () => {
   it('después del siguiente corte las cuotas pasan a la tarjeta y la deuda total no se duplica', () => {
     const e = estadoTarjeta(tarjeta, [], '2026-11-25');
     expect(e.corteAnterior).toBe('2026-11-22');
-    expect(e.saldoCentavos).toBe(70310 + 3100 + 3150);
+    // Las dos cuotas más los intereses del estado de cuenta de octubre, que nadie pagó (27.54).
+    expect(e.saldoCentavos).toBe(70310 + 3100 + 3150 + 2754);
     expect(e.planes.map((p) => [p.descripcion, p.cuotaActual, p.saldoCentavos])).toEqual([
       ['TIENDA A', 16, 6210],
       ['Extrafinanciamiento', 4, 125600 + 2098 - 3150],

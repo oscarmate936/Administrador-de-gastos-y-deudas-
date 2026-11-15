@@ -1,6 +1,6 @@
 import type { Movimiento, Prestamo, Tarjeta } from '../db';
 import type { Ajustes } from './ajustes';
-import { estadoPrestamo, estadoTarjeta, fechaConDia, sumarMeses } from './deudas';
+import { estadoPrestamo, estadoTarjeta, fechaConDia, minimoEstimado, sumarMeses } from './deudas';
 import { formatearDinero } from './dinero';
 import { aDate, aFechaTexto, diasEntre, fechaCorta, moverMes, nombreMes, sumarDias } from './fechas';
 import type { ClavePago } from './pagoRapido';
@@ -84,13 +84,18 @@ export function generarRecordatorios(e: Entrada, ahora: Date, horizonte = HORIZO
     const aprox = est.minimoEsEstimado ? ' aprox.' : '';
     // «Pagué el mínimo» solo se ofrece cuando se sabe el mínimo exacto.
     const conMinimo = est.minimoPendienteCentavos > 0 && !est.minimoEsEstimado && est.minimoPendienteCentavos < est.pendienteCentavos;
-    const pagoDirecto = {
-      tipo: 'tarjeta' as const,
-      id: t.id,
-      fecha: est.fechaLimite,
-      conMinimo: conMinimo || undefined,
-      prefiereMinimo: (esMinimo && conMinimo) || undefined,
-    };
+    // Quien paga el mínimo sin saber el monto exacto (no importó el PDF) no recibe
+    // «Pagué el total»: el aviso solo ofrece «Registrar pago», que abre el formulario.
+    const pagoDirecto =
+      esMinimo && est.minimoEsEstimado
+        ? undefined
+        : {
+            tipo: 'tarjeta' as const,
+            id: t.id,
+            fecha: est.fechaLimite,
+            conMinimo: conMinimo || undefined,
+            prefiereMinimo: (esMinimo && conMinimo) || undefined,
+          };
     if (r.pagos && porPagar > 0) {
       const cuerpo = esMinimo
         ? `Pago mínimo: ${formatearDinero(est.minimoPendienteCentavos)}${aprox} · de contado ${formatearDinero(est.pendienteCentavos)}. Último día: ${fechaCorta(est.fechaLimite)}.`
@@ -117,10 +122,14 @@ export function generarRecordatorios(e: Entrada, ahora: Date, horizonte = HORIZO
       });
     }
     if (r.pagos && est.proximoEstadoCentavos > 0) {
+      const minimoProximo = Math.min(est.proximoEstadoCentavos, minimoEstimado(est.proximoEstadoCentavos, t.tasaAnual ?? 0));
+      const cuerpoProximo = esMinimo
+        ? `Según lo registrado, el mínimo sería de unos ${formatearDinero(minimoProximo)} (de contado, unos ${formatearDinero(est.proximoEstadoCentavos)}). Revisa tu estado de cuenta.`
+        : `Según lo registrado, serían unos ${formatearDinero(est.proximoEstadoCentavos)}. Revisa tu estado de cuenta.`;
       for (const dias of r.diasTarjeta) {
         agregar(`tarjeta:${t.id}:pago:${est.proximaFechaLimite}:${dias}`, sumarDias(est.proximaFechaLimite, -dias), {
           titulo: dias === 0 ? `Hoy es el último día para pagar ${t.nombre}` : `Pago de ${t.nombre} ${cuandoFalta(dias)}`,
-          cuerpo: `Según lo registrado, serían unos ${formatearDinero(est.proximoEstadoCentavos)}. Revisa tu estado de cuenta.`,
+          cuerpo: cuerpoProximo,
           destino,
           pagar: true,
         });

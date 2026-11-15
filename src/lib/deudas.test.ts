@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { calcularDisponible } from './resumen';
 import type { Movimiento, Prestamo, Tarjeta } from '../db';
 import {
+  diasDePlazo,
   ahorroDelAbono,
   ahorroPorAbono,
   ajustarPrestamo,
@@ -114,6 +115,34 @@ describe('estadoTarjeta', () => {
     // Si tampoco se paga ese estado de cuenta, se suma otro mes de intereses.
     const dosMeses = estadoTarjeta(conEstado, [minimo], '2026-12-19');
     expect(dosMeses.interesEstimadoCentavos).toBe(1891 + Math.round(((62580 + 1891) * 40) / 1200));
+  });
+
+  it('con intereses estimados, el saldo, lo que debes y el pago de contado cuadran', () => {
+    const conEstado: Tarjeta = {
+      ...tarjeta, saldoInicialCentavos: 70000, pendienteInicialCentavos: 64152, fechaSaldo: '2026-10-20', diaPago: 17, tasaAnual: 40,
+      ultimoEstado: { fechaCorte: '2026-10-20', fechaLimite: '2026-11-17', pagoContadoCentavos: 64152, pagoMinimoCentavos: 7420, saldoCentavos: 70000, disponibleCentavos: 30000 },
+    };
+    const minimo = mov({ tipo: 'pago', montoCentavos: 7420, fecha: '2026-11-15', tarjetaId: 't1' });
+    const e = estadoTarjeta(conEstado, [minimo], '2026-11-23');
+    // Los $18.91 de intereses van dentro del saldo.
+    expect(e.saldoCentavos).toBe(62580 + 1891);
+    expect(e.deudaTotalCentavos).toBe(e.saldoCentavos);
+    expect(e.pendienteCentavos).toBeLessThanOrEqual(e.saldoCentavos);
+    expect(e.creditoDisponibleCentavos).toBe(30000 + 7420 - 1891);
+    // Al pagar todo el pago de contado, queda en cero: ni saldo negativo ni deuda de más.
+    const todo = mov({ tipo: 'pago', montoCentavos: e.pendienteCentavos, fecha: '2026-11-24', tarjetaId: 't1' });
+    const tras = estadoTarjeta(conEstado, [minimo, todo], '2026-11-25');
+    expect([tras.saldoCentavos, tras.deudaTotalCentavos, tras.pendienteCentavos]).toEqual([0, 0, 0]);
+  });
+
+  it('cuenta los días entre el corte y el último día de pago', () => {
+    expect(diasDePlazo(20, 15)).toBe(25);
+    expect(diasDePlazo(6, 1)).toBe(25);
+    expect(diasDePlazo(5, 25)).toBe(20);
+    // Un plazo de un día casi seguro es un día mal escrito.
+    expect(diasDePlazo(30, 31)).toBe(1);
+    expect(diasDePlazo(28, 2)).toBe(4);
+    expect(diasDePlazo(10, 10)).toBe(30);
   });
 
   it('pagar casi todo el estado de cuenta no genera intereses estimados', () => {

@@ -101,13 +101,16 @@ export function proyectarPlan(p: PlanCuotas, cortes: number): { plan: PlanProyec
 }
 
 export interface EstadoTarjeta {
-  /** Saldo de la tarjeta hoy, incluidas las cuotas de compras registradas en la app. */
+  /**
+   * Saldo de la tarjeta hoy, incluidas las cuotas de compras registradas en la
+   * app y los intereses estimados (`interesEstimadoCentavos`).
+   */
   saldoCentavos: number;
   /** Compras a plazos y extrafinanciamientos del estado de cuenta, proyectados a hoy. */
   planes: PlanProyectado[];
   /** Lo que falta de esos planes (aparte del saldo). */
   planesCentavos: number;
-  /** Saldo más planes (y los intereses estimados): todo lo que se debe por esta tarjeta. */
+  /** Saldo más planes: todo lo que se debe por esta tarjeta. */
   deudaTotalCentavos: number;
   /**
    * Intereses que cobra el banco por lo que quedó sin pagar de cada estado de
@@ -171,8 +174,9 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
   const proximoCorte = fechaConDia(d.getFullYear(), d.getMonth() + 1, tarjeta.diaCorte);
   const fechaLimite = segunEstado ? ue.fechaLimite : primerDiaDespues(tarjeta.diaPago, corteAnterior);
 
-  const saldoCentavos = tarjeta.saldoInicialCentavos + sumar(gastos) - pagado + cobradoHasta(corteAnterior);
-  const deuda = Math.max(0, saldoCentavos);
+  // Saldo según lo registrado; los intereses estimados se le suman al final.
+  const saldoRegistrado = tarjeta.saldoInicialCentavos + sumar(gastos) - pagado + cobradoHasta(corteAnterior);
+  const deuda = Math.max(0, saldoRegistrado);
   const planes = planesBase
     .map((p) => proyectarPlan(p, cortesEntre(ue!.fechaCorte, corteAnterior)).plan)
     .filter((p) => p.saldoCentavos > 0);
@@ -192,7 +196,7 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
    */
   const pendienteDelCorte = (corte: string, intereses: number): number => {
     // Las cuotas de planes que se cobren en ese corte todavía no están en el saldo de hoy.
-    const tope = Math.max(0, saldoCentavos + intereses) + Math.max(0, cobradoHasta(corte) - cobradoHasta(corteAnterior));
+    const tope = Math.max(0, saldoRegistrado + intereses) + Math.max(0, cobradoHasta(corte) - cobradoHasta(corteAnterior));
     return Math.min(tope, Math.max(0, facturadoEn(corte) + intereses - pagado));
   };
 
@@ -266,19 +270,22 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
   }
 
   const vencido = minimoPendienteCentavos > 0 && hoy > fechaLimite;
+  // Los intereses estimados son parte de lo que se debe: van dentro del saldo,
+  // para que «Saldo actual», «Debes», el pago de contado y el crédito disponible cuadren.
+  const saldoCentavos = saldoRegistrado + interesEstimadoCentavos;
 
   return {
     saldoCentavos,
     planes,
     planesCentavos,
-    deudaTotalCentavos: Math.max(0, saldoCentavos + interesEstimadoCentavos) + planesCentavos,
+    deudaTotalCentavos: Math.max(0, saldoCentavos) + planesCentavos,
     interesEstimadoCentavos,
     // Si los saldos vienen del estado de cuenta, parte del disponible que dio el
     // banco y solo resta compras y suma pagos posteriores: las cuotas de las
     // compras a plazos que pasan al saldo ya estaban descontadas del disponible.
     creditoDisponibleCentavos:
       ue?.disponibleCentavos !== undefined && ue.fechaCorte === tarjeta.fechaSaldo
-        ? ue.disponibleCentavos - (sumar(gastos) - pagado) - interesesDePlanes
+        ? ue.disponibleCentavos - (sumar(gastos) - pagado) - interesesDePlanes - interesEstimadoCentavos
         : tarjeta.limiteCentavos - saldoCentavos,
     corteAnterior,
     proximoCorte,
@@ -297,6 +304,14 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
 
 /** Si del estado de cuenta queda sin pagar esto o menos (o el 3 %), no se estiman intereses. */
 const DIFERENCIA_SIN_INTERES = 500;
+
+/**
+ * Días aproximados del corte al último día de pago que le sigue (mes de 30
+ * días). El mismo día cuenta como un mes después.
+ */
+export function diasDePlazo(diaCorte: number, diaPago: number): number {
+  return diaPago > diaCorte ? diaPago - diaCorte : diaPago + 30 - diaCorte;
+}
 
 /** Con un mínimo aproximado, pagar esta parte lo da por cubierto. */
 const PARTE_MINIMO_CUBIERTO = 0.8;

@@ -76,7 +76,8 @@ no hay servidor ni cuentas.
 - Tarjetas: cada una se marca como «pago el total» o «pago el mínimo»; eso decide cuánto se
   aparta de lo libre para gastar, qué piden los avisos y el monto del formulario de pago.
   Con el mínimo cubierto no hay «vencido»: lo que queda sin pagar genera intereses estimados,
-  que se arrastran de un estado de cuenta al siguiente hasta importar el PDF. Sin PDF, el
+  que van dentro del saldo y se arrastran de un estado de cuenta al siguiente hasta importar
+  el PDF. Sin PDF, el
   mínimo es un cálculo fijo por estado de cuenta. Las devoluciones bajan la deuda sin restar
   del disponible ni contar como pago del mínimo.
 - Compras a plazos y extrafinanciamiento (Davivienda): se leen del estado de

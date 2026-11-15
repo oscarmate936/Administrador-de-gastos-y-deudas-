@@ -109,7 +109,10 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
           {e.interesEstimadoCentavos > 0 && (
             <div>
               <dt>Intereses estimados</dt>
-              <dd className="texto-peligro">{formatearDinero(e.interesEstimadoCentavos)} aprox.</dd>
+              <dd>
+                <span className="texto-peligro">{formatearDinero(e.interesEstimadoCentavos)} aprox.</span>
+                <span className="texto-tenue"> · ya en el saldo</span>
+              </dd>
             </div>
           )}
           <div>

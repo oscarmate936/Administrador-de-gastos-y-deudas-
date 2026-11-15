@@ -115,6 +115,20 @@ describe('recordatorios', () => {
     expect(lista.find((r) => r.clave.includes('vencido'))?.cuerpo).toBe('No se cubrió el pago mínimo ($25.00). Paga cuanto antes para evitar más cargos por mora.');
   });
 
+  it('quien paga el mínimo sin saber el monto exacto no recibe «Pagué el total»', () => {
+    // Tarjeta sin PDF importado: el mínimo es aproximado.
+    const lista = generarRecordatorios({ tarjetas: [{ ...tarjeta, formaPago: 'minimo', tasaAnual: 36 }], prestamos: [], movimientos: [], ajustes }, ahora);
+    const aviso = lista.find((r) => r.clave === 'tarjeta:t1:pago:2026-11-15:2')!;
+    expect(aviso.pagar).toBe(true);
+    expect(aviso.pagoDirecto).toBeUndefined();
+    expect(aviso.cuerpo).toMatch(/^Pago mínimo: \$\d+\.\d\d aprox\. · de contado \$100\.00\. Último día: 15 nov\.$/);
+    // Con el estado de cuenta ya pagado y antes del corte, el aviso del siguiente habla del mínimo.
+    const pago: Movimiento = { id: 'x', tipo: 'pago', montoCentavos: 10000, fecha: '2026-11-13', tarjetaId: 't1', nota: '', creadoEn: 1 };
+    const siguiente = generarRecordatorios({ tarjetas: [{ ...tarjeta, formaPago: 'minimo', tasaAnual: 36 }], prestamos: [], movimientos: [pago], ajustes }, new Date(2026, 10, 16, 7, 0));
+    const proximo = siguiente.find((r) => r.clave.startsWith('tarjeta:t1:pago:2026-12-15'))!;
+    expect(proximo.cuerpo).toMatch(/^Según lo registrado, el mínimo sería de unos \$\d+\.\d\d \(de contado, unos \$200\.00\)\. Revisa tu estado de cuenta\.$/);
+  });
+
   it('cada mes pide actualizar el préstamo con el banco, salvo si se hizo hace poco', () => {
     const sin = { ...ajustes, recordatorios: { ...ajustes.recordatorios, respaldo: false, pagos: false } };
     const lista = generarRecordatorios({ tarjetas: [], prestamos: [prestamo], movimientos: [], ajustes: sin }, ahora);
