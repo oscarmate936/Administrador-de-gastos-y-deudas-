@@ -7,29 +7,27 @@ import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { Hoja } from '../componentes/Hoja';
 import { IconoAnterior, IconoFlecha, IconoSiguiente } from '../componentes/Iconos';
 import { Insignia, InsigniaCategoria, Simbolo } from '../componentes/Simbolo';
-import { agenda, quitarYaAvisados, type Evento } from '../lib/agenda';
+import { pagosDelMes, type PagoDelMes } from '../lib/pagosDelMes';
 import { guardarAjuste, ordenInicio, type Ajustes, type AjustesFondo, type SeccionInicio } from '../lib/ajustes';
 import { proximosPagos, type ProximoPago } from '../lib/deudas';
 import { DIAS_A_APARTAR, calcularLibre, moverFondo, sugerirMeta } from '../lib/fondo';
 import { cierreDelMes, mesParaResumen, type CierreMes } from '../lib/cierreMes';
 import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
-import { aDate, diasEntre, fechaCorta, hoy, mesDe, moverMes as moverMesInicio, nombreMes, sumarDias, textoFaltan } from '../lib/fechas';
+import { diasEntre, fechaCorta, hoy, mesDe, moverMes as moverMesInicio, nombreMes, textoFaltan } from '../lib/fechas';
 import { esPagoDeDeuda, ordenarRecientes } from '../lib/resumen';
 import { calcularRitmo, type Ritmo } from '../lib/ritmo';
 import { estadoLimites } from '../lib/limites';
 import { omitirRecurrente, pendientes, registrarRecurrente } from '../lib/recurrentes';
 
-/** Pagos que se muestran en "Requiere atención" (los demás están en la franja de la semana). */
+/** Pagos que se muestran en "Requiere atención": vencidos o de los próximos días. */
 const DIAS_ATENCION = 3;
-/** Días de la franja de próximos días. */
-const DIAS_SEMANA = 7;
 /** Cada cuántos días se recuerda hacer un respaldo. */
 const DIAS_ENTRE_RESPALDOS = 7;
 
 const NOMBRES_SECCION: Record<SeccionInicio, string> = {
   asistente: 'Asistente',
   atencion: 'Requiere atención',
-  semana: 'Próximos 7 días',
+  semana: 'Próximos pagos',
   fondo: 'Fondo de emergencia',
   mes: 'Resumen del mes',
   ultimos: 'Últimos movimientos',
@@ -54,8 +52,6 @@ interface Props {
 }
 
 const mayuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
-const fmtDia = new Intl.DateTimeFormat('es-SV', { weekday: 'short', day: 'numeric' });
-const diaCorto = (fecha: string) => mayuscula(fmtDia.format(aDate(fecha)).replace('.', ''));
 
 export function Inicio(props: Props) {
   const { datos, ajustes, alAgregarIngreso, alAgregarGasto, alEditar, alVerTodos, alVerDeudas, alVerAnalisis, alAbrirDeuda } = props;
@@ -107,10 +103,9 @@ export function Inicio(props: Props) {
   const aDeudas = suma(delMes.filter(esPagoDeDeuda));
 
   const hayAtencion = atender.length > 0 || porConfirmar.length > 0 || limites.length > 0 || pedirRespaldo;
-  const semana = agenda(datos, fechaHoy, sumarDias(fechaHoy, DIAS_SEMANA - 1), fechaHoy);
-  // Lo que ya está en «Requiere atención» no se repite en la franja (salvo que esa sección esté oculta).
-  const atencionVisible = !ajustes.inicio.ocultas.includes('atencion');
-  const eventos = atencionVisible ? quitarYaAvisados(semana, atender, porConfirmar) : semana;
+  // Lo mínimo que pagar este mes a cada tarjeta y préstamo.
+  const pagosMes = pagosDelMes(datos, fechaHoy);
+  const totalMes = pagosMes.reduce((t, p) => t + p.montoCentavos, 0);
 
   const secciones: Record<SeccionInicio, ReactNode> = {
     asistente: (
@@ -196,19 +191,18 @@ export function Inicio(props: Props) {
         </ul>
       </section>
     ),
-    semana: (tarjetas.length > 0 || prestamos.length > 0 || datos.recurrentes.length > 0) && (
+    semana: (tarjetas.length > 0 || prestamos.length > 0) && (
       <section className="grupo" key="semana">
-        <h2 className="cabecera-grupo">Próximos 7 días</h2>
-        {eventos.length === 0 ? (
-          <p className="tarjeta texto-tenue">
-            {semana.length > 0 ? 'Lo de esta semana está en «Requiere atención».' : 'Nada vence ni corta esta semana.'}
-          </p>
+        <div className="cabecera-grupo">
+          <h2>Próximos pagos</h2>
+          {pagosMes.length > 0 && <span className="texto-tenue">Total {formatearDinero(totalMes)}</span>}
+        </div>
+        {pagosMes.length === 0 ? (
+          <p className="tarjeta texto-tenue">No te queda ningún pago pendiente en {nombreMes(mes).split(' ')[0].toLowerCase()}.</p>
         ) : (
-          <ul className="franja" aria-label="Lo que viene en los próximos 7 días">
-            {eventos.map((e) => (
-              <li key={e.clave}>
-                <EventoFranja evento={e} hoy={fechaHoy} alTocar={e.destino ? () => alAbrirDeuda(e.destino!) : undefined} />
-              </li>
+          <ul className="lista tarjeta" aria-label="Lo mínimo que pagar este mes a cada deuda">
+            {pagosMes.map((p) => (
+              <FilaPagoDelMes key={`${p.tipo}-${p.id}`} pago={p} color={colorDeuda(datos, p)} hoy={fechaHoy} alTocar={() => alAbrirDeuda({ tipo: p.tipo, id: p.id })} />
             ))}
           </ul>
         )}
@@ -358,34 +352,25 @@ function GraficaRitmo({ ritmo: r }: { ritmo: Ritmo }) {
   );
 }
 
-// ---------- Próximos 7 días ----------
+// ---------- Próximos pagos ----------
 
-const TIPO_EVENTO: Record<Evento['tipo'], string> = { pago: 'Pago', cuota: 'Cuota', corte: 'Corte', repite: 'Se repite' };
-
-function EventoFranja({ evento: e, hoy: fechaHoy, alTocar }: { evento: Evento; hoy: string; alTocar?: () => void }) {
-  const dias = diasEntre(fechaHoy, e.fecha);
-  const cuando = dias === 0 ? 'Hoy' : dias === 1 ? 'Mañana' : diaCorto(e.fecha);
-  const contenido = (
-    <>
-      <span className="franja-cuando">{cuando}</span>
-      <span className="franja-tipo">
-        <span className="franja-icono" style={{ color: e.color }}>
-          <Simbolo nombre={e.tipo === 'corte' ? 'tarjeta' : e.tipo === 'cuota' ? 'prestamo' : e.tipo === 'repite' ? 'repetir' : 'pago'} tamano={16} />
+/** Un pago del mes: el mínimo de una tarjeta o la cuota de un préstamo. */
+function FilaPagoDelMes({ pago: p, color, hoy: fechaHoy, alTocar }: { pago: PagoDelMes; color: string; hoy: string; alTocar: () => void }) {
+  const dias = diasEntre(fechaHoy, p.fecha);
+  const clase = p.vencido ? 'fila-detalle envolver texto-peligro' : dias <= 5 ? 'fila-detalle envolver texto-alerta' : 'fila-detalle envolver';
+  return (
+    <li>
+      <button type="button" className="fila" onClick={alTocar}>
+        <Insignia color={color} simbolo={p.tipo === 'tarjeta' ? 'tarjeta' : 'prestamo'} />
+        <span className="fila-texto">
+          <span className="fila-titulo">{p.nombre}</span>
+          <span className={clase}>
+            {p.clase === 'minimo' ? (p.estimado ? 'Mínimo aprox.' : 'Mínimo') : 'Cuota'} · {p.vencido ? 'venció' : 'vence'} {fechaCorta(p.fecha)}
+          </span>
         </span>
-        {TIPO_EVENTO[e.tipo]}
-      </span>
-      <span className="franja-titulo">{e.titulo}</span>
-      <span className="franja-monto">
-        {e.montoCentavos !== undefined ? `${e.entra ? '+' : ''}${formatearDinero(e.montoCentavos)}${e.estimado ? ' aprox.' : ''}` : ' '}
-      </span>
-    </>
-  );
-  return alTocar ? (
-    <button type="button" className="franja-item" onClick={alTocar}>
-      {contenido}
-    </button>
-  ) : (
-    <div className="franja-item">{contenido}</div>
+        <span className="fila-monto">{formatearDinero(p.montoCentavos)}</span>
+      </button>
+    </li>
   );
 }
 
