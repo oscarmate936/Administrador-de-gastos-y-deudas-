@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Movimiento, Prestamo, Tarjeta } from '../db';
 import {
+  ahorroDelAbono,
   ahorroPorAbono,
   ajustarPrestamo,
+  capitalDelPago,
   capitalSugerido,
+  inicioSegunDesglose,
+  interesPorDias,
   cortesFacturados,
   estadoPrestamo,
   estadoTarjeta,
@@ -208,20 +212,59 @@ describe('préstamos', () => {
     expect(capitalSugerido(5000, 12, 10000, true)).toBe(5000);
   });
 
-  it('los seguros y otros cargos de la cuota no bajan el saldo', () => {
-    // Cuota de $100 con $10 de seguro: solo $90 van a capital e intereses.
-    expect(proyectar(100000, 12, 10000, 1000)).toEqual(proyectar(100000, 12, 9000));
-    expect(proyectar(100000, 12, 10000, 1000)!.meses).toBeGreaterThan(proyectar(100000, 12, 10000)!.meses);
-    expect(capitalSugerido(100000, 12, 10000, false, 1000)).toBe(8000);
+  it('los seguros y otros cargos de la cuota no bajan el saldo y bajan con él', () => {
+    // Cuota de $100 con seguro del 1% del saldo: el primer mes $10 no van a capital ni intereses.
+    expect(capitalSugerido(100000, 12, 10000, false, 0.01)).toBe(8000);
     // Un abono extra va todo a capital aunque la cuota tenga cargos.
-    expect(capitalSugerido(100000, 12, 10000, true, 1000)).toBe(10000);
-    const conCargos = { ...prestamo, cargosCentavos: 1000 };
-    const e = estadoPrestamo(conCargos, [], '2026-11-13');
-    expect(e.proyeccion).toEqual(proyectar(100000, 12, 9000));
-    // La última cuota cubre saldo, intereses y cargos.
-    const casi = estadoPrestamo({ ...conCargos, saldoInicialCentavos: 2000 }, [], '2026-11-13');
-    expect(casi.proximaCuotaCentavos).toBe(2000 + 20 + 1000);
-    expect(ajustarPrestamo(prestamo, [], '2026-11-13', { saldoCentavos: 90000, cargosCentavos: 640 }).cargosCentavos).toBe(640);
+    expect(capitalSugerido(100000, 12, 10000, true, 0.01)).toBe(10000);
+    const conSeguro = proyectar(100000, 12, 10000, 0.01)!.meses;
+    // Tarda más que sin seguro, pero menos que con $10 fijos, porque el seguro baja con el saldo.
+    expect(conSeguro).toBeGreaterThan(proyectar(100000, 12, 10000)!.meses);
+    expect(conSeguro).toBeLessThanOrEqual(proyectar(100000, 12, 9000)!.meses);
+    const conCargos: Prestamo = { ...prestamo, cargosCentavos: 1000 };
+    expect(estadoPrestamo(conCargos, [], '2026-11-13').cargosCuotaCentavos).toBe(1000);
+    // Tras abonar la mitad, el seguro también es la mitad.
+    const extra = mov({ tipo: 'pago', montoCentavos: 50000, fecha: '2026-11-14', prestamoId: 'p1', capitalCentavos: 50000, esExtra: true });
+    expect(estadoPrestamo(conCargos, [extra], '2026-11-15').cargosCuotaCentavos).toBe(500);
+    // La última cuota cubre saldo, intereses de los días y cargos.
+    const casi = estadoPrestamo({ ...conCargos, saldoInicialCentavos: 2000, cargosBaseCentavos: 100000 }, [], '2026-11-13');
+    expect(casi.proximaCuotaCentavos).toBe(2000 + interesPorDias(2000, 12, 31) + 20);
+    const ajustado = ajustarPrestamo(prestamo, [], '2026-11-13', { saldoCentavos: 90000, cargosCentavos: 640 });
+    expect([ajustado.cargosCentavos, ajustado.cargosBaseCentavos]).toEqual([640, 90000]);
+  });
+
+  it('cobra el interés por los días desde el último pago de cuota', () => {
+    expect(interesPorDias(100000, 12, 30)).toBe(986);
+    expect(interesPorDias(100000, 12, 31)).toBe(1019);
+    // Sin pagos, el período empieza un mes antes de la primera cuota (31 días de oct-nov).
+    const e = estadoPrestamo(prestamo, [], '2026-11-13');
+    expect(e.inicioPeriodo).toBe('2026-10-30');
+    expect(capitalDelPago(prestamo, e, 10000, false, '2026-11-30')).toBe(10000 - 1019);
+    // Pagar antes de la fecha cobra menos días; los días que faltan pasan a la cuota siguiente.
+    expect(capitalDelPago(prestamo, e, 10000, false, '2026-11-20')).toBe(10000 - interesPorDias(100000, 12, 21));
+    const temprano = mov({ tipo: 'pago', montoCentavos: 10000, fecha: '2026-11-20', prestamoId: 'p1', capitalCentavos: 9310 });
+    const despues = estadoPrestamo(prestamo, [temprano], '2026-11-21');
+    expect(despues.inicioPeriodo).toBe('2026-11-20');
+    expect(despues.proximaFecha).toBe('2026-12-30');
+    // Un abono extra no reinicia el período.
+    const extra = mov({ tipo: 'pago', montoCentavos: 5000, fecha: '2026-12-05', prestamoId: 'p1', capitalCentavos: 5000, esExtra: true });
+    expect(estadoPrestamo(prestamo, [temprano, extra], '2026-12-06').inicioPeriodo).toBe('2026-11-20');
+    // El último pago al banco, si se conoce, manda sobre el mes anterior.
+    expect(estadoPrestamo({ ...prestamo, inicioPeriodo: '2026-10-19' }, [], '2026-11-13').inicioPeriodo).toBe('2026-10-19');
+  });
+
+  it('deduce el último pago a partir del desglose del banco', () => {
+    // Cuota de $66.00: $18.40 a capital y $6.40 de seguro, así que $41.20 son intereses de 42 días.
+    const datos = { saldoCentavos: 431520, tasaAnual: 8.25, cuotaCentavos: 6600, cargosCentavos: 640, capitalCentavos: 1840, fecha: '2026-12-03' };
+    expect(inicioSegunDesglose(datos)).toBe('2026-10-22');
+    // Datos que no cuadran con un período razonable no se usan.
+    expect(inicioSegunDesglose({ ...datos, capitalCentavos: 5900 })).toBeUndefined();
+    expect(inicioSegunDesglose({ ...datos, capitalCentavos: 6000 })).toBeUndefined();
+    // Con ese inicio, la cuota del banco y la de la app coinciden casi al centavo.
+    const p: Prestamo = { ...prestamo, saldoInicialCentavos: 431520, tasaAnual: 8.25, cuotaCentavos: 6600, cargosCentavos: 640, primeraCuota: '2026-12-03', inicioPeriodo: '2026-10-22' };
+    const e = estadoPrestamo(p, [], '2026-11-14');
+    expect(Math.abs(capitalDelPago(p, e, 6600, false, '2026-12-03') - 1840)).toBeLessThanOrEqual(25);
+    expect(ahorroDelAbono(p, e, 50000)!.mesesMenos).toBeGreaterThan(0);
   });
 
   it('calcula lo que se gana con un abono extra', () => {
@@ -287,7 +330,8 @@ describe('préstamos', () => {
 
   it('la última cuota es solo lo que falta', () => {
     const casi = mov({ tipo: 'pago', montoCentavos: 95000, fecha: '2026-11-14', prestamoId: 'p1', capitalCentavos: 95000, esExtra: true });
-    expect(estadoPrestamo(prestamo, [casi], '2026-11-15').proximaCuotaCentavos).toBe(5050);
+    // $50 de saldo más los intereses de 31 días.
+    expect(estadoPrestamo(prestamo, [casi], '2026-11-15').proximaCuotaCentavos).toBe(5000 + interesPorDias(5000, 12, 31));
   });
 
   it('describe duraciones', () => {

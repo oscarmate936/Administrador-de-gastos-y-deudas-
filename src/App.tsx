@@ -25,6 +25,8 @@ import { guardarAjuste, useAjustes } from './lib/ajustes';
 import { copiarSiToca } from './lib/copias';
 import { hoy, mesDe } from './lib/fechas';
 import { formatearDinero } from './lib/dinero';
+import { esClavePago, pagoRapido, type ClavePago } from './lib/pagoRapido';
+import { compartirRespaldo, respaldarSiToca } from './lib/respaldoAuto';
 import { fotoDeHoy, guardarFoto } from './lib/historial';
 import { generarRecordatorios } from './lib/recordatorios';
 import { avisoLimite, gastadoEnMes } from './lib/limites';
@@ -169,8 +171,30 @@ export function App() {
   const desbloqueada = bloqueado === false;
   const hayDatos = !!datos && datos.movimientos.length + datos.tarjetas.length + datos.prestamos.length > 0;
   useEffect(() => {
-    if (desbloqueada && hayDatos) void copiarSiToca().catch(() => undefined);
+    if (!desbloqueada || !hayDatos) return;
+    void copiarSiToca().catch(() => undefined);
+    void respaldarSiToca();
   }, [desbloqueada, hayDatos]);
+
+  /**
+   * Respaldo fuera del celular: con el automático activo abre directo el menú de
+   * compartir (un toque para Drive); si no, lleva a Ajustes.
+   */
+  async function respaldarAhora() {
+    const auto = ajustesActuales.current?.respaldoAuto;
+    if (!auto?.activo || !auto.clave) {
+      setPestana('ajustes');
+      setDetalle(null);
+      return;
+    }
+    try {
+      await compartirRespaldo(auto.clave);
+      setAviso({ texto: 'Respaldo enviado. Ábrelo con la contraseña del respaldo automático.', tipo: 'info' });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      setAviso({ texto: 'No se pudo crear el respaldo.', tipo: 'error' });
+    }
+  }
 
   // Reprograma las notificaciones cuando cambian los datos o los ajustes.
   const recordatorios = ajustes?.recordatorios;
@@ -184,13 +208,32 @@ export function App() {
     return () => clearTimeout(t);
   }, [datos, recordatorios, respaldoAjustes]);
 
-  // Tocar una notificación abre la deuda; su botón abre el formulario de pago.
+  // Tocar una notificación abre la deuda; «Registrar pago» u «Otro monto» abre el
+  // formulario; «Ya pagué» registra el pago exacto (al desbloquear, si hay PIN).
+  const [pagoAviso, setPagoAviso] = useState<ClavePago | null>(null);
+  // El aviso semanal de respaldo; espera al desbloqueo y a que carguen los ajustes.
+  const [respaldoPedido, setRespaldoPedido] = useState(false);
+  useEffect(() => {
+    if (!respaldoPedido || bloqueado !== false || !ajustes) return;
+    setRespaldoPedido(false);
+    void respaldarAhora();
+    // respaldarAhora lee los ajustes de una ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [respaldoPedido, bloqueado, ajustes]);
   useEffect(
     () =>
-      escucharNotificaciones(({ destino, pagar }) => {
+      escucharNotificaciones(({ destino, pagar, yaPague, pago }) => {
+        if (yaPague && esClavePago(pago)) {
+          setPagoAviso(pago);
+          return;
+        }
         const d = destino as { tipo?: string; id?: string } | null;
         if (d?.tipo === 'ajustes') {
-          setPestana('ajustes');
+          setRespaldoPedido(true);
+          return;
+        }
+        if (d?.tipo === 'resumen') {
+          setPestana('inicio');
           setDetalle(null);
           return;
         }
@@ -250,11 +293,12 @@ export function App() {
 
   // El widget de Android muestra la misma cifra que Inicio (oculta si hay bloqueo).
   const conBloqueo = ajustes?.bloqueo.activo;
+  const enFondo = ajustes?.fondo.apartadoCentavos ?? 0;
   useEffect(() => {
     if (!datos || conBloqueo === undefined) return;
-    const t = setTimeout(() => void actualizarWidget({ ...resumenWidget(datos, hoy(), new Date()), oculto: conBloqueo }), 1000);
+    const t = setTimeout(() => void actualizarWidget({ ...resumenWidget(datos, hoy(), new Date(), enFondo), oculto: conBloqueo }), 1000);
     return () => clearTimeout(t);
-  }, [datos, conBloqueo]);
+  }, [datos, conBloqueo, enFondo]);
 
   // Metas del camino a «libre de deudas»: se celebran una sola vez.
   const [celebracion, setCelebracion] = useState<{ titulo: string; texto: string } | null>(null);
@@ -286,6 +330,30 @@ export function App() {
     );
     void vibrar('exito');
   }, [datos, metas, bloqueado]);
+
+  useEffect(() => {
+    if (!pagoAviso || bloqueado !== false || !datos) return;
+    setPagoAviso(null);
+    const r = pagoRapido(datos, pagoAviso, hoy());
+    setPestana('deudas');
+    setDetalle({ tipo: pagoAviso.tipo, id: pagoAviso.id });
+    if (!r.ok) {
+      setAviso({ texto: r.motivo, tipo: 'info' });
+      return;
+    }
+    const m = r.movimiento;
+    void db.movimientos
+      .add(m)
+      .then(() => {
+        avisarCambio(`Pago de ${formatearDinero(m.montoCentavos)} a ${r.nombre} registrado.`, async () => {
+          await db.movimientos.delete(m.id);
+        });
+      })
+      // El mismo aviso tocado dos veces: el id fijo ya existe.
+      .catch(() => setAviso({ texto: 'Ese pago ya está registrado.', tipo: 'info' }));
+    // avisarCambio usa refs; no hace falta como dependencia.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagoAviso, bloqueado, datos]);
 
   // Atajos del ícono de la app. Con bloqueo, esperan a que se desbloquee.
   const [atajo, setAtajo] = useState<Atajo | null>(null);
@@ -376,7 +444,7 @@ export function App() {
             alVerAnalisis={() => irA('analisis')}
             alAbrirDeuda={abrirDeuda}
             diasSinRespaldo={diasSinRespaldo}
-            alRespaldar={() => irA('ajustes')}
+            alRespaldar={() => void respaldarAhora()}
             alAbrirFormulario={setFormulario}
           />
         );

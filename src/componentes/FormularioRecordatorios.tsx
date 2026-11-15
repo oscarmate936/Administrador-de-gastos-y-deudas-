@@ -74,9 +74,11 @@ export function FormularioRecordatorios({ ajustes, datos, alCerrar }: Props) {
           <div className="lista-interruptores">
             {(
               [
-                ['pagos', 'Fechas de pago', 'Tarjetas y cuotas de préstamos'],
+                ['pagos', 'Fechas de pago', 'Tarjetas y cuotas, con el botón «Ya pagué»'],
                 ['cortes', 'Corte de tarjeta', 'El día anterior al corte'],
                 ['estados', 'Estado de cuenta listo', 'Para importarlo 2 días después del corte'],
+                ['actualizar', 'Actualizar préstamos', 'Cada mes, 3 días después de la cuota'],
+                ['resumen', 'Resumen del mes', 'El día 1, cómo te fue en el mes que terminó'],
                 ['respaldo', 'Respaldo', `Cada ${ajustes.respaldo.recordarCadaDias} días`],
               ] as const
             ).map(([clave, titulo, detalle]) => (

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { db, nuevoId, type Movimiento, type Prestamo, type Tarjeta } from '../db';
-import { ahorroPorAbono, capitalSugerido, estadoPrestamo, estadoTarjeta, interesMensual, textoDuracion } from '../lib/deudas';
+import { ahorroDelAbono, capitalDeCuota, capitalDelPago, estadoPrestamo, estadoTarjeta, interesMensual, textoDuracion } from '../lib/deudas';
 import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
 import { esFechaValida, hoy } from '../lib/fechas';
 import { Hoja } from './Hoja';
@@ -52,19 +52,18 @@ export function FormularioPago(props: Props) {
   const [idNuevo] = useState(nuevoId);
 
   const montoCentavos = textoACentavos(monto);
+  const fechaPago = esFechaValida(fecha) ? fecha : fechaHoy;
   // Si el banco dio el desglose de esta cuota (captura), su capital es exacto.
   const desglose =
     prestamo?.desgloseCuota && !movimiento && !esExtra && ePrestamo?.proximaFecha === prestamo.desgloseCuota.fecha && montoCentavos === prestamo.cuotaCentavos
-      ? Math.min(saldoPrestamo, prestamo.desgloseCuota.capitalCentavos)
+      ? capitalDeCuota(prestamo, ePrestamo, montoCentavos, fechaPago)
       : null;
   const capitalCalculado =
-    prestamo && montoCentavos
-      ? (desglose ?? capitalSugerido(saldoPrestamo, prestamo.tasaAnual, montoCentavos, esExtra, prestamo.cargosCentavos))
-      : 0;
+    prestamo && montoCentavos ? (desglose ?? capitalDelPago(prestamo, ePrestamo!, montoCentavos, esExtra, fechaPago)) : 0;
   const capitalCentavos = capitalEditado ? textoACentavos(capital) : capitalCalculado;
   const ahorro =
     prestamo && esExtra && montoCentavos
-      ? ahorroPorAbono(saldoPrestamo, prestamo.tasaAnual, prestamo.cuotaCentavos, Math.min(montoCentavos, saldoPrestamo), prestamo.cargosCentavos)
+      ? ahorroDelAbono(prestamo, ePrestamo!, montoCentavos)
       : null;
 
   async function guardar(e: FormEvent) {

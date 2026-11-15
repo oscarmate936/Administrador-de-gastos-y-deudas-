@@ -2,7 +2,8 @@ import type { Movimiento, Prestamo, Tarjeta } from '../db';
 import type { Ajustes } from './ajustes';
 import { estadoPrestamo, estadoTarjeta, fechaConDia, sumarMeses } from './deudas';
 import { formatearDinero } from './dinero';
-import { aDate, aFechaTexto, fechaCorta, sumarDias } from './fechas';
+import { aDate, aFechaTexto, diasEntre, fechaCorta, moverMes, nombreMes, sumarDias } from './fechas';
+import type { ClavePago } from './pagoRapido';
 
 // Qué notificaciones programar y cuándo. Es lógica pura: la parte de Android
 // solo las agenda (lib/nativo.ts).
@@ -14,9 +15,14 @@ export interface Recordatorio {
   fecha: Date;
   titulo: string;
   cuerpo: string;
-  destino?: { tipo: 'tarjeta' | 'prestamo'; id: string } | { tipo: 'ajustes' };
+  destino?: { tipo: 'tarjeta' | 'prestamo'; id: string } | { tipo: 'ajustes' } | { tipo: 'resumen' };
   /** Si la notificación ofrece el botón "Registrar pago". */
   pagar?: boolean;
+  /**
+   * Pago con monto exacto: la notificación ofrece «Ya pagué», que lo registra
+   * sin abrir el formulario (lib/pagoRapido.ts).
+   */
+  pagoDirecto?: ClavePago;
 }
 
 interface Entrada {
@@ -27,6 +33,8 @@ interface Entrada {
 }
 
 export const HORIZONTE_DIAS = 60;
+/** Días después de la cuota para pedir actualizar el préstamo (el banco ya aplicó el pago). */
+const DIAS_TRAS_CUOTA = 3;
 
 /** FNV-1a de 31 bits: el mismo texto da siempre el mismo número positivo. */
 export function idDe(clave: string): number {
@@ -78,6 +86,7 @@ export function generarRecordatorios(e: Entrada, ahora: Date, horizonte = HORIZO
           cuerpo: `Pago de contado: ${formatearDinero(est.pendienteCentavos)}${minimo}. Último día: ${fechaCorta(est.fechaLimite)}.`,
           destino,
           pagar: true,
+          pagoDirecto: { tipo: 'tarjeta', id: t.id, fecha: est.fechaLimite },
         });
       }
       const vence = est.vencido ? sumarDias(hoy, 1) : sumarDias(est.fechaLimite, 1);
@@ -86,6 +95,7 @@ export function generarRecordatorios(e: Entrada, ahora: Date, horizonte = HORIZO
         cuerpo: 'Paga cuanto antes para evitar intereses y cargos por mora.',
         destino,
         pagar: true,
+        pagoDirecto: { tipo: 'tarjeta', id: t.id, fecha: est.fechaLimite },
       });
     }
     if (r.pagos && est.proximoEstadoCentavos > 0) {
@@ -132,6 +142,7 @@ export function generarRecordatorios(e: Entrada, ahora: Date, horizonte = HORIZO
             cuerpo: `${formatearDinero(monto)} el ${fechaCorta(fecha)}.`,
             destino,
             pagar: true,
+            pagoDirecto: { tipo: 'prestamo', id: p.id, fecha },
           });
         }
       }
@@ -141,6 +152,27 @@ export function generarRecordatorios(e: Entrada, ahora: Date, horizonte = HORIZO
           cuerpo: `Era el ${fechaCorta(est.proximaFecha)}. Págala cuanto antes para evitar cargos por mora.`,
           destino,
           pagar: true,
+          pagoDirecto: { tipo: 'prestamo', id: p.id, fecha: est.proximaFecha },
+        });
+      }
+    }
+  }
+
+  // Cada mes, unos días después de la cuota, actualizar el préstamo con una
+  // captura del banco para que saldo y fecha de término sigan coincidiendo.
+  if (r.actualizar) {
+    for (const p of e.prestamos) {
+      const est = estadoPrestamo(p, e.movimientos, hoy);
+      if (!est.proximaFecha) continue;
+      const ancla = aDate(p.primeraCuota).getDate();
+      for (let k = 0; k < 2; k++) {
+        const fecha = sumarDias(sumarMeses(est.proximaFecha, k, ancla), DIAS_TRAS_CUOTA);
+        // Si se actualizó hace poco, ese mes no hace falta.
+        if (p.actualizadoEn && diasEntre(p.actualizadoEn, fecha) < 25) continue;
+        agregar(`prestamo:${p.id}:actualizar:${fecha}`, fecha, {
+          titulo: `Actualiza ${p.nombre} con el banco`,
+          cuerpo: 'Toma una captura del detalle del préstamo en la app del banco para que el saldo y la fecha de término sigan iguales.',
+          destino: { tipo: 'prestamo', id: p.id },
         });
       }
     }
@@ -154,8 +186,22 @@ export function generarRecordatorios(e: Entrada, ahora: Date, horizonte = HORIZO
     for (let i = 0; i < 9; i++, fecha = sumarDias(fecha, cada)) {
       agregar(`respaldo:${fecha}`, fecha, {
         titulo: 'Haz un respaldo de tus finanzas',
-        cuerpo: 'Tus datos solo están en este celular. Guarda una copia en Drive o en otro lugar.',
+        cuerpo: 'Tus datos solo están en este celular. Toca para guardar una copia en Drive o en otro lugar.',
         destino: { tipo: 'ajustes' },
+      });
+    }
+  }
+
+  // El día 1, el resumen del mes que terminó (se ve al tocar, ya con todos los datos).
+  if (r.resumen && e.movimientos.length > 0) {
+    const d = aDate(hoy);
+    for (let k = 1; k <= 2; k++) {
+      const primero = fechaConDia(d.getFullYear(), d.getMonth() + k, 1);
+      const mes = nombreMes(moverMes(primero.slice(0, 7), -1)).split(' ')[0].toLowerCase();
+      agregar(`resumen:${primero}`, primero, {
+        titulo: `Así te fue en ${mes}`,
+        cuerpo: 'Toca para ver cuánto entró, cuánto gastaste y cuánto bajaron tus deudas.',
+        destino: { tipo: 'resumen' },
       });
     }
   }

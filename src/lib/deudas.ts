@@ -1,6 +1,6 @@
 import type { Movimiento, Prestamo, Tarjeta } from '../db';
 import type { PlanCuotas } from './estados/tipos';
-import { aDate, aFechaTexto, diasEntre } from './fechas';
+import { aDate, aFechaTexto, diasEntre, sumarDias } from './fechas';
 
 // ---------- Fechas que se repiten cada mes ----------
 
@@ -213,6 +213,23 @@ export function interesMensual(saldoCentavos: number, tasaAnual: number): number
   return Math.round((saldoCentavos * tasaAnual) / 1200);
 }
 
+/**
+ * Interés de `dias` días sobre el saldo (año de 365 días), como lo cobran los
+ * bancos: por los días que pasan desde el último pago.
+ */
+export function interesPorDias(saldoCentavos: number, tasaAnual: number, dias: number): number {
+  return Math.round((saldoCentavos * tasaAnual * Math.max(0, dias)) / 36500);
+}
+
+/** Qué parte del saldo se cobra cada mes en seguros y otros cargos (0 si no hay). */
+export function factorCargos(p: Pick<Prestamo, 'cargosCentavos' | 'cargosBaseCentavos' | 'saldoInicialCentavos'>): number {
+  const base = p.cargosBaseCentavos ?? p.saldoInicialCentavos;
+  return p.cargosCentavos && base > 0 ? p.cargosCentavos / base : 0;
+}
+
+/** Seguros y otros cargos de una cuota con ese saldo: bajan junto con el saldo. */
+export const cargosConSaldo = (saldoCentavos: number, factor: number) => Math.round(saldoCentavos * factor);
+
 export interface Proyeccion {
   /** Cuotas que faltan para terminar pagando la cuota normal. */
   meses: number;
@@ -220,20 +237,45 @@ export interface Proyeccion {
   interesesCentavos: number;
 }
 
+/** Fechas de las cuotas, para contar el interés por días. */
+export interface Periodos {
+  /** Desde cuándo corre el interés de la primera cuota (último pago). */
+  desde: string;
+  /** Fecha de la primera cuota que falta. */
+  primera: string;
+  /** Día del mes en que caen las cuotas. */
+  ancla: number;
+}
+
 /**
- * Simula mes a mes hasta saldar. `cargosCentavos` es la parte fija de la cuota
- * (seguros, comisiones) que no baja el saldo. Devuelve null si la cuota no
- * alcanza ni para los intereses.
+ * Simula cuota por cuota hasta saldar. `factor` es la parte del saldo que se
+ * va cada mes en seguros y otros cargos (no baja el saldo). Con `periodos`, el
+ * interés se cuenta por los días de cada período; sin ellos, por meses.
+ * Devuelve null si la cuota no alcanza ni para los intereses.
  */
-export function proyectar(saldoCentavos: number, tasaAnual: number, cuotaTotalCentavos: number, cargosCentavos = 0): Proyeccion | null {
-  const cuotaCentavos = cuotaTotalCentavos - cargosCentavos;
+export function proyectar(
+  saldoCentavos: number,
+  tasaAnual: number,
+  cuotaTotalCentavos: number,
+  factor = 0,
+  periodos?: Periodos,
+): Proyeccion | null {
   let saldo = saldoCentavos;
   let meses = 0;
   let interesesCentavos = 0;
+  let desde = periodos?.desde;
   while (saldo > 0) {
-    const interes = interesMensual(saldo, tasaAnual);
-    if (cuotaCentavos <= interes || meses >= 1200) return null;
-    saldo -= Math.min(saldo, cuotaCentavos - interes);
+    let interes: number;
+    if (periodos && desde) {
+      const hasta = sumarMeses(periodos.primera, meses, periodos.ancla);
+      interes = interesPorDias(saldo, tasaAnual, diasEntre(desde, hasta));
+      desde = hasta;
+    } else {
+      interes = interesMensual(saldo, tasaAnual);
+    }
+    const capital = cuotaTotalCentavos - interes - cargosConSaldo(saldo, factor);
+    if (capital <= 0 || meses >= 1200) return null;
+    saldo -= Math.min(saldo, capital);
     interesesCentavos += interes;
     meses += 1;
   }
@@ -242,16 +284,19 @@ export function proyectar(saldoCentavos: number, tasaAnual: number, cuotaTotalCe
 
 /**
  * Parte de un pago que baja el saldo: todo si es abono extra; si es cuota, lo
- * que queda tras los intereses del mes y los cargos fijos (seguros).
+ * que queda tras los intereses y los seguros. Con `dias`, el interés es el de
+ * esos días desde el último pago; sin ellos, el de un mes.
  */
 export function capitalSugerido(
   saldoCentavos: number,
   tasaAnual: number,
   montoCentavos: number,
   esExtra: boolean,
-  cargosCentavos = 0,
+  factor = 0,
+  dias?: number,
 ): number {
-  const capital = esExtra ? montoCentavos : montoCentavos - interesMensual(saldoCentavos, tasaAnual) - cargosCentavos;
+  const interes = dias === undefined ? interesMensual(saldoCentavos, tasaAnual) : interesPorDias(saldoCentavos, tasaAnual, dias);
+  const capital = esExtra ? montoCentavos : montoCentavos - interes - cargosConSaldo(saldoCentavos, factor);
   return Math.max(0, Math.min(saldoCentavos, capital));
 }
 
@@ -263,6 +308,10 @@ export interface EstadoPrestamo {
   /** Fecha de la próxima cuota sin pagar; null si ya está saldado. */
   proximaFecha: string | null;
   proximaCuotaCentavos: number;
+  /** Desde cuándo corre el interés de la próxima cuota (último pago de cuota). */
+  inicioPeriodo: string | null;
+  /** Seguros y otros cargos de la próxima cuota (bajan con el saldo). */
+  cargosCuotaCentavos: number;
   vencido: boolean;
   diasParaPago: number;
   /** null si está saldado o si la cuota no cubre los intereses. */
@@ -276,29 +325,88 @@ export function estadoPrestamo(prestamo: Prestamo, movimientos: Movimiento[], ho
   const pagos = movimientos.filter((m) => m.tipo === 'pago' && m.prestamoId === prestamo.id);
   const abonadoCentavos = pagos.reduce((t, p) => t + (p.capitalCentavos ?? 0), 0);
   const saldoCentavos = Math.max(0, prestamo.saldoInicialCentavos - abonadoCentavos);
-  const cuotasPagadas = pagos.filter((p) => !p.esExtra).length;
+  const cuotas = pagos.filter((p) => !p.esExtra);
+  const cuotasPagadas = cuotas.length;
   const saldado = saldoCentavos === 0;
 
   const diaAncla = aDate(prestamo.primeraCuota).getDate();
   const proximaFecha = saldado ? null : sumarMeses(prestamo.primeraCuota, cuotasPagadas, diaAncla);
-  const cargos = prestamo.cargosCentavos ?? 0;
-  const proyeccion = saldado ? null : proyectar(saldoCentavos, prestamo.tasaAnual, prestamo.cuotaCentavos, cargos);
+  // El interés corre desde el último pago de cuota (los abonos extra van todos a capital).
+  const ultimoPago = cuotas.reduce<string | null>((u, m) => (u === null || m.fecha > u ? m.fecha : u), null);
+  const inicioPeriodo = proximaFecha
+    ? (ultimoPago ?? prestamo.inicioPeriodo ?? sumarMeses(proximaFecha, -1, diaAncla))
+    : null;
+  const factor = factorCargos(prestamo);
+  const periodos = proximaFecha && inicioPeriodo ? { desde: inicioPeriodo, primera: proximaFecha, ancla: diaAncla } : undefined;
+  const proyeccion = saldado ? null : proyectar(saldoCentavos, prestamo.tasaAnual, prestamo.cuotaCentavos, factor, periodos);
   const base = Math.max(prestamo.montoOriginalCentavos ?? 0, prestamo.saldoInicialCentavos);
+  const cargosCuotaCentavos = saldado ? 0 : cargosConSaldo(saldoCentavos, factor);
+  const interesCuota =
+    proximaFecha && inicioPeriodo ? interesPorDias(saldoCentavos, prestamo.tasaAnual, diasEntre(inicioPeriodo, proximaFecha)) : 0;
 
   return {
     saldoCentavos,
     abonadoCentavos,
     cuotasPagadas,
     proximaFecha,
-    proximaCuotaCentavos: saldado
-      ? 0
-      : Math.min(prestamo.cuotaCentavos, saldoCentavos + interesMensual(saldoCentavos, prestamo.tasaAnual) + cargos),
+    proximaCuotaCentavos: saldado ? 0 : Math.min(prestamo.cuotaCentavos, saldoCentavos + interesCuota + cargosCuotaCentavos),
+    inicioPeriodo,
+    cargosCuotaCentavos,
     vencido: proximaFecha !== null && hoy > proximaFecha,
     diasParaPago: proximaFecha ? diasEntre(hoy, proximaFecha) : 0,
     proyeccion,
     fechaFin: proximaFecha && proyeccion ? sumarMeses(proximaFecha, proyeccion.meses - 1, diaAncla) : null,
     avance: base > 0 ? 1 - saldoCentavos / base : 1,
   };
+}
+
+/**
+ * Desde cuándo corre el interés de una cuota según el desglose del banco: el
+ * interés de la cuota (lo que no es capital ni cargos) dice cuántos días cobra.
+ * undefined si los datos no cuadran con un período razonable (20 a 75 días).
+ */
+export function inicioSegunDesglose(d: {
+  saldoCentavos: number;
+  tasaAnual: number;
+  cuotaCentavos: number;
+  cargosCentavos: number;
+  capitalCentavos: number;
+  fecha: string;
+}): string | undefined {
+  const interes = d.cuotaCentavos - d.capitalCentavos - d.cargosCentavos;
+  if (interes <= 0 || d.saldoCentavos <= 0 || d.tasaAnual <= 0) return undefined;
+  const dias = Math.round((interes * 36500) / (d.saldoCentavos * d.tasaAnual));
+  return dias >= 20 && dias <= 75 ? sumarDias(d.fecha, -dias) : undefined;
+}
+
+/** Fechas de cuotas del préstamo para proyectar con interés por días. */
+export function periodosDe(p: Prestamo, e: EstadoPrestamo): Periodos | undefined {
+  return e.proximaFecha && e.inicioPeriodo ? { desde: e.inicioPeriodo, primera: e.proximaFecha, ancla: aDate(p.primeraCuota).getDate() } : undefined;
+}
+
+/** Qué se gana con un abono extra hoy a este préstamo. */
+export function ahorroDelAbono(p: Prestamo, e: EstadoPrestamo, abonoCentavos: number): AhorroAbono | null {
+  return ahorroPorAbono(e.saldoCentavos, p.tasaAnual, p.cuotaCentavos, Math.min(abonoCentavos, e.saldoCentavos), factorCargos(p), periodosDe(p, e));
+}
+
+/**
+ * Capital de la cuota normal pagada en `fechaPago`. Si el banco dio el desglose
+ * de esa cuota (captura) y se paga completa, su capital es exacto.
+ */
+export function capitalDeCuota(p: Prestamo, e: EstadoPrestamo, montoCentavos: number, fechaPago: string): number {
+  if (p.desgloseCuota && e.proximaFecha === p.desgloseCuota.fecha && montoCentavos === p.cuotaCentavos) {
+    return Math.min(e.saldoCentavos, p.desgloseCuota.capitalCentavos);
+  }
+  return capitalDelPago(p, e, montoCentavos, false, fechaPago);
+}
+
+/**
+ * Capital de un pago a un préstamo hecho en `fechaPago`: el interés es el de
+ * los días desde el último pago de cuota hasta ese día.
+ */
+export function capitalDelPago(p: Prestamo, e: EstadoPrestamo, montoCentavos: number, esExtra: boolean, fechaPago: string): number {
+  const dias = e.inicioPeriodo ? diasEntre(e.inicioPeriodo, fechaPago) : undefined;
+  return capitalSugerido(e.saldoCentavos, p.tasaAnual, montoCentavos, esExtra, factorCargos(p), dias);
 }
 
 /**
@@ -319,6 +427,8 @@ export function ajustarPrestamo(
     montoOriginalCentavos?: number;
     cargosCentavos?: number;
     desgloseCuota?: { fecha: string; capitalCentavos: number };
+    /** Último pago hecho al banco, si se conoce. */
+    inicioPeriodo?: string;
   },
 ): Prestamo {
   const e = estadoPrestamo(p, movimientos, hoy);
@@ -331,7 +441,11 @@ export function ajustarPrestamo(
     primeraCuota: banco.proximaFecha ? sumarMeses(banco.proximaFecha, -e.cuotasPagadas, ancla) : p.primeraCuota,
     montoOriginalCentavos: banco.montoOriginalCentavos ?? p.montoOriginalCentavos,
     cargosCentavos: banco.cargosCentavos ?? p.cargosCentavos,
+    // Los cargos se midieron con el saldo que da el banco hoy.
+    cargosBaseCentavos: banco.cargosCentavos !== undefined ? banco.saldoCentavos : p.cargosBaseCentavos,
+    inicioPeriodo: banco.inicioPeriodo ?? p.inicioPeriodo,
     desgloseCuota: banco.desgloseCuota,
+    actualizadoEn: hoy,
   };
 }
 
@@ -346,10 +460,11 @@ export function ahorroPorAbono(
   tasaAnual: number,
   cuotaCentavos: number,
   abonoCentavos: number,
-  cargosCentavos = 0,
+  factor = 0,
+  periodos?: Periodos,
 ): AhorroAbono | null {
-  const antes = proyectar(saldoCentavos, tasaAnual, cuotaCentavos, cargosCentavos);
-  const despues = proyectar(Math.max(0, saldoCentavos - abonoCentavos), tasaAnual, cuotaCentavos, cargosCentavos);
+  const antes = proyectar(saldoCentavos, tasaAnual, cuotaCentavos, factor, periodos);
+  const despues = proyectar(Math.max(0, saldoCentavos - abonoCentavos), tasaAnual, cuotaCentavos, factor, periodos);
   if (!antes || !despues) return null;
   return {
     mesesMenos: antes.meses - despues.meses,

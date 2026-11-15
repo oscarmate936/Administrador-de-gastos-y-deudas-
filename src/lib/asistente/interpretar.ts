@@ -1,11 +1,11 @@
 import type { Datos, Detalle } from '../../datos';
 import type { Prestamo, Tarjeta } from '../../db';
 import { costosEntre } from '../costos';
-import { estadoPrestamo, estadoTarjeta, proximosPagos, sumarMeses, textoDuracion, totalPorPagar } from '../deudas';
+import { estadoPrestamo, estadoTarjeta, proximosPagos, sumarMeses, textoDuracion } from '../deudas';
 import { formatearDinero } from '../dinero';
 import { sugerirCategoria } from '../estados/categorias';
 import { fechaCorta, mesCorto, textoFaltan } from '../fechas';
-import { calcularDisponible } from '../resumen';
+import { calcularLibre } from '../fondo';
 import { extraerFecha, extraerMonto, extraerPeriodo, normal } from './textos';
 
 // Asistente sin IA: entiende frases comunes para registrar movimientos y
@@ -79,13 +79,13 @@ function notaDe(original: string): string {
 
 const ES_PREGUNTA = /^(CUANTO|CUANTA|CUANDO|QUE|CUAL|CUALES|COMO|DIME|MUESTRAME|ME FALTA|TENGO QUE|DEBO)\b/;
 
-export function interpretar(original: string, datos: Datos, hoy: string): Intencion {
+export function interpretar(original: string, datos: Datos, hoy: string, fondoCentavos = 0): Intencion {
   const texto = original.trim();
   if (!texto) return { tipo: 'noEntendi' };
   const t = normal(texto).replace(/[¿?¡!]/g, ' ').replace(/\s+/g, ' ').trim();
   const esPregunta = /[?¿]/.test(texto) || ES_PREGUNTA.test(t);
 
-  if (esPregunta) return responder(t, datos, hoy);
+  if (esPregunta) return responder(t, datos, hoy, fondoCentavos);
 
   const fecha = extraerFecha(t, hoy);
   const sinFecha = fecha ? fecha.resto : t;
@@ -135,7 +135,7 @@ export function interpretar(original: string, datos: Datos, hoy: string): Intenc
 
 // ---------- Preguntas ----------
 
-function responder(t: string, datos: Datos, hoy: string): Intencion {
+function responder(t: string, datos: Datos, hoy: string, fondoCentavos: number): Intencion {
   // "la tarjeta" o "el préstamo" sin nombre se refiere a la única que haya.
   const tarjeta =
     buscarDeuda(t, datos.tarjetas)?.deuda ?? (/\bTARJETA\b/.test(t) && datos.tarjetas.length === 1 ? datos.tarjetas[0] : undefined);
@@ -144,17 +144,13 @@ function responder(t: string, datos: Datos, hoy: string): Intencion {
 
   // ¿Cuánto me queda / tengo disponible / puedo gastar?
   if (/\b(DISPONIBLE|ME QUEDA|TENGO|PUEDO GASTAR|SALDO A FAVOR)\b/.test(t) && !/\b(QUE PAGAR|DEBO|DEUDA|TENGO QUE)\b/.test(t)) {
-    const disponible = calcularDisponible(datos.movimientos);
-    const proximos = proximosPagos(datos.tarjetas, datos.prestamos, datos.movimientos, hoy);
-    const apartar = totalPorPagar(proximos, 15);
-    return {
-      tipo: 'respuesta',
-      titulo: `Tienes ${formatearDinero(disponible)} disponibles`,
-      lineas:
-        apartar > 0
-          ? [`Pagos en los próximos 15 días: ${formatearDinero(apartar)}.`, `Libre después de pagarlos: ${formatearDinero(disponible - apartar)}.`]
-          : ['No tienes pagos en los próximos 15 días.'],
-    };
+    const l = calcularLibre(datos, hoy, fondoCentavos);
+    const lineas = [
+      l.porApartar > 0 ? `Pagos en los próximos 15 días: ${formatearDinero(l.porApartar)}.` : 'No tienes pagos en los próximos 15 días.',
+    ];
+    if (l.fondo > 0) lineas.push(`En tu fondo de emergencia: ${formatearDinero(l.fondo)}.`);
+    if (l.conLibre) lineas.push(`Libre para gastar: ${formatearDinero(l.cifra)}.`);
+    return { tipo: 'respuesta', titulo: `Tienes ${formatearDinero(l.disponible)} disponibles`, lineas };
   }
 
   // ¿Cuándo pago...? ¿Qué tengo que pagar? Próximos pagos / corte

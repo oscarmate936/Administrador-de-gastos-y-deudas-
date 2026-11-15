@@ -2,7 +2,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import type { Datos, Detalle, Formulario } from '../datos';
 import { db, nuevoId, type Movimiento } from '../db';
 import { interpretar, type Intencion } from '../lib/asistente/interpretar';
-import { capitalSugerido, estadoPrestamo } from '../lib/deudas';
+import { capitalDelPago, estadoPrestamo } from '../lib/deudas';
 import { formatearDinero } from '../lib/dinero';
 import { fechaCorta, hoy, sumarDias } from '../lib/fechas';
 import { IconoSiguiente } from './Iconos';
@@ -12,6 +12,8 @@ interface Props {
   datos: Datos;
   alAbrirFormulario: (f: Formulario) => void;
   alAbrir: (d: Detalle | 'movimientos') => void;
+  /** Lo apartado en el fondo de emergencia, para responder cuánto queda libre. */
+  fondoCentavos?: number;
 }
 
 // Ejemplos de frases; al tocarlos se escriben en la barra para completarlos.
@@ -29,7 +31,7 @@ const textoDia = (fecha: string) => {
  * Si escribes una pregunta («¿cuánto debo?») también la responde, pero no se
  * sugieren preguntas porque Inicio y Deudas ya muestran esas cifras.
  */
-export function Asistente({ datos, alAbrirFormulario, alAbrir }: Props) {
+export function Asistente({ datos, alAbrirFormulario, alAbrir, fondoCentavos = 0 }: Props) {
   const [texto, setTexto] = useState('');
   const [resultado, setResultado] = useState<Intencion | null>(null);
   const [guardado, setGuardado] = useState<{ id: string; texto: string } | null>(null);
@@ -45,7 +47,7 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir }: Props) {
 
   const preguntar = (frase: string) => {
     setGuardado(null);
-    setResultado(interpretar(frase, datos, hoy()));
+    setResultado(interpretar(frase, datos, hoy(), fondoCentavos));
   };
 
   function enviar(e: FormEvent) {
@@ -82,7 +84,7 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir }: Props) {
           fecha: r.fecha,
           prestamoId: p.id,
           esExtra: r.extra,
-          capitalCentavos: capitalSugerido(e.saldoCentavos, p.tasaAnual, monto, r.extra, p.cargosCentavos),
+          capitalCentavos: capitalDelPago(p, e, monto, r.extra, r.fecha),
         };
       }
       default:

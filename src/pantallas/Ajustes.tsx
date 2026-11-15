@@ -6,7 +6,8 @@ import { Hoja } from '../componentes/Hoja';
 import { IconoFlecha } from '../componentes/Iconos';
 import { Opcion } from '../componentes/Opcion';
 import { Insignia, InsigniaCategoria } from '../componentes/Simbolo';
-import { guardarAjuste, type Ajustes as AjustesApp, type Tema } from '../lib/ajustes';
+import { guardarAjuste, type Ajustes as AjustesApp, type AjustesRespaldoAuto, type Tema } from '../lib/ajustes';
+import { CARPETA, LARGO_CLAVE, compartirRespaldo, guardarRespaldoAuto, nuevoNombreArchivo, permisoDocumentos } from '../lib/respaldoAuto';
 import { leerCopia, listarCopias, type InfoCopia } from '../lib/copias';
 import { descifrar, type Sobre } from '../lib/cripto';
 import { formatearDinero } from '../lib/dinero';
@@ -35,7 +36,7 @@ interface Props {
 }
 
 type Aviso = { tipo: 'ok' | 'error'; texto: string };
-type Hojas = 'bloqueo' | 'respaldo' | 'copias' | 'apariencia' | null;
+type Hojas = 'bloqueo' | 'respaldo' | 'auto' | 'copias' | 'apariencia' | null;
 
 const TEMAS: Array<{ id: Tema; nombre: string }> = [
   { id: 'sistema', nombre: 'Como el celular' },
@@ -114,6 +115,23 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, exporta
             detalle={ultimo ? `Último: ${haceCuanto(aFechaTexto(new Date(ultimo)))} · compártelo a Drive o WhatsApp` : 'Compártelo a Drive, a tu correo o a WhatsApp'}
             alTocar={() => setHoja('respaldo')}
           />
+          {esNativo && (
+            <Opcion
+              icono={<Insignia color="var(--positivo)" simbolo="repetir" cuadrada />}
+              titulo="Respaldo automático"
+              detalle={
+                !ajustes.respaldoAuto.activo
+                  ? 'Un respaldo con contraseña cada día, en la carpeta Documentos'
+                  : ajustes.respaldoAuto.error
+                    ? 'No se pudo guardar el último. Toca para ver'
+                    : ajustes.respaldoAuto.ultimo
+                      ? `Último: ${fechaHora.format(new Date(ajustes.respaldoAuto.ultimo))} · Documentos › ${CARPETA}`
+                      : `En Documentos › ${CARPETA}`
+              }
+              valor={ajustes.respaldoAuto.activo ? 'Activado' : 'Desactivado'}
+              alTocar={() => setHoja('auto')}
+            />
+          )}
           <Opcion
             icono={<Insignia color="var(--info)" simbolo="bajar" cuadrada />}
             titulo="Restaurar desde un archivo"
@@ -260,6 +278,16 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, exporta
           }}
         />
       )}
+      {hoja === 'auto' && (
+        <RespaldoAutomatico
+          ajustes={ajustes.respaldoAuto}
+          alCerrar={() => setHoja(null)}
+          alTerminar={(texto) => {
+            setHoja(null);
+            setAviso({ tipo: 'ok', texto });
+          }}
+        />
+      )}
       {hoja === 'copias' && (
         <Copias
           alCerrar={() => setHoja(null)}
@@ -338,6 +366,123 @@ function CrearRespaldo({ alCerrar, alTerminar }: { alCerrar: () => void; alTermi
             {trabajando ? 'Creando…' : 'Crear y guardar'}
           </button>
         </div>
+      </div>
+    </Hoja>
+  );
+}
+
+/** Activar, usar o apagar el respaldo automático diario en Documentos. */
+function RespaldoAutomatico({
+  ajustes: r,
+  alCerrar,
+  alTerminar,
+}: {
+  ajustes: AjustesRespaldoAuto;
+  alCerrar: () => void;
+  alTerminar: (texto: string) => void;
+}) {
+  const [clave, setClave] = useState('');
+  const [repetir, setRepetir] = useState('');
+  const [error, setError] = useState('');
+  const [trabajando, setTrabajando] = useState(false);
+
+  async function activar() {
+    if (clave.length < LARGO_CLAVE) return setError(`Usa una contraseña de al menos ${LARGO_CLAVE} caracteres.`);
+    if (clave !== repetir) return setError('Las contraseñas no coinciden.');
+    setTrabajando(true);
+    setError('');
+    await permisoDocumentos();
+    const archivo = nuevoNombreArchivo();
+    await guardarAjuste('respaldoAuto', { activo: true, clave, archivo, ultimo: undefined, error: undefined });
+    try {
+      await guardarRespaldoAuto(clave, archivo);
+      alTerminar(`Respaldo automático activado. El primero ya está en Documentos › ${CARPETA}.`);
+    } catch (e) {
+      setTrabajando(false);
+      const texto = e instanceof Error ? e.message : 'No se pudo guardar.';
+      await guardarAjuste('respaldoAuto', { error: texto });
+      setError(`Quedó activado, pero no se pudo guardar el primero: ${texto}`);
+    }
+  }
+
+  async function enviar() {
+    setTrabajando(true);
+    setError('');
+    try {
+      await compartirRespaldo(r.clave!);
+      alTerminar('Respaldo enviado. Ábrelo con la misma contraseña.');
+    } catch (e) {
+      setTrabajando(false);
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      setError('No se pudo crear el respaldo.');
+    }
+  }
+
+  async function desactivar() {
+    if (!window.confirm('¿Desactivar el respaldo automático? Los archivos que ya están en Documentos no se borran.')) return;
+    await guardarAjuste('respaldoAuto', { activo: false, clave: undefined, error: undefined });
+    alTerminar('Respaldo automático desactivado.');
+  }
+
+  return (
+    <Hoja titulo="Respaldo automático" alCerrar={alCerrar}>
+      <div className="formulario">
+        <p className="texto-tenue">
+          Cada día que abres la app se guarda un respaldo cifrado en <strong>Documentos › {CARPETA}</strong>. Ese archivo se
+          queda aunque borres la app y lo puedes pasar a tu computadora.
+        </p>
+        {r.activo && r.clave ? (
+          <>
+            {r.error ? (
+              <p className="aviso error">No se pudo guardar el último respaldo: {r.error}</p>
+            ) : (
+              <p className="aviso">
+                {r.ultimo ? `Último respaldo: ${fechaHora.format(new Date(r.ultimo))}.` : 'El primero se guarda la próxima vez que abras la app.'}
+              </p>
+            )}
+            <p className="texto-tenue">
+              Si pierdes el celular, ese archivo se pierde con él. Una vez por semana toca «Guardar en Drive» para tener
+              una copia fuera; la app te lo recuerda.
+            </p>
+            {error && (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="acciones">
+              <button type="button" className="boton" disabled={trabajando} onClick={() => void desactivar()}>
+                Desactivar
+              </button>
+              <button type="button" className="boton primario" disabled={trabajando} onClick={() => void enviar()}>
+                {trabajando ? 'Preparando…' : 'Guardar en Drive'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <label className="campo">
+              <span>Contraseña de los respaldos</span>
+              <input type="password" autoComplete="new-password" value={clave} onChange={(e) => { setClave(e.target.value); setError(''); }} />
+            </label>
+            <label className="campo">
+              <span>Repite la contraseña</span>
+              <input type="password" autoComplete="new-password" value={repetir} onChange={(e) => { setRepetir(e.target.value); setError(''); }} />
+              <span className="ayuda sin-margen">
+                Anótala en un lugar seguro: la necesitarás para abrir el respaldo en otro celular. Se guarda solo en este.
+              </span>
+            </label>
+            {error && (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="acciones">
+              <button type="button" className="boton primario" disabled={trabajando} onClick={() => void activar()}>
+                {trabajando ? 'Guardando…' : 'Activar'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </Hoja>
   );

@@ -93,10 +93,24 @@ export interface Prestamo {
    */
   cargosCentavos?: number;
   /**
+   * Saldo de capital con el que se midieron esos cargos. Los seguros de deuda se
+   * cobran sobre el saldo, así que bajan en proporción a medida que se paga.
+   * Ausente en préstamos viejos: se usa el saldo inicial.
+   */
+  cargosBaseCentavos?: number;
+  /**
+   * Desde qué fecha corre el interés de la primera cuota registrada (el último
+   * pago hecho al banco). Los bancos cobran el interés por días desde el último
+   * pago. Ausente: un mes antes de esa cuota.
+   */
+  inicioPeriodo?: string;
+  /**
    * Capital de la próxima cuota según el desglose del banco (leído de una
    * captura). Al pagar esa cuota se usa en lugar del cálculo aproximado.
    */
   desgloseCuota?: { fecha: string; capitalCentavos: number };
+  /** Última vez que se ajustó con los datos del banco (AAAA-MM-DD). */
+  actualizadoEn?: string;
   /** Fecha de la primera cuota a pagar después de registrarlo; las siguientes caen el mismo día de cada mes. */
   primeraCuota: string;
   creadoEn: number;

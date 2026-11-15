@@ -8,7 +8,7 @@ import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { Simbolo } from '../componentes/Simbolo';
 import { Ayuda } from '../componentes/Ayuda';
 import { IconoAnterior } from '../componentes/Iconos';
-import { ahorroPorAbono, estadoPrestamo, textoDuracion } from '../lib/deudas';
+import { ahorroDelAbono, estadoPrestamo, textoDuracion } from '../lib/deudas';
 import { formatearDinero, textoACentavos } from '../lib/dinero';
 import { fechaCorta, hoy, mesCorto, textoFaltan } from '../lib/fechas';
 import { ordenarRecientes } from '../lib/resumen';
@@ -29,7 +29,7 @@ export function DetallePrestamo({ prestamo: p, datos, alVolver, alEditarPrestamo
   const e = estadoPrestamo(p, datos.movimientos, hoy());
   const pagos = ordenarRecientes(datos.movimientos.filter((m) => m.prestamoId === p.id));
   const abono = textoACentavos(simulado);
-  const ahorro = abono ? ahorroPorAbono(e.saldoCentavos, p.tasaAnual, p.cuotaCentavos, Math.min(abono, e.saldoCentavos), p.cargosCentavos) : null;
+  const ahorro = abono ? ahorroDelAbono(p, e, abono) : null;
   const pagado = e.saldoCentavos === 0;
 
   return (
@@ -104,10 +104,10 @@ export function DetallePrestamo({ prestamo: p, datos, alVolver, alEditarPrestamo
                 <dt>Tasa anual <Ayuda termino="tasa anual" /></dt>
                 <dd>{p.tasaAnual > 0 ? `${p.tasaAnual}%` : 'Sin registrar'}</dd>
               </div>
-              {(p.cargosCentavos ?? 0) > 0 && (
+              {e.cargosCuotaCentavos > 0 && (
                 <div>
                   <dt>Seguros y otros cargos <Ayuda termino="seguros y otros cargos" /></dt>
-                  <dd>{formatearDinero(p.cargosCentavos!)} de cada cuota</dd>
+                  <dd>{formatearDinero(e.cargosCuotaCentavos)} en esta cuota</dd>
                 </div>
               )}
             </dl>

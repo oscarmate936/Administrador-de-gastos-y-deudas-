@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { BANCOS } from '../datos';
 import { db, nuevoId, type Prestamo } from '../db';
-import { proyectar, sumarMeses, textoDuracion } from '../lib/deudas';
+import { inicioSegunDesglose, proyectar, sumarMeses, textoDuracion } from '../lib/deudas';
 import { centavosATexto, formatearDinero, textoACentavos, textoATasa } from '../lib/dinero';
-import { aFechaTexto, esFechaValida, fechaCorta, mesCorto } from '../lib/fechas';
+import { aDate, aFechaTexto, esFechaValida, fechaCorta, hoy, mesCorto } from '../lib/fechas';
 import { Hoja } from './Hoja';
 import { Simbolo } from './Simbolo';
 import { BotonCapturaPrestamo, DudasLectura } from './LecturaCaptura';
@@ -56,9 +56,23 @@ export function FormularioPrestamo({ prestamo, alCerrar, leerAlAbrir }: Props) {
   const cuotaCentavos = textoACentavos(cuota);
   const tasaAnual = leerTasa(tasa);
   const cargosCentavos = cargos.trim() === '' ? 0 : textoACentavos(cargos);
+  const desglose = captura ? desgloseDe(captura) : undefined;
+  // Con el desglose del banco se sabe desde qué día corre el interés de la primera cuota.
+  const inicioPeriodo =
+    desglose && desglose.fecha === primeraCuota && saldoCentavos && cuotaCentavos && tasaAnual
+      ? inicioSegunDesglose({ saldoCentavos, tasaAnual, cuotaCentavos, cargosCentavos: cargosCentavos ?? 0, capitalCentavos: desglose.capitalCentavos, fecha: primeraCuota })
+      : prestamo?.primeraCuota === primeraCuota ? prestamo?.inicioPeriodo : undefined;
   const proyeccion =
     saldoCentavos && cuotaCentavos && tasaAnual !== null && cargosCentavos !== null
-      ? proyectar(saldoCentavos, tasaAnual, cuotaCentavos, cargosCentavos)
+      ? proyectar(
+          saldoCentavos,
+          tasaAnual,
+          cuotaCentavos,
+          cargosCentavos / saldoCentavos,
+          esFechaValida(primeraCuota)
+            ? { desde: inicioPeriodo ?? sumarMeses(primeraCuota, -1), primera: primeraCuota, ancla: aDate(primeraCuota).getDate() }
+            : undefined,
+        )
       : undefined;
 
   async function guardar(e: FormEvent) {
@@ -82,7 +96,11 @@ export function FormularioPrestamo({ prestamo, alCerrar, leerAlAbrir }: Props) {
       tasaAnual,
       cuotaCentavos,
       cargosCentavos: cargosCentavos || undefined,
-      desgloseCuota: captura && desgloseDe(captura)?.fecha === primeraCuota ? desgloseDe(captura) : prestamo?.desgloseCuota,
+      cargosBaseCentavos: cargosCentavos ? saldoCentavos : undefined,
+      // Con una captura, los datos son los del banco de hoy.
+      actualizadoEn: captura ? hoy() : prestamo?.actualizadoEn,
+      inicioPeriodo,
+      desgloseCuota: desglose?.fecha === primeraCuota ? desglose : prestamo?.desgloseCuota,
       primeraCuota,
       creadoEn: prestamo?.creadoEn ?? Date.now(),
     });
