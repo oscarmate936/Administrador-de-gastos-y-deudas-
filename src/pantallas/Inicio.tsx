@@ -8,17 +8,17 @@ import { Hoja } from '../componentes/Hoja';
 import { IconoAnterior, IconoFlecha, IconoSiguiente } from '../componentes/Iconos';
 import { Insignia, InsigniaCategoria, Simbolo } from '../componentes/Simbolo';
 import { agenda, quitarYaAvisados, type Evento } from '../lib/agenda';
-import { guardarAjuste, ordenInicio, type Ajustes, type SeccionInicio } from '../lib/ajustes';
-import { proximosPagos, totalPorPagar, type ProximoPago } from '../lib/deudas';
-import { formatearDinero } from '../lib/dinero';
-import { aDate, diasEntre, fechaCorta, hoy, mesDe, nombreMes, sumarDias, textoFaltan } from '../lib/fechas';
-import { calcularDisponible, ordenarRecientes } from '../lib/resumen';
+import { guardarAjuste, ordenInicio, type Ajustes, type AjustesFondo, type SeccionInicio } from '../lib/ajustes';
+import { proximosPagos, type ProximoPago } from '../lib/deudas';
+import { DIAS_A_APARTAR, calcularLibre, moverFondo, sugerirMeta } from '../lib/fondo';
+import { cierreDelMes, mesParaResumen, type CierreMes } from '../lib/cierreMes';
+import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
+import { aDate, diasEntre, fechaCorta, hoy, mesDe, moverMes as moverMesInicio, nombreMes, sumarDias, textoFaltan } from '../lib/fechas';
+import { ordenarRecientes } from '../lib/resumen';
 import { calcularRitmo, type Ritmo } from '../lib/ritmo';
 import { estadoLimites } from '../lib/limites';
 import { omitirRecurrente, pendientes, registrarRecurrente } from '../lib/recurrentes';
 
-/** Días hacia adelante que se apartan para pagos al calcular lo "libre". */
-const DIAS_A_APARTAR = 15;
 /** Pagos que se muestran en "Requiere atención" (los demás están en la franja de la semana). */
 const DIAS_ATENCION = 3;
 /** Días de la franja de próximos días. */
@@ -30,6 +30,7 @@ const NOMBRES_SECCION: Record<SeccionInicio, string> = {
   asistente: 'Asistente',
   atencion: 'Requiere atención',
   semana: 'Próximos 7 días',
+  fondo: 'Fondo de emergencia',
   mes: 'Resumen del mes',
   ultimos: 'Últimos movimientos',
 };
@@ -82,22 +83,20 @@ export function Inicio(props: Props) {
     );
   }
 
-  const disponible = calcularDisponible(movimientos);
   const recientes = ordenarRecientes(movimientos).slice(0, 5);
   const proximos = proximosPagos(tarjetas, prestamos, movimientos, fechaHoy);
-  const porApartar = totalPorPagar(proximos, DIAS_A_APARTAR);
-  const libre = disponible - porApartar;
+  const { disponible, porApartar, fondo, cifra, conLibre } = calcularLibre(datos, fechaHoy, ajustes.fondo.apartadoCentavos);
   const mes = mesDe(fechaHoy);
   const limites = estadoLimites(movimientos, datos.categorias, mes).filter((l) => l.porcentaje >= 80);
   const porConfirmar = pendientes(datos.recurrentes, fechaHoy);
   const atender = proximos.filter((p) => p.vencido || p.dias <= DIAS_ATENCION);
   const pasos = primerosPasos(props);
+  const mesCierre = mesParaResumen(fechaHoy, ajustes.inicio.resumenVisto);
+  const cierre = mesCierre ? cierreDelMes(datos, mesCierre) : null;
   const mostrarPasos = !ajustes.inicio.primerosPasosOculto && pasos.some((p) => !p.hecho);
   const pedirRespaldo =
     (diasSinRespaldo === null || diasSinRespaldo >= DIAS_ENTRE_RESPALDOS) && !(mostrarPasos && diasSinRespaldo === null);
 
-  const conLibre = porApartar > 0;
-  const cifra = conLibre ? libre : disponible;
   const ritmo = calcularRitmo(movimientos, fechaHoy, cifra);
 
   // Resumen del mes: lo que entró, lo que gastaste (también con tarjeta) y lo que pagaste a deudas.
@@ -118,6 +117,7 @@ export function Inicio(props: Props) {
       <Asistente
         key="asistente"
         datos={datos}
+        fondoCentavos={ajustes.fondo.apartadoCentavos}
         alAbrirFormulario={alAbrirFormulario}
         alAbrir={(d) => (d === 'movimientos' ? alVerTodos() : alAbrirDeuda(d))}
       />
@@ -214,6 +214,9 @@ export function Inicio(props: Props) {
         )}
       </section>
     ),
+    fondo: (
+      <TarjetaFondo key="fondo" fondo={ajustes.fondo} sugerida={sugerirMeta(movimientos, fechaHoy)} cifra={cifra} />
+    ),
     mes: (
       <section className="grupo" key="mes">
         <div className="cabecera-grupo">
@@ -267,7 +270,7 @@ export function Inicio(props: Props) {
         <p className="monto-grande">{formatearDinero(cifra)}</p>
         <p className="nota-principal">
           {conLibre
-            ? `Tienes ${formatearDinero(disponible)} y ${formatearDinero(porApartar)} ya son de pagos de los próximos ${DIAS_A_APARTAR} días.`
+            ? textoApartado(disponible, porApartar, fondo)
             : disponible < 0
               ? 'Ha salido más dinero del que has registrado como ingreso.'
               : 'Lo que has recibido menos lo que ha salido.'}
@@ -280,6 +283,8 @@ export function Inicio(props: Props) {
           </button>
         )}
       </section>
+
+      {cierre && <ResumenCierre cierre={cierre} alVerAnalisis={alVerAnalisis} />}
 
       {mostrarPasos && <PrimerosPasos pasos={pasos} />}
 
@@ -571,5 +576,240 @@ export function FilaPago({ pago: p, color, alTocar }: { pago: ProximoPago; color
         <span className="fila-monto">{formatearDinero(p.montoCentavos)}</span>
       </button>
     </li>
+  );
+}
+
+// ---------- Fondo de emergencia ----------
+
+/** «Tienes $X; $Y son de pagos de los próximos 15 días y $Z están en tu fondo.» */
+function textoApartado(disponible: number, porApartar: number, fondo: number): string {
+  const partes = [
+    porApartar > 0 && `${formatearDinero(porApartar)} son de pagos de los próximos ${DIAS_A_APARTAR} días`,
+    fondo > 0 && `${formatearDinero(fondo)} están en tu fondo de emergencia`,
+  ].filter(Boolean);
+  return `Tienes ${formatearDinero(disponible)}; ${partes.join(' y ')}.`;
+}
+
+function TarjetaFondo({ fondo, sugerida, cifra }: { fondo: AjustesFondo; sugerida: number; cifra: number }) {
+  const [hoja, setHoja] = useState<'crear' | 'apartar' | 'usar' | null>(null);
+  const meta = fondo.metaCentavos;
+  const porcentaje = meta ? Math.min(100, Math.round((fondo.apartadoCentavos / meta) * 100)) : 0;
+  return (
+    <section className="grupo">
+      <div className="cabecera-grupo">
+        <h2>
+          Fondo de emergencia <Ayuda termino="fondo de emergencia" />
+        </h2>
+        {meta !== undefined && (
+          <button type="button" className="enlace" onClick={() => setHoja('crear')}>
+            Cambiar meta
+          </button>
+        )}
+      </div>
+      <div className="tarjeta fondo">
+        {meta === undefined ? (
+          <>
+            <p className="sin-margen">Aparta poco a poco para que un imprevisto no termine en la tarjeta.</p>
+            <p className="ayuda sin-margen">Te sugiero empezar con {formatearDinero(sugerida)}: más o menos lo que gastas en un mes.</p>
+            <button type="button" className="boton primario" onClick={() => setHoja('crear')}>
+              Crear mi fondo
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="fondo-cifras">
+              <strong className="monto-medio">{formatearDinero(fondo.apartadoCentavos)}</strong>
+              <span className="texto-tenue">de {formatearDinero(meta)}</span>
+            </div>
+            <div
+              className="barra"
+              role="progressbar"
+              aria-label="Avance del fondo de emergencia"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={porcentaje}
+            >
+              <div className="barra-relleno" style={{ width: `${Math.max(2, porcentaje)}%` }} />
+            </div>
+            <p className="ayuda sin-margen">
+              {porcentaje >= 100
+                ? '¡Meta cumplida! Ese dinero ya no cuenta como libre para gastar.'
+                : `Te faltan ${formatearDinero(meta - fondo.apartadoCentavos)} para tu meta.`}
+            </p>
+            <div className="acciones">
+              <button type="button" className="boton" disabled={fondo.apartadoCentavos === 0} onClick={() => setHoja('usar')}>
+                Usar
+              </button>
+              <button type="button" className="boton primario" onClick={() => setHoja('apartar')}>
+                Apartar
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+      {hoja === 'crear' && <MetaFondo fondo={fondo} sugerida={sugerida} alCerrar={() => setHoja(null)} />}
+      {(hoja === 'apartar' || hoja === 'usar') && <MoverFondo accion={hoja} fondo={fondo} cifra={cifra} alCerrar={() => setHoja(null)} />}
+    </section>
+  );
+}
+
+function MetaFondo({ fondo, sugerida, alCerrar }: { fondo: AjustesFondo; sugerida: number; alCerrar: () => void }) {
+  const [texto, setTexto] = useState(centavosATexto(fondo.metaCentavos ?? sugerida));
+  const [error, setError] = useState('');
+  const meta = textoACentavos(texto);
+  return (
+    <Hoja titulo={fondo.metaCentavos === undefined ? 'Crear fondo de emergencia' : 'Meta del fondo'} alCerrar={alCerrar}>
+      <form
+        className="formulario"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!meta) return setError('Escribe una meta mayor que cero, por ejemplo 300.00');
+          await guardarAjuste('fondo', { metaCentavos: meta });
+          alCerrar();
+        }}
+      >
+        <label className="campo">
+          <span>Meta</span>
+          <input type="text" inputMode="decimal" value={texto} onChange={(e) => { setTexto(e.target.value); setError(''); }} />
+          <span className="ayuda sin-margen">
+            Sugerida: {formatearDinero(sugerida)}, más o menos un mes de tus gastos. Con el tiempo, lo ideal son tres meses.
+          </span>
+        </label>
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="acciones">
+          <button type="submit" className="boton primario">
+            Guardar
+          </button>
+        </div>
+      </form>
+    </Hoja>
+  );
+}
+
+const MONTOS_RAPIDOS = [500, 1000, 2000, 5000];
+
+function MoverFondo({ accion, fondo, cifra, alCerrar }: { accion: 'apartar' | 'usar'; fondo: AjustesFondo; cifra: number; alCerrar: () => void }) {
+  const [texto, setTexto] = useState('');
+  const [error, setError] = useState('');
+  const monto = textoACentavos(texto);
+  const apartar = accion === 'apartar';
+  const quedaLibre = monto ? cifra + (apartar ? -monto : monto) : null;
+  return (
+    <Hoja titulo={apartar ? 'Apartar al fondo' : 'Usar del fondo'} alCerrar={alCerrar}>
+      <form
+        className="formulario"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const nuevo = monto ? moverFondo(fondo.apartadoCentavos, accion, monto) : null;
+          if (nuevo === null) {
+            return setError(
+              !monto ? 'Escribe un monto mayor que cero.' : `En el fondo hay ${formatearDinero(fondo.apartadoCentavos)}; no puedes usar más.`,
+            );
+          }
+          await guardarAjuste('fondo', { apartadoCentavos: nuevo });
+          alCerrar();
+        }}
+      >
+        <p className="texto-tenue">
+          {apartar
+            ? 'El dinero sigue en tu cuenta, pero deja de contar como libre para gastar.'
+            : 'El dinero vuelve a lo libre para gastar. Después registra el gasto como siempre.'}
+        </p>
+        <label className="campo">
+          <span>Monto</span>
+          <input type="text" inputMode="decimal" placeholder="0.00" value={texto} autoFocus onChange={(e) => { setTexto(e.target.value); setError(''); }} />
+        </label>
+        <div className="chips">
+          {(apartar ? MONTOS_RAPIDOS : [...MONTOS_RAPIDOS.filter((m) => m < fondo.apartadoCentavos), fondo.apartadoCentavos]).map((m) => (
+            <button key={m} type="button" className="chip" onClick={() => { setTexto(centavosATexto(m)); setError(''); }}>
+              {m === fondo.apartadoCentavos && !apartar ? `Todo (${formatearDinero(m)})` : formatearDinero(m)}
+            </button>
+          ))}
+        </div>
+        {quedaLibre !== null && (
+          <p className={quedaLibre < 0 ? 'aviso alerta' : 'aviso'}>
+            {quedaLibre < 0
+              ? `Te quedarían ${formatearDinero(quedaLibre)} libres: apartarías dinero que ya es de tus pagos.`
+              : `Libre para gastar: ${formatearDinero(quedaLibre)}.`}
+          </p>
+        )}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="acciones">
+          <button type="submit" className="boton primario">
+            {apartar ? 'Apartar' : 'Usar'}
+          </button>
+        </div>
+      </form>
+    </Hoja>
+  );
+}
+
+// ---------- Resumen del mes que terminó ----------
+
+function ResumenCierre({ cierre: c, alVerAnalisis }: { cierre: CierreMes; alVerAnalisis: () => void }) {
+  const mes = nombreMes(c.mes).split(' ')[0];
+  const lineas: string[] = [];
+  lineas.push(
+    c.sobroCentavos >= 0
+      ? `Te sobraron ${formatearDinero(c.sobroCentavos)} de lo que entró.`
+      : `Salió ${formatearDinero(-c.sobroCentavos)} más de lo que entró.`,
+  );
+  if (c.bajoDeudaCentavos !== null && c.bajoDeudaCentavos !== 0) {
+    lineas.push(
+      c.bajoDeudaCentavos > 0
+        ? `Tus deudas bajaron ${formatearDinero(c.bajoDeudaCentavos)}.`
+        : `Tus deudas subieron ${formatearDinero(-c.bajoDeudaCentavos)}.`,
+    );
+  }
+  if (c.mayor) lineas.push(`En lo que más gastaste: ${c.mayor.nombre}, ${formatearDinero(c.mayor.totalCentavos)} (${c.mayor.porcentaje}%).`);
+  if (c.contraAnteriorCentavos !== null && Math.abs(c.contraAnteriorCentavos) >= 500) {
+    const anterior = nombreMes(moverMesInicio(c.mes, -1)).split(' ')[0].toLowerCase();
+    lineas.push(
+      c.contraAnteriorCentavos < 0
+        ? `Gastaste ${formatearDinero(-c.contraAnteriorCentavos)} menos que en ${anterior}.`
+        : `Gastaste ${formatearDinero(c.contraAnteriorCentavos)} más que en ${anterior}.`,
+    );
+  }
+  return (
+    <section className="grupo" aria-label={`Así te fue en ${mes.toLowerCase()}`}>
+      <div className="cabecera-grupo">
+        <h2>Así te fue en {mes.toLowerCase()}</h2>
+        <button type="button" className="enlace" onClick={() => void guardarAjuste('inicio', { resumenVisto: c.mes })}>
+          Cerrar
+        </button>
+      </div>
+      <dl className="mosaico">
+          <div>
+            <dt>Entró</dt>
+            <dd className="positivo">{formatearDinero(c.entroCentavos)}</dd>
+          </div>
+          <div>
+            <dt>Gastaste</dt>
+            <dd>{formatearDinero(c.gastadoCentavos)}</dd>
+          </div>
+          <div>
+            <dt>A deudas</dt>
+            <dd>{formatearDinero(c.aDeudasCentavos)}</dd>
+          </div>
+      </dl>
+      <div className="tarjeta cierre-mes">
+        <ul className="cierre-lineas">
+          {lineas.map((l) => (
+            <li key={l}>{l}</li>
+          ))}
+        </ul>
+        <button type="button" className="enlace" onClick={alVerAnalisis}>
+          Ver análisis
+        </button>
+      </div>
+    </section>
   );
 }

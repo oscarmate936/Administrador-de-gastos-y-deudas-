@@ -61,11 +61,39 @@ describe('recordatorios', () => {
 
   it('avisa las próximas cuotas del préstamo', () => {
     const lista = generarRecordatorios({ tarjetas: [], prestamos: [prestamo], movimientos: [], ajustes: { ...ajustes, recordatorios: { ...ajustes.recordatorios, respaldo: false } } }, ahora);
-    expect(lista.filter((r) => r.clave.startsWith('prestamo')).map((r) => fecha(r))).toEqual([
+    expect(lista.filter((r) => r.clave.includes(':cuota:')).map((r) => fecha(r))).toEqual([
       '2026-11-27', '2026-11-30', '2026-12-27', '2026-12-30',
     ]);
     expect(lista[0].titulo).toBe('Cuota de Personal en 3 días');
     expect(lista[0].cuerpo).toBe('$100.00 el 30 nov.');
+    // «Ya pagué» sabe qué cuota registrar.
+    expect(lista[0].pagoDirecto).toEqual({ tipo: 'prestamo', id: 'p1', fecha: '2026-11-30' });
+  });
+
+  it('el pago de contado de la tarjeta ofrece «Ya pagué»; el estimado, no', () => {
+    const lista = generarRecordatorios({ tarjetas: [tarjeta], prestamos: [], movimientos: [], ajustes }, ahora);
+    const contado = lista.find((r) => r.clave === 'tarjeta:t1:pago:2026-11-15:2');
+    expect(contado?.pagoDirecto).toEqual({ tipo: 'tarjeta', id: 't1', fecha: '2026-11-15' });
+    // Pagado el estado de cuenta, el próximo pago (aún sin corte) es un estimado.
+    const soloPendiente = { ...tarjeta, saldoInicialCentavos: 10000 };
+    const compra: Movimiento = { id: 'c', tipo: 'gasto', montoCentavos: 5000, fecha: '2026-11-14', tarjetaId: 't1', nota: '', creadoEn: 1 };
+    const pago: Movimiento = { id: 'x', tipo: 'pago', montoCentavos: 10000, fecha: '2026-11-13', tarjetaId: 't1', nota: '', creadoEn: 1 };
+    const estimados = generarRecordatorios({ tarjetas: [soloPendiente], prestamos: [], movimientos: [compra, pago], ajustes }, new Date(2026, 10, 15, 7, 0));
+    const proximo = estimados.filter((r) => r.clave.startsWith('tarjeta:t1:pago:'));
+    expect(proximo.map(fecha)).toEqual(['2026-12-10', '2026-12-13', '2026-12-15']);
+    expect(proximo.every((r) => r.pagar && !r.pagoDirecto)).toBe(true);
+  });
+
+  it('cada mes pide actualizar el préstamo con el banco, salvo si se hizo hace poco', () => {
+    const sin = { ...ajustes, recordatorios: { ...ajustes.recordatorios, respaldo: false, pagos: false } };
+    const lista = generarRecordatorios({ tarjetas: [], prestamos: [prestamo], movimientos: [], ajustes: sin }, ahora);
+    const actualizar = lista.filter((r) => r.clave.includes(':actualizar:'));
+    expect(actualizar.map(fecha)).toEqual(['2026-12-03', '2027-01-02']);
+    expect(actualizar[0].titulo).toBe('Actualiza Personal con el banco');
+    const reciente = generarRecordatorios({ tarjetas: [], prestamos: [{ ...prestamo, actualizadoEn: '2026-11-20' }], movimientos: [], ajustes: sin }, ahora);
+    expect(reciente.filter((r) => r.clave.includes(':actualizar:')).map(fecha)).toEqual(['2027-01-02']);
+    const apagado = { ...sin, recordatorios: { ...sin.recordatorios, actualizar: false } };
+    expect(generarRecordatorios({ tarjetas: [], prestamos: [prestamo], movimientos: [], ajustes: apagado }, ahora)).toEqual([]);
   });
 
   it('recuerda el respaldo cada semana y deja un aviso para abrir la app', () => {
@@ -74,6 +102,18 @@ describe('recordatorios', () => {
     expect(respaldos.slice(0, 3)).toEqual(['2026-11-17', '2026-11-24', '2026-12-01']);
     const abrir = lista.find((r) => r.clave === 'abrir:2026-11-13');
     expect(abrir && fecha(abrir)).toBe('2027-01-09');
+  });
+
+  it('el día 1 avisa el resumen del mes que terminó', () => {
+    const solo = { ...ajustes, recordatorios: { ...ajustes.recordatorios, respaldo: false } };
+    const gasto: Movimiento = { id: 'g', tipo: 'gasto', montoCentavos: 500, fecha: '2026-11-02', nota: '', creadoEn: 1 };
+    const lista = generarRecordatorios({ tarjetas: [], prestamos: [], movimientos: [gasto], ajustes: solo }, ahora);
+    const resumen = lista.filter((r) => r.clave.startsWith('resumen:'));
+    expect(resumen.map(fecha)).toEqual(['2026-12-01', '2027-01-01']);
+    expect(resumen.map((r) => r.titulo)).toEqual(['Así te fue en noviembre', 'Así te fue en diciembre']);
+    expect(resumen[0].destino).toEqual({ tipo: 'resumen' });
+    // Sin movimientos no hay nada que resumir.
+    expect(generarRecordatorios({ tarjetas: [], prestamos: [], movimientos: [], ajustes: solo }, ahora)).toEqual([]);
   });
 
   it('los identificadores son estables y positivos', () => {

@@ -54,6 +54,8 @@ describe('respaldo', () => {
     await origen.ajustes.bulkAdd([
       { id: 'plan', valor: { metodo: 'bola', pagoMensualCentavos: 30000 } },
       { id: 'bloqueo', valor: { activo: true, pinHash: 'x', sal: 'y', huella: true, esperaMinutos: 1 } },
+      // La contraseña del respaldo automático nunca viaja dentro de un respaldo.
+      { id: 'respaldoAuto', valor: { activo: true, clave: 'secreta', archivo: 'a.json' } },
     ]);
     await origen.historial.add({
       mes: '2026-11', fecha: '2026-11-14', disponibleCentavos: -500, deudaTotalCentavos: 1000,
@@ -74,6 +76,8 @@ describe('respaldo', () => {
     expect(await destino.recurrentes.toArray()).toEqual(await origen.recurrentes.toArray());
     expect((await destino.ajustes.get('plan'))?.valor).toEqual({ metodo: 'bola', pagoMensualCentavos: 30000 });
     expect((await destino.ajustes.get('bloqueo'))?.valor).toMatchObject({ pinHash: 'local' });
+    expect(await destino.ajustes.get('respaldoAuto')).toBeUndefined();
+    expect(JSON.stringify(respaldo)).not.toContain('secreta');
   });
 
   it('un respaldo con contraseña se reconoce y se abre con ella', async () => {

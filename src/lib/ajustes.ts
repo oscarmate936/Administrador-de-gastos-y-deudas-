@@ -24,6 +24,26 @@ export interface AjustesRespaldo {
   recordarCadaDias: number;
 }
 
+/**
+ * Respaldo automático cifrado en la carpeta Documentos del celular. Es de cada
+ * dispositivo: la contraseña nunca viaja dentro de un respaldo.
+ */
+export interface AjustesRespaldoAuto {
+  activo: boolean;
+  /** Contraseña con la que se cifra cada respaldo automático. */
+  clave?: string;
+  /**
+   * Nombre del archivo, con una marca al azar elegida al activarlo: tras
+   * reinstalar la app, Android no deja reescribir el archivo de la instalación
+   * anterior, así que el nuevo usa otro nombre.
+   */
+  archivo?: string;
+  /** Último respaldo automático guardado (ISO). */
+  ultimo?: string;
+  /** Texto del último error al guardarlo, para mostrarlo en Ajustes. */
+  error?: string;
+}
+
 export interface AjustesRecordatorios {
   activo: boolean;
   /** "HH:MM" */
@@ -32,6 +52,10 @@ export interface AjustesRecordatorios {
   cortes: boolean;
   estados: boolean;
   respaldo: boolean;
+  /** Recordar cada mes actualizar los préstamos con una captura del banco. */
+  actualizar: boolean;
+  /** Aviso el día 1 con el resumen del mes que terminó. */
+  resumen: boolean;
   diasTarjeta: number[];
   diasPrestamo: number[];
 }
@@ -51,20 +75,29 @@ export interface AjustesApariencia {
   letra: 'normal' | 'grande';
 }
 
-export type SeccionInicio = 'asistente' | 'atencion' | 'semana' | 'mes' | 'ultimos';
-export const SECCIONES_INICIO: SeccionInicio[] = ['asistente', 'atencion', 'semana', 'mes', 'ultimos'];
+export type SeccionInicio = 'asistente' | 'atencion' | 'semana' | 'fondo' | 'mes' | 'ultimos';
+export const SECCIONES_INICIO: SeccionInicio[] = ['asistente', 'atencion', 'semana', 'fondo', 'mes', 'ultimos'];
 
 export interface AjustesInicio {
   orden: SeccionInicio[];
   ocultas: SeccionInicio[];
   /** La lista de primeros pasos se cerró a mano. */
   primerosPasosOculto: boolean;
+  /** Mes ("AAAA-MM") cuyo resumen de cierre ya se cerró en Inicio. */
+  resumenVisto?: string;
 }
 
 /** Orden guardado, sin secciones desconocidas y con las nuevas al final. */
 export function ordenInicio(a: AjustesInicio): SeccionInicio[] {
   const validas = a.orden.filter((s, i) => SECCIONES_INICIO.includes(s) && a.orden.indexOf(s) === i);
   return [...validas, ...SECCIONES_INICIO.filter((s) => !validas.includes(s))];
+}
+
+/** Fondo de emergencia: dinero apartado que no cuenta como libre para gastar. */
+export interface AjustesFondo {
+  /** Meta del fondo; ausente mientras no se crea. */
+  metaCentavos?: number;
+  apartadoCentavos: number;
 }
 
 export interface AjustesMetas {
@@ -77,16 +110,19 @@ export interface AjustesMetas {
 export interface Ajustes {
   bloqueo: AjustesBloqueo;
   respaldo: AjustesRespaldo;
+  respaldoAuto: AjustesRespaldoAuto;
   recordatorios: AjustesRecordatorios;
   plan: AjustesPlan;
   apariencia: AjustesApariencia;
   inicio: AjustesInicio;
   metas: AjustesMetas;
+  fondo: AjustesFondo;
 }
 
 export const AJUSTES_INICIALES: Ajustes = {
   bloqueo: { activo: false, huella: false, esperaMinutos: 1 },
   respaldo: { recordarCadaDias: 7 },
+  respaldoAuto: { activo: false },
   recordatorios: {
     activo: false,
     hora: '08:00',
@@ -94,6 +130,8 @@ export const AJUSTES_INICIALES: Ajustes = {
     cortes: true,
     estados: true,
     respaldo: true,
+    actualizar: true,
+    resumen: true,
     diasTarjeta: [5, 2, 0],
     diasPrestamo: [3, 0],
   },
@@ -101,6 +139,7 @@ export const AJUSTES_INICIALES: Ajustes = {
   apariencia: { tema: 'sistema', vibracion: true, letra: 'normal' },
   inicio: { orden: [...SECCIONES_INICIO], ocultas: [], primerosPasosOculto: false },
   metas: { hitos: [], prestamos: [] },
+  fondo: { apartadoCentavos: 0 },
 };
 
 export type ClaveAjuste = keyof Ajustes;

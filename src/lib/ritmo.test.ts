@@ -64,6 +64,8 @@ describe('calcularRitmo', () => {
     expect(r.pagoAtrasado).toBe(true);
     expect(r.proximoPago).toBe('2026-11-11');
     expect(r.diasRestantes).toBe(1);
+    // Lo libre no se da todo para hoy: se reparte en una semana.
+    expect(r.porDiaCentavos).toBe(Math.floor(10000 / 7));
   });
   it('sin pago registrado no hay ritmo', () => {
     expect(calcularRitmo([mov('gasto', '2026-11-02', 500)], '2026-11-10', 1000)).toBeNull();

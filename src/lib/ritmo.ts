@@ -48,6 +48,12 @@ export interface Ritmo {
   idealHoyCentavos: number;
 }
 
+/**
+ * Si el pago ya debía haber llegado, lo libre se reparte en una semana: dividirlo
+ * entre un solo día diría que puedes gastarlo todo hoy.
+ */
+const DIAS_SI_ATRASADO = 7;
+
 export function calcularRitmo(movimientos: Movimiento[], hoy: string, libreCentavos: number): Ritmo | null {
   const periodo = resumenDesdeUltimoPago(movimientos, hoy);
   if (!periodo) return null;
@@ -70,7 +76,7 @@ export function calcularRitmo(movimientos: Movimiento[], hoy: string, libreCenta
   const gastoDiarioCentavos = Math.round(suma / (transcurridos + 1));
 
   const libre = Math.max(0, libreCentavos);
-  const porDiaCentavos = libre > 0 ? Math.floor(libre / diasRestantes) : null;
+  const porDiaCentavos = libre > 0 ? Math.floor(libre / (pagoAtrasado ? DIAS_SI_ATRASADO : diasRestantes)) : null;
   const alcanzaHasta = libre > 0 && gastoDiarioCentavos > 0 ? sumarDias(hoy, Math.floor(libre / gastoDiarioCentavos)) : null;
 
   const diasPeriodo = Math.max(1, diasEntre(ultimoPago, proximoPago));

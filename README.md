@@ -64,7 +64,10 @@ no hay servidor ni cuentas.
   se crea el préstamo o se ajusta uno existente (saldo, cuota, tasa, próxima cuota,
   seguros y otros cargos) sin borrar los pagos. Con el desglose de la cuota, el pago
   usa el capital exacto del banco.
-- Los seguros y otros cargos fijos de la cuota no se cuentan como capital.
+- Intereses por día desde el último pago (como los cobran los bancos) y seguros que
+  bajan con el saldo: la fecha de término coincide con la del banco. Con el desglose
+  de la captura se deduce la fecha del último pago.
+- Los seguros y otros cargos de la cuota no se cuentan como capital.
 - Compras a plazos y extrafinanciamiento (Davivienda): se leen del estado de
   cuenta, se suman a la deuda total y cada corte cobra su cuota en la tarjeta.
 - Cuánto cuestan las deudas (intereses, comisiones, IVA, avances de efectivo).
@@ -73,13 +76,22 @@ no hay servidor ni cuentas.
 
 **Avisos y análisis**
 - Recordatorios en el celular: último día de pago, cuotas, corte, estado de
-  cuenta listo y respaldo.
+  cuenta listo, actualizar préstamos cada mes, resumen del mes y respaldo.
+- «Ya pagué» en el aviso de pago: registra el pago exacto sin abrir el formulario
+  (con deshacer); «Otro monto» abre el formulario.
+- Resumen del mes que terminó en Inicio la primera semana del mes.
 - Gráficas de ingresos y salidas, deuda total por mes y gasto por categoría.
 - Búsqueda y filtros en todos los movimientos; exportar a CSV (Excel).
 
 **Seguridad y respaldo**
 - Bloqueo con PIN y huella; contenido oculto en las apps recientes.
 - Respaldo cifrado con contraseña, copia automática diaria y aviso semanal.
+- Respaldo automático cifrado cada día en Documentos/MisFinanzas (queda aunque se
+  borre la app) y «Guardar en Drive» con un toque desde el aviso semanal.
+
+**Ahorro**
+- Fondo de emergencia con meta sugerida (un mes de gastos): lo apartado sigue en la
+  cuenta pero no cuenta como libre para gastar.
 
 Las compras con tarjeta aumentan la deuda de la tarjeta y no bajan el
 disponible; el disponible baja cuando se registra el pago de la tarjeta.

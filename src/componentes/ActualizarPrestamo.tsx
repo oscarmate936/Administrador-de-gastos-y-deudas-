@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { db, type Movimiento, type Prestamo } from '../db';
-import { ajustarPrestamo, estadoPrestamo } from '../lib/deudas';
+import { ajustarPrestamo, estadoPrestamo, inicioSegunDesglose } from '../lib/deudas';
 import { centavosATexto, formatearDinero, textoACentavos, textoATasa } from '../lib/dinero';
 import { esFechaValida, fechaCorta, hoy } from '../lib/fechas';
 import { desgloseDe, type CapturaPrestamo } from '../lib/ocr/prestamo';
@@ -46,6 +46,10 @@ export function ActualizarPrestamo({ prestamo: p, movimientos, captura, alCerrar
         proximaFecha: fecha,
         montoOriginalCentavos: captura.montoOriginal.valor,
         cargosCentavos,
+        inicioPeriodo:
+          desglose?.fecha === fecha
+            ? inicioSegunDesglose({ saldoCentavos, tasaAnual, cuotaCentavos, cargosCentavos, capitalCentavos: desglose.capitalCentavos, fecha })
+            : undefined,
       }),
     );
     alCerrar();

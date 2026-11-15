@@ -4,7 +4,7 @@ import { IconoAnterior } from '../componentes/Iconos';
 import { Insignia } from '../componentes/Simbolo';
 import { Ayuda } from '../componentes/Ayuda';
 import { guardarAjuste, type AjustesPlan } from '../lib/ajustes';
-import { sumarMeses, textoDuracion } from '../lib/deudas';
+import { estadoPrestamo, sumarMeses, textoDuracion } from '../lib/deudas';
 import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
 import { hoy, mesCorto } from '../lib/fechas';
 import { deudasParaPlan, simularPlan, sumaMinimos, type Metodo } from '../lib/plan';
@@ -69,7 +69,7 @@ export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
   const sinTasa = deudas.filter((d) => !d.tasaConocida);
   const cargos = datos.prestamos
     .filter((p) => deudas.some((d) => d.tipo === 'prestamo' && d.id === p.id))
-    .reduce((t, p) => t + (p.cargosCentavos ?? 0), 0);
+    .reduce((t, p) => t + estadoPrestamo(p, datos.movimientos, fechaHoy).cargosCuotaCentavos, 0);
   const estimados = deudas.filter((d) => d.minimoEstimado);
 
   return (

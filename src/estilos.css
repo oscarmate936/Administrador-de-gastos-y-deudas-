@@ -3268,3 +3268,48 @@ button.plastico:active {
   gap: 12px;
   padding: 12px 16px;
 }
+
+/* ---------- Fondo de emergencia ---------- */
+
+.tarjeta.fondo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fondo-cifras {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tarjeta.fondo .barra {
+  height: 10px;
+}
+
+.tarjeta.fondo .barra-relleno {
+  background: var(--positivo);
+}
+
+.tarjeta.fondo .acciones {
+  margin-top: 2px;
+}
+
+/* ---------- Resumen del mes que terminó ---------- */
+
+.tarjeta.cierre-mes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.cierre-lineas {
+  margin: 0;
+  padding-left: 1.1em;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.45;
+}

@@ -171,7 +171,7 @@ let canalListo = false;
 
 /** Reemplaza todas las notificaciones agendadas por estas. */
 export async function agendarNotificaciones(
-  lista: Array<{ id: number; fecha: Date; titulo: string; cuerpo: string; pagar?: boolean; destino?: unknown }>,
+  lista: Array<{ id: number; fecha: Date; titulo: string; cuerpo: string; pagar?: boolean; pagoDirecto?: unknown; destino?: unknown }>,
 ): Promise<void> {
   if (!esNativo) return;
   const { LocalNotifications } = await import('@capacitor/local-notifications');
@@ -190,7 +190,16 @@ export async function agendarNotificaciones(
       visibility: 0,
     });
     await LocalNotifications.registerActionTypes({
-      types: [{ id: 'PAGO', actions: [{ id: 'pagar', title: 'Registrar pago' }] }],
+      types: [
+        { id: 'PAGO', actions: [{ id: 'pagar', title: 'Registrar pago' }] },
+        {
+          id: 'PAGO_DIRECTO',
+          actions: [
+            { id: 'yaPague', title: 'Ya pagué' },
+            { id: 'pagar', title: 'Otro monto' },
+          ],
+        },
+      ],
     });
     canalListo = true;
   }
@@ -202,21 +211,23 @@ export async function agendarNotificaciones(
       largeBody: r.cuerpo,
       channelId: 'pagos',
       schedule: { at: r.fecha, allowWhileIdle: true },
-      actionTypeId: r.pagar ? 'PAGO' : undefined,
-      extra: { destino: r.destino ?? null, pagar: r.pagar === true },
+      actionTypeId: r.pagoDirecto ? 'PAGO_DIRECTO' : r.pagar ? 'PAGO' : undefined,
+      extra: { destino: r.destino ?? null, pagar: r.pagar === true, pago: r.pagoDirecto ?? null },
     })),
   });
 }
 
-/** Avisa cuando la persona toca una notificación o su botón "Registrar pago". */
-export function escucharNotificaciones(alTocar: (extra: { destino: unknown; pagar: boolean }) => void): () => void {
+/** Avisa cuando la persona toca una notificación o uno de sus botones. */
+export function escucharNotificaciones(
+  alTocar: (extra: { destino: unknown; pagar: boolean; yaPague: boolean; pago: unknown }) => void,
+): () => void {
   if (!esNativo) return () => {};
   let cancelado = false;
   let quitar: (() => void) | undefined;
   void import('@capacitor/local-notifications').then(async ({ LocalNotifications }) => {
     const escucha = await LocalNotifications.addListener('localNotificationActionPerformed', ({ actionId, notification }) => {
-      const extra = (notification.extra ?? {}) as { destino?: unknown };
-      alTocar({ destino: extra.destino ?? null, pagar: actionId === 'pagar' });
+      const extra = (notification.extra ?? {}) as { destino?: unknown; pago?: unknown };
+      alTocar({ destino: extra.destino ?? null, pagar: actionId === 'pagar', yaPague: actionId === 'yaPague', pago: extra.pago ?? null });
     });
     if (cancelado) void escucha.remove();
     else quitar = () => void escucha.remove();

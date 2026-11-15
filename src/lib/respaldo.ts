@@ -22,8 +22,11 @@ export interface Respaldo {
   recurrentes: Recurrente[];
 }
 
-/** Ajustes que no viajan en el respaldo: el bloqueo es de cada dispositivo. */
-const AJUSTES_LOCALES = new Set(['bloqueo']);
+/**
+ * Ajustes que no viajan en el respaldo: el bloqueo y el respaldo automático
+ * (con su contraseña) son de cada dispositivo.
+ */
+const AJUSTES_LOCALES = new Set(['bloqueo', 'respaldoAuto']);
 
 export async function crearRespaldo(db: BaseDeDatos): Promise<Respaldo> {
   const [movimientos, categorias, tarjetas, prestamos, ajustes, historial, recurrentes] = await Promise.all([
@@ -153,6 +156,9 @@ function leerPrestamo(v: unknown, i: number): Prestamo {
     tasaAnual: v.tasaAnual,
     cuotaCentavos: v.cuotaCentavos,
     cargosCentavos: esCentavos(v.cargosCentavos) && v.cargosCentavos < v.cuotaCentavos ? v.cargosCentavos : undefined,
+    cargosBaseCentavos: esCentavos(v.cargosBaseCentavos) && v.cargosBaseCentavos > 0 ? v.cargosBaseCentavos : undefined,
+    inicioPeriodo: esFechaValida(v.inicioPeriodo) ? v.inicioPeriodo : undefined,
+    actualizadoEn: esFechaValida(v.actualizadoEn) ? v.actualizadoEn : undefined,
     desgloseCuota:
       esObjeto(v.desgloseCuota) && esFechaValida(v.desgloseCuota.fecha) && esCentavos(v.desgloseCuota.capitalCentavos)
         ? { fecha: v.desgloseCuota.fecha, capitalCentavos: v.desgloseCuota.capitalCentavos }
