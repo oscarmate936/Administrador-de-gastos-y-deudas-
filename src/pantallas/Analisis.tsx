@@ -176,6 +176,8 @@ export function Analisis({ datos, alEditar }: Props) {
           <p className="monto-medio texto-peligro">{formatearDinero(costoAnio.totalCentavos)}</p>
           <p className="texto-tenue">
             {formatearDinero(costoAnio.interesesCentavos)} en intereses y {formatearDinero(costoAnio.comisionesCentavos)} en comisiones e IVA.
+            {costoAnio.segurosCentavos > 0 &&
+              ` Además pagaste ${formatearDinero(costoAnio.segurosCentavos)} en seguros de préstamos, que tampoco bajan la deuda.`}
           </p>
           {costoAnio.porDeuda.length > 0 && (
             <ul className="categorias-barras">
@@ -202,7 +204,7 @@ export function Analisis({ datos, alEditar }: Props) {
           )}
           <p className="ayuda sin-margen">
             Intereses, comisiones e IVA de tus tarjetas (categoría “Intereses y comisiones”) y la parte de intereses de las cuotas de
-            préstamos.
+            préstamos, sin sus seguros.
           </p>
         </section>
       )}

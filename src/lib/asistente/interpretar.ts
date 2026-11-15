@@ -22,9 +22,9 @@ export type Intencion =
 const PALABRAS_COMUNES = new Set(['TARJETA', 'CREDITO', 'CLASICA', 'CLASICO', 'DE', 'LA', 'EL', 'MI', 'BANCO', 'PRESTAMO', 'PERSONAL', 'GOLD', 'ORO']);
 
 const CATEGORIAS: Array<[RegExp, string]> = [
-  [/\b(ALMUERZO|DESAYUNO|CENA|COMIDA|PUPUSAS?|RESTAURANTE|POLLO|PIZZA|CAFE|HAMBURGUESA|ANTOJO|REFRESCO|SODA)\b/, 'comida'],
+  [/\b(ALMUERZO|DESAYUNO|CENA|COMIDA|PUPUSAS?|RESTAURANTE|POLLO|PIZZA|CAFE|HAMBURGUESA|ANTOJO|REFRESCO|SODA|TAMALES?|ATOL|SHUCOS?|PANADERIA|PAN DULCE|TIPICOS|YUCA|ELOTES?|MINUTA|CHURROS)\b/, 'comida'],
   [/\b(SUPER|SUPERMERCADO|DESPENSA|MERCADO|SELECTOS|WALMART|COMPRAS DE LA SEMANA)\b/, 'super'],
-  [/\b(BUS|UBER|GASOLINA|TAXI|PASAJES?|PARQUEO|TRANSPORTE|INDRIVE|COMBUSTIBLE|DIESEL)\b/, 'transporte'],
+  [/\b(BUS|BUSES|MICRO|UBER|GASOLINA|TAXI|PASAJES?|PARQUEO|TRANSPORTE|INDRIVE|COMBUSTIBLE|DIESEL|PUMA|TEXACO|SHELL|PEAJE|MOTOTAXI)\b/, 'transporte'],
   [/\b(ALQUILER|RENTA|MUEBLES?|LIMPIEZA|FERRETERIA)\b/, 'casa'],
   [/\b(LUZ|AGUA|INTERNET|TELEFONO|CELULAR|RECARGA|CABLE|SERVICIOS?)\b/, 'servicios'],
   [/\b(FARMACIA|MEDICINAS?|MEDICAMENTOS?|DOCTOR|CONSULTA|HOSPITAL|MEDICO|DENTISTA|SALUD)\b/, 'salud'],
@@ -69,12 +69,18 @@ function buscarCategoria(t: string, datos: Datos): string | undefined {
   return regla && datos.mapaCategorias.has(regla) ? regla : undefined;
 }
 
-/** "gasté 12 en almuerzo con la visa" -> "almuerzo". */
+/** Palabras donde termina la nota: forma de pago, fecha o monto. */
+const FIN_NOTA = '(?=\\s+(?:con|el|ayer|hoy|anteayer|antier|hace|por|en efectivo|del?)\\b|[.,!?]|$)';
+
+/** "gasté 12 en almuerzo con la visa" -> "almuerzo"; "compré pupusas por 4.50" -> "pupusas". */
 function notaDe(original: string): string {
-  const m = /\b(?:en|de|para)\s+(?:el|la|los|las|un|una|mi)?\s*([a-záéíóúñü][\wáéíóúñü\s]{1,40}?)(?=\s+(?:con|el|ayer|hoy|anteayer|antier|por|en efectivo|del?)\b|[.,!?]|$)/i.exec(
-    original.replace(/\$?\s?\d[\d.,]*\s*(d[oó]lares?|usd)?/gi, ' '),
-  );
-  return m ? m[1].trim().replace(/\s+/g, ' ').slice(0, 60) : '';
+  const sinMontos = original.replace(/\$?\s?\d[\d.,]*\s*(d[oó]lares?|usd)?/gi, ' ').replace(/\s+/g, ' ');
+  const limpiar = (texto: string) => texto.trim().replace(/\s+/g, ' ').slice(0, 60);
+  const tras = new RegExp(`\\b(?:en|de|para)\\s+(?:(?:unos|unas|una|un|los|las|el|la|mis|mi)\\s+)?([a-záéíóúñü][\\wáéíóúñü\\s]{1,40}?)${FIN_NOTA}`, 'i').exec(sinMontos);
+  if (tras) return limpiar(tras[1]);
+  // Sin «en» ni «de»: lo que se compró, justo después del verbo.
+  const objeto = new RegExp(`\\b(?:compr[eé]|gast[eé])\\s+(?:(?:unos|unas|una|un|los|las|el|la|mis|mi)\\s+)?([a-záéíóúñü][\\wáéíóúñü\\s]{1,40}?)${FIN_NOTA}`, 'i').exec(sinMontos);
+  return objeto ? limpiar(objeto[1]) : '';
 }
 
 const ES_PREGUNTA = /^(CUANTO|CUANTA|CUANDO|QUE|CUAL|CUALES|COMO|DIME|MUESTRAME|ME FALTA|TENGO QUE|DEBO)\b/;

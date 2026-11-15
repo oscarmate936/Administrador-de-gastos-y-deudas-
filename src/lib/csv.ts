@@ -23,7 +23,8 @@ export function movimientosACsv(
     ...[...movimientos]
       .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.creadoEn - b.creadoEn)
       .map((m) => {
-        const signo = m.tipo === 'ingreso' ? 1 : -1;
+        // Una devolución no sale de tu dinero: va en positivo, como un abono a la tarjeta.
+        const signo = m.tipo === 'ingreso' || m.esDevolucion ? 1 : -1;
         const destino = m.prestamoId
           ? (prestamo.get(m.prestamoId) ?? 'Préstamo eliminado')
           : m.tarjetaId
@@ -33,7 +34,7 @@ export function movimientosACsv(
               : '';
         return [
           m.fecha,
-          m.tipo === 'ingreso' && m.esPago ? 'Mi pago' : TIPOS[m.tipo],
+          m.tipo === 'ingreso' && m.esPago ? 'Mi pago' : m.esDevolucion ? 'Devolución' : TIPOS[m.tipo],
           ((signo * m.montoCentavos) / 100).toFixed(2),
           m.categoriaId ? (categoria.get(m.categoriaId) ?? 'Sin categoría') : m.tipo === 'gasto' ? 'Sin categoría' : '',
           destino,

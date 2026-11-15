@@ -53,10 +53,40 @@ describe('«Ya pagué» desde un recordatorio', () => {
     expect(pagoRapido(datos(), { tipo: 'prestamo', id: 'otro', fecha: '2026-11-30' }, '2026-11-30').ok).toBe(false);
   });
 
+  it('si falta una cuota anterior, lo dice y pide abrir el pago', () => {
+    expect(pagoRapido(datos(), { tipo: 'prestamo', id: 'p1', fecha: '2026-12-30' }, '2026-12-30')).toEqual({
+      ok: false,
+      motivo: 'Falta la cuota de Personal del 30 nov.',
+      abrirPago: true,
+    });
+  });
+
+  it('«Pagué el mínimo» registra el mínimo del estado de cuenta', () => {
+    const conMinimo: Tarjeta = {
+      ...tarjeta,
+      fechaSaldo: '2026-10-20',
+      ultimoEstado: { fechaCorte: '2026-10-20', fechaLimite: '2026-11-15', pagoContadoCentavos: 10000, pagoMinimoCentavos: 2500, saldoCentavos: 30000 },
+    };
+    const d = { tarjetas: [conMinimo], prestamos: [], movimientos: [] };
+    const r = pagoRapido(d, { tipo: 'tarjeta', id: 't1', fecha: '2026-11-15', modo: 'minimo' }, '2026-11-14');
+    expect(r.ok && r.movimiento.montoCentavos).toBe(2500);
+    // Sin mínimo conocido, pide escribir el monto.
+    expect(pagoRapido(datos(), { tipo: 'tarjeta', id: 't1', fecha: '2026-11-15', modo: 'minimo' }, '2026-11-14')).toMatchObject({ ok: false, abrirPago: true });
+  });
+
+  it('el pago de la cuota guarda la parte de seguros', () => {
+    const conSeguro = { ...prestamo, cargosCentavos: 500, cargosBaseCentavos: 100000 };
+    const r = pagoRapido(datos([], conSeguro), { tipo: 'prestamo', id: 'p1', fecha: '2026-11-30' }, '2026-11-30');
+    expect(r.ok && r.movimiento.cargosCentavos).toBe(500);
+    expect(r.ok && r.movimiento.capitalCentavos).toBe(10000 - interesPorDias(100000, 12, 31) - 500);
+  });
+
   it('solo acepta claves de pago bien formadas', () => {
     expect(esClavePago({ tipo: 'prestamo', id: 'p1', fecha: '2026-11-30' })).toBe(true);
     expect(esClavePago({ tipo: 'gasto', id: 'p1', fecha: '2026-11-30' })).toBe(false);
     expect(esClavePago({ tipo: 'tarjeta', id: 't1', fecha: 'mañana' })).toBe(false);
     expect(esClavePago(null)).toBe(false);
+    expect(esClavePago({ tipo: 'tarjeta', id: 't1', fecha: '2026-11-15', modo: 'minimo' })).toBe(true);
+    expect(esClavePago({ tipo: 'tarjeta', id: 't1', fecha: '2026-11-15', modo: 'todo' })).toBe(false);
   });
 });

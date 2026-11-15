@@ -35,6 +35,7 @@ una versión instalable que se actualiza encima de la anterior sin borrar datos.
 | — | Ideas de apps profesionales: registrar más rápido, Inicio, deudas, análisis y widget | Hecho (1.5 a 1.9) |
 | — | Auditoría: quitar lo repetido | Hecho (1.9.2) |
 | — | Préstamos con interés por día y seguros que bajan con el saldo, «Ya pagué» en los avisos, respaldo automático en Documentos, fondo de emergencia y resumen del mes | Hecho (2.0) |
+| — | Auditoría completa: 18 errores corregidos | Hecho (2.1) |
 | — | Registrar compras desde los SMS del banco | Pendiente: hacen falta ejemplos de los mensajes |
 
 La fase 3 puede adelantarse en cuanto lleguen los PDF; no depende de las demás.

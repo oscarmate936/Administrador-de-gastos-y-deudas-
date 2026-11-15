@@ -30,7 +30,10 @@ export interface AjustesRespaldo {
  */
 export interface AjustesRespaldoAuto {
   activo: boolean;
-  /** Contraseña con la que se cifra cada respaldo automático. */
+  /**
+   * Solo en la versión 2.0: la contraseña se guardaba aquí. Ahora vive en un
+   * archivo que no va a la copia de Google (lib/respaldoAuto.ts) y se mueve sola.
+   */
   clave?: string;
   /**
    * Nombre del archivo, con una marca al azar elegida al activarlo: tras
@@ -149,12 +152,35 @@ export async function leerAjustes(base: BaseDeDatos = db): Promise<Ajustes> {
   return combinar(filas);
 }
 
+/**
+ * Lo guardado de un grupo, sin valores de tipo equivocado (de un respaldo
+ * dañado o de otra versión): si un dato no es del tipo esperado, queda el
+ * valor normal.
+ */
+export function limpiarGrupo(normal: object, valor: unknown): Record<string, unknown> {
+  if (typeof valor !== 'object' || valor === null || Array.isArray(valor)) return {};
+  const base = normal as Record<string, unknown>;
+  const limpio: Record<string, unknown> = {};
+  for (const [clave, v] of Object.entries(valor as Record<string, unknown>)) {
+    if (v === undefined || v === null) continue;
+    if (typeof v === 'number' && !Number.isFinite(v)) continue;
+    const esperado = base[clave];
+    if (esperado === undefined) {
+      // Datos opcionales (PIN, meta del fondo…): solo valores simples o listas.
+      if (['string', 'number', 'boolean'].includes(typeof v) || Array.isArray(v)) limpio[clave] = v;
+      continue;
+    }
+    if (Array.isArray(esperado) ? Array.isArray(v) : typeof v === typeof esperado) limpio[clave] = v;
+  }
+  return limpio;
+}
+
 function combinar(filas: Array<{ id: string; valor: unknown }>): Ajustes {
   const ajustes = structuredClone(AJUSTES_INICIALES);
   for (const f of filas) {
-    if (f.id in ajustes && typeof f.valor === 'object' && f.valor !== null) {
+    if (f.id in ajustes) {
       const clave = f.id as ClaveAjuste;
-      Object.assign(ajustes[clave], f.valor);
+      Object.assign(ajustes[clave], limpiarGrupo(AJUSTES_INICIALES[clave], f.valor));
     }
   }
   return ajustes;

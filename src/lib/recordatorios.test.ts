@@ -84,6 +84,16 @@ describe('recordatorios', () => {
     expect(proximo.every((r) => r.pagar && !r.pagoDirecto)).toBe(true);
   });
 
+  it('con el mínimo conocido, el aviso de la tarjeta ofrece «Pagué el mínimo»', () => {
+    const conMinimo: Tarjeta = {
+      ...tarjeta,
+      fechaSaldo: '2026-10-20',
+      ultimoEstado: { fechaCorte: '2026-10-20', fechaLimite: '2026-11-15', pagoContadoCentavos: 10000, pagoMinimoCentavos: 2500, saldoCentavos: 30000 },
+    };
+    const lista = generarRecordatorios({ tarjetas: [conMinimo], prestamos: [], movimientos: [], ajustes }, ahora);
+    expect(lista.find((r) => r.clave === 'tarjeta:t1:pago:2026-11-15:2')?.pagoDirecto).toEqual({ tipo: 'tarjeta', id: 't1', fecha: '2026-11-15', conMinimo: true });
+  });
+
   it('cada mes pide actualizar el préstamo con el banco, salvo si se hizo hace poco', () => {
     const sin = { ...ajustes, recordatorios: { ...ajustes.recordatorios, respaldo: false, pagos: false } };
     const lista = generarRecordatorios({ tarjetas: [], prestamos: [prestamo], movimientos: [], ajustes: sin }, ahora);

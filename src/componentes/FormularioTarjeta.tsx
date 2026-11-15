@@ -76,7 +76,20 @@ export function FormularioTarjeta({ tarjeta, cantidad, alCerrar }: Props) {
     if (!tarjeta) return;
     const mensaje = `¿Eliminar la tarjeta "${tarjeta.nombre}"? Sus compras y pagos se conservan en Movimientos.`;
     if (!window.confirm(mensaje)) return;
-    await db.tarjetas.delete(tarjeta.id);
+    // Los gastos que se repiten con esta tarjeta no pueden seguir usándola.
+    const repiten = await db.recurrentes.filter((r) => r.tarjetaId === tarjeta.id).toArray();
+    const aEfectivo =
+      repiten.length > 0 &&
+      window.confirm(
+        `${repiten.length === 1 ? 'Un gasto que se repite usa' : `${repiten.length} gastos que se repiten usan`} esta tarjeta. ` +
+          '¿Pasarlos a efectivo? Si eliges Cancelar, se pausan.',
+      );
+    await db.transaction('rw', db.tarjetas, db.recurrentes, async () => {
+      await db.tarjetas.delete(tarjeta.id);
+      for (const r of repiten) {
+        await db.recurrentes.update(r.id, aEfectivo ? { tarjetaId: undefined } : { activo: false });
+      }
+    });
     alCerrar();
   }
 

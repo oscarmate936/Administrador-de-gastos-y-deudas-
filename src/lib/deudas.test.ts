@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { calcularDisponible } from './resumen';
 import type { Movimiento, Prestamo, Tarjeta } from '../db';
 import {
   ahorroDelAbono,
@@ -6,6 +7,8 @@ import {
   ajustarPrestamo,
   capitalDelPago,
   capitalSugerido,
+  contarCuotas,
+  desglosePago,
   inicioSegunDesglose,
   interesPorDias,
   cortesFacturados,
@@ -89,6 +92,25 @@ describe('estadoTarjeta', () => {
   const compra = mov({ tipo: 'gasto', montoCentavos: 6000, fecha: '2026-11-18', tarjetaId: 't1' });
   const enCuotas = mov({ tipo: 'gasto', montoCentavos: 12000, fecha: '2026-11-21', tarjetaId: 't1', cuotas: 3 });
   const deOtraTarjeta = mov({ tipo: 'gasto', montoCentavos: 99999, fecha: '2026-11-18', tarjetaId: 't2' });
+
+  it('si pasa el último día de pago sin pagar el total, suma los intereses estimados', () => {
+    const conTasa = { ...tarjeta, tasaAnual: 36 };
+    // Antes del 15 nov no hay intereses; después, 3% de lo pendiente ($100).
+    expect(estadoTarjeta(conTasa, [], '2026-11-14').interesEstimadoCentavos).toBe(0);
+    const e = estadoTarjeta(conTasa, [], '2026-11-16');
+    expect(e.interesEstimadoCentavos).toBe(300);
+    expect(e.deudaTotalCentavos).toBe(30000 + 300);
+    // Sin tasa no se puede estimar; pagado el total, no hay intereses.
+    expect(estadoTarjeta(tarjeta, [], '2026-11-16').interesEstimadoCentavos).toBe(0);
+    expect(estadoTarjeta(conTasa, [pago], '2026-11-16').interesEstimadoCentavos).toBe(0);
+  });
+
+  it('una devolución baja la deuda de la tarjeta pero no el dinero disponible', () => {
+    const devolucion = mov({ tipo: 'pago', montoCentavos: 2000, fecha: '2026-11-14', tarjetaId: 't1', esDevolucion: true });
+    expect(estadoTarjeta(tarjeta, [devolucion], '2026-11-15').saldoCentavos).toBe(28000);
+    expect(calcularDisponible([devolucion])).toBe(0);
+    expect(calcularDisponible([pago])).toBe(-10000);
+  });
 
   it('recién registrada usa el pendiente que dijo la persona', () => {
     const e = estadoTarjeta(tarjeta, [deOtraTarjeta], '2026-11-13');
@@ -251,6 +273,43 @@ describe('préstamos', () => {
     expect(estadoPrestamo(prestamo, [temprano, extra], '2026-12-06').inicioPeriodo).toBe('2026-11-20');
     // El último pago al banco, si se conoce, manda sobre el mes anterior.
     expect(estadoPrestamo({ ...prestamo, inicioPeriodo: '2026-10-19' }, [], '2026-11-13').inicioPeriodo).toBe('2026-10-19');
+  });
+
+  it('al actualizar sin desglose ni pagos anotados, no cobra meses de interés de golpe', () => {
+    const p: Prestamo = { ...prestamo, saldoInicialCentavos: 431520, tasaAnual: 8.25, cuotaCentavos: 6600, cargosCentavos: 640, cargosBaseCentavos: 431520, primeraCuota: '2026-12-03', inicioPeriodo: '2026-10-22' };
+    const act = ajustarPrestamo(p, [], '2027-01-10', { saldoCentavos: 429000, cuotaCentavos: 6600, tasaAnual: 8.25, proximaFecha: '2027-02-03', cargosCentavos: 640 });
+    expect(act.inicioPeriodo).toBe('2027-01-03');
+    const e = estadoPrestamo(act, [], '2027-01-10');
+    expect(e.inicioPeriodo).toBe('2027-01-03');
+    expect(e.proyeccion).not.toBeNull();
+    // Un pago al banco que no se anotó: manda la fecha del banco, no el último pago anotado.
+    const viejo = mov({ tipo: 'pago', montoCentavos: 6600, fecha: '2026-12-03', prestamoId: 'p1', capitalCentavos: 1840 });
+    const conPago = ajustarPrestamo(p, [viejo], '2027-02-10', { saldoCentavos: 425000, proximaFecha: '2027-03-03' });
+    expect(estadoPrestamo(conPago, [viejo], '2027-02-10').inicioPeriodo).toBe('2027-02-03');
+    // Aunque quede un dato viejo guardado, un período nunca pasa de dos meses.
+    expect(estadoPrestamo({ ...p, inicioPeriodo: '2026-01-01' }, [], '2026-11-20').inicioPeriodo).toBe('2026-11-03');
+  });
+
+  it('los pagos parciales se suman hasta completar la cuota', () => {
+    const pago = (id: string, fecha: string, monto: number, capital: number) =>
+      mov({ id, tipo: 'pago', montoCentavos: monto, fecha, prestamoId: 'p1', capitalCentavos: capital });
+    // Dos mitades cuentan como una cuota.
+    const mitades = [pago('a', '2026-11-25', 5000, 4000), pago('b', '2026-11-30', 5000, 5000)];
+    expect(contarCuotas(mitades, 10000)).toMatchObject({ cuotas: 1, ultimaCompleta: '2026-11-30', parcialCentavos: 0 });
+    expect(estadoPrestamo(prestamo, mitades, '2026-12-01').proximaFecha).toBe('2026-12-30');
+    // Con una sola mitad, la cuota sigue pendiente y falta la otra mitad.
+    const una = estadoPrestamo(prestamo, mitades.slice(0, 1), '2026-11-26');
+    expect(una.proximaFecha).toBe('2026-11-30');
+    expect(una.parcialCentavos).toBe(5000);
+    expect(una.proximaCuotaCentavos).toBe(5000);
+    // El segundo pago no vuelve a cobrar los intereses que ya cubrió el primero.
+    const d = desglosePago(prestamo, una, 5000, false, '2026-11-30');
+    expect(d.interesCentavos).toBe(Math.max(0, interesPorDias(96000, 12, 31) - 1000));
+    // Un pago de casi toda la cuota (90 % o más) la completa solo; uno doble cuenta como una.
+    expect(contarCuotas([pago('c', '2026-11-30', 9500, 8500)], 10000).cuotas).toBe(1);
+    expect(contarCuotas([pago('d', '2026-11-30', 20000, 19000)], 10000).cuotas).toBe(1);
+    // Los abonos extra no cuentan como cuota.
+    expect(contarCuotas([mov({ tipo: 'pago', montoCentavos: 10000, fecha: '2026-11-30', prestamoId: 'p1', esExtra: true })], 10000).cuotas).toBe(0);
   });
 
   it('deduce el último pago a partir del desglose del banco', () => {

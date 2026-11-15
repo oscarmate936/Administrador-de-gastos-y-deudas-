@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { BANCOS } from '../datos';
-import { db, nuevoId, type Prestamo } from '../db';
-import { inicioSegunDesglose, proyectar, sumarMeses, textoDuracion } from '../lib/deudas';
+import { db, nuevoId, type Movimiento, type Prestamo } from '../db';
+import { estadoPrestamo, inicioSegunDesglose, proyectar, sumarMeses, textoDuracion } from '../lib/deudas';
 import { centavosATexto, formatearDinero, textoACentavos, textoATasa } from '../lib/dinero';
 import { aDate, aFechaTexto, esFechaValida, fechaCorta, hoy, mesCorto } from '../lib/fechas';
 import { Hoja } from './Hoja';
@@ -11,6 +11,8 @@ import { desgloseDe, type CapturaPrestamo } from '../lib/ocr/prestamo';
 
 interface Props {
   prestamo?: Prestamo;
+  /** Los pagos ya registrados, para estimar al editar un préstamo con pagos. */
+  movimientos?: Movimiento[];
   alCerrar: () => void;
   /** Pide la captura de la app del banco en cuanto se abre. */
   leerAlAbrir?: boolean;
@@ -19,7 +21,7 @@ interface Props {
 /** Vacío cuenta como 0 (tasa desconocida). */
 const leerTasa = (texto: string) => (texto.trim() === '' ? 0 : textoATasa(texto));
 
-export function FormularioPrestamo({ prestamo, alCerrar, leerAlAbrir }: Props) {
+export function FormularioPrestamo({ prestamo, movimientos = [], alCerrar, leerAlAbrir }: Props) {
   const [nombre, setNombre] = useState(prestamo?.nombre ?? '');
   const [acreedor, setAcreedor] = useState(prestamo?.acreedor ?? BANCOS[1]);
   const [original, setOriginal] = useState(
@@ -75,6 +77,20 @@ export function FormularioPrestamo({ prestamo, alCerrar, leerAlAbrir }: Props) {
         )
       : undefined;
 
+  // Al editar sin cambiar el seguro, se conserva el saldo con que lo midió el banco.
+  const cargosBase =
+    cargosCentavos && prestamo && cargosCentavos === prestamo.cargosCentavos ? (prestamo.cargosBaseCentavos ?? saldoCentavos ?? undefined) : (saldoCentavos ?? undefined);
+  // Al editar un préstamo con pagos, la estimación es la de hoy (saldo y cuota pendientes).
+  const pagosDelPrestamo = prestamo ? movimientos.filter((m) => m.tipo === 'pago' && m.prestamoId === prestamo.id) : [];
+  const estadoHoy =
+    prestamo && pagosDelPrestamo.length > 0 && saldoCentavos && cuotaCentavos && tasaAnual !== null && cargosCentavos !== null && esFechaValida(primeraCuota)
+      ? estadoPrestamo(
+          { ...prestamo, saldoInicialCentavos: saldoCentavos, cuotaCentavos, tasaAnual, cargosCentavos: cargosCentavos || undefined, cargosBaseCentavos: cargosBase, primeraCuota, inicioPeriodo },
+          pagosDelPrestamo,
+          hoy(),
+        )
+      : null;
+
   async function guardar(e: FormEvent) {
     e.preventDefault();
     const originalCentavos = original.trim() === '' ? undefined : textoACentavos(original);
@@ -96,7 +112,7 @@ export function FormularioPrestamo({ prestamo, alCerrar, leerAlAbrir }: Props) {
       tasaAnual,
       cuotaCentavos,
       cargosCentavos: cargosCentavos || undefined,
-      cargosBaseCentavos: cargosCentavos ? saldoCentavos : undefined,
+      cargosBaseCentavos: cargosCentavos ? cargosBase : undefined,
       // Con una captura, los datos son los del banco de hoy.
       actualizadoEn: captura ? hoy() : prestamo?.actualizadoEn,
       inicioPeriodo,
@@ -218,10 +234,19 @@ export function FormularioPrestamo({ prestamo, alCerrar, leerAlAbrir }: Props) {
           <span className="ayuda sin-margen">Sirve para mostrar cuánto llevas pagado.</span>
         </label>
 
-        {proyeccion === null && (
+        {estadoHoy ? (
+          estadoHoy.proyeccion && estadoHoy.fechaFin ? (
+            <p className="aviso">
+              Hoy debes {formatearDinero(estadoHoy.saldoCentavos)}: te faltan {textoDuracion(estadoHoy.proyeccion.meses)} (
+              {estadoHoy.proyeccion.meses} {estadoHoy.proyeccion.meses === 1 ? 'cuota' : 'cuotas'}) y terminas en {mesCorto(estadoHoy.fechaFin)}.
+            </p>
+          ) : estadoHoy.saldoCentavos > 0 ? (
+            <p className="aviso error">La cuota no alcanza para cubrir los intereses: con estos datos la deuda nunca baja.</p>
+          ) : null
+        ) : proyeccion === null ? (
           <p className="aviso error">La cuota no alcanza para cubrir los intereses del mes: con estos datos la deuda nunca baja.</p>
-        )}
-        {proyeccion && esFechaValida(primeraCuota) && (
+        ) : null}
+        {!estadoHoy && proyeccion && esFechaValida(primeraCuota) && (
           <p className="aviso">
             Con estos datos te faltan {textoDuracion(proyeccion.meses)} ({proyeccion.meses}{' '}
             {proyeccion.meses === 1 ? 'cuota' : 'cuotas'}): terminas en {mesCorto(sumarMeses(primeraCuota, proyeccion.meses - 1))}

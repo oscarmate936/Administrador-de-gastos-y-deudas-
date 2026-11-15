@@ -15,6 +15,8 @@ export interface FilaImportar {
   duplicado: boolean;
   /** Fecha del movimiento ya registrado, si no es la misma del estado de cuenta. */
   registradoEl?: string;
+  /** Abono que no es un pago tuyo (devolución o reverso del comercio). */
+  devolucion: boolean;
   categoriaId?: string;
 }
 
@@ -86,10 +88,19 @@ export function prepararFilas(
       mov,
       duplicado,
       registradoEl: cercano?.fecha,
+      devolucion: esDevolucion(mov),
       incluir: mov.tipo === 'cargo' && !duplicado,
       categoriaId: sugerida && categoriasExistentes.has(sugerida) ? sugerida : undefined,
     };
   });
+}
+
+/** Un abono del estado de cuenta que no es un pago: devolución, reverso o crédito del comercio. */
+export function esDevolucion(mov: MovimientoEstado): boolean {
+  if (mov.tipo !== 'abono') return false;
+  const t = normalizar(mov.concepto);
+  if (/\bPAGO|\bABONO|DEPOSITO|TRANSFERENCIA|SU PAGO|BANCA|\bPAG\b/.test(t)) return false;
+  return /DEVOLUCION|REVERS|REEMBOLSO|CREDITO|NOTA DE CREDITO|ANULACION|CASHBACK|BONIFICACION/.test(t);
 }
 
 /** "Mastercard Clasica ···1234" */
@@ -151,6 +162,7 @@ export function movimientosDesdeFilas(filas: FilaImportar[], tarjetaId: string, 
       fecha: f.mov.fecha,
       categoriaId: f.mov.tipo === 'cargo' ? f.categoriaId : undefined,
       tarjetaId,
+      esDevolucion: f.devolucion || undefined,
       nota: f.mov.concepto.slice(0, 80),
       creadoEn: ahora + i,
     }));

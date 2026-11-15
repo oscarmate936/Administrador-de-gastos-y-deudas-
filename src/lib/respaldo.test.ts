@@ -80,6 +80,19 @@ describe('respaldo', () => {
     expect(JSON.stringify(respaldo)).not.toContain('secreta');
   });
 
+  it('un dato repetido en el archivo no impide restaurarlo', async () => {
+    const origen = nuevaBase();
+    const texto = await textoRespaldo(await crearRespaldo(origen));
+    const datos = JSON.parse(texto);
+    const m = { id: 'x', tipo: 'gasto', montoCentavos: 100, fecha: '2026-11-01', nota: 'a', creadoEn: 1 };
+    datos.movimientos = [m, { ...m, nota: 'b' }];
+    const respaldo = leerRespaldo(JSON.stringify(datos));
+    expect(respaldo.movimientos.map((x) => x.nota)).toEqual(['b']);
+    const destino = nuevaBase();
+    await restaurarRespaldo(destino, respaldo);
+    expect(await destino.movimientos.count()).toBe(1);
+  });
+
   it('un respaldo con contraseña se reconoce y se abre con ella', async () => {
     const db = nuevaBase();
     const texto = await textoRespaldo(await crearRespaldo(db), 'mi clave');

@@ -196,8 +196,8 @@ export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
             </ul>
             {cargos > 0 && (
               <p className="ayuda sin-margen">
-                Los préstamos aparecen sin seguros ni otros cargos. Esos {formatearDinero(cargos)} al mes los pagas además, junto con
-                la cuota.
+                La cuota de tus préstamos incluye {formatearDinero(cargos)} de seguros y otros cargos este mes. Esa parte no baja la
+                deuda, pero va bajando junto con el saldo.
               </p>
             )}
           </section>

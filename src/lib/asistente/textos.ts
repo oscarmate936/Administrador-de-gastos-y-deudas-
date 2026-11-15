@@ -27,6 +27,12 @@ export function extraerFecha(t: string, hoy: string): Fragmento<string> | null {
   if (m) return { valor: sumarDias(hoy, -1), resto: quitar(m) };
   m = /\bHOY\b/.exec(t);
   if (m) return { valor: hoy, resto: quitar(m) };
+  // "hace 2 días", "hace una semana"
+  m = new RegExp(`\\bHACE\\s+(\\d{1,2}|${Object.keys(NUMEROS).join('|')}|UNA)\\s+(DIAS?|SEMANAS?)\\b`).exec(t);
+  if (m) {
+    const n = /^\d+$/.test(m[1]) ? Number(m[1]) : m[1] === 'UNA' ? 1 : NUMEROS[m[1]];
+    return { valor: sumarDias(hoy, -n * (m[2].startsWith('SEMANA') ? 7 : 1)), resto: quitar(m) };
+  }
   m = new RegExp(`\\b(?:EL\\s+)?(${DIAS_SEMANA.join('|')})(?:\\s+PASADO)?\\b`).exec(t);
   if (m) {
     const objetivo = DIAS_SEMANA.indexOf(m[1]);
@@ -60,10 +66,12 @@ export function extraerFecha(t: string, hoy: string): Fragmento<string> | null {
 /** Primer monto de la frase: "12.50", "12,50", "$12", "1,250.75", "20 dolares", "veinte dolares". */
 export function extraerMonto(t: string): Fragmento<number> | null {
   const sinTarjeta = t.replace(/\bTERMINADA EN \d{4}\b/g, ' ');
-  let m = /\$?\s?\b(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[.,]\d{1,2})?)\b(?:\s*(?:DOLARES|DOLAR|USD|PESOS))?/.exec(sinTarjeta);
+  // "1.500" (punto y tres cifras) son miles, como "1,500".
+  let m = /\$?\s?\b(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)\b(?:\s*(?:DOLARES|DOLAR|USD|PESOS))?/.exec(sinTarjeta);
   if (m) {
     let num = m[1];
-    if (/^\d+,\d{1,2}$/.test(num)) num = num.replace(',', '.');
+    if (/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(num)) num = num.replace(/\./g, '').replace(',', '.');
+    else if (/^\d+,\d{1,2}$/.test(num)) num = num.replace(',', '.');
     num = num.replace(/,/g, '');
     const [ent, dec = ''] = num.split('.');
     const centavos = Number(ent) * 100 + Number(dec.padEnd(2, '0') || '0');

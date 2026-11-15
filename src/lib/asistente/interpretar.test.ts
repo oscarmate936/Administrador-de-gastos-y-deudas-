@@ -74,6 +74,28 @@ describe('piezas', () => {
   });
 });
 
+describe('frases que antes se leían mal', () => {
+  it('«1.500» son mil quinientos, no un dólar', () => {
+    expect(extraerMonto('GASTE 1.500 EN LA RENTA')?.valor).toBe(150000);
+    expect(extraerMonto('GASTE 12.500,50')?.valor).toBe(1250050);
+    expect(extraerMonto('GASTE 1.50')?.valor).toBe(150);
+    expect(extraerMonto('GASTE 1,500')?.valor).toBe(150000);
+  });
+  it('«hace 2 días» y «hace una semana» ponen la fecha y no ensucian la nota', () => {
+    expect(extraerFecha('GASTE 20 HACE 2 DIAS', HOY)?.valor).toBe('2026-11-11');
+    expect(extraerFecha('GASTE 20 HACE UNA SEMANA', HOY)?.valor).toBe('2026-11-06');
+    expect(extraerFecha('GASTE 20 HACE TRES DIAS', HOY)?.valor).toBe('2026-11-10');
+    const r = interpretar('gaste 20 en gasolina hace 2 dias', datos, HOY);
+    expect(r).toMatchObject({ tipo: 'gasto', montoCentavos: 2000, fecha: '2026-11-11', categoriaId: 'transporte', nota: 'gasolina' });
+  });
+  it('conserva la nota aunque el monto vaya después', () => {
+    expect(interpretar('compré pupusas por 4.50 ayer', datos, HOY)).toMatchObject({
+      tipo: 'gasto', montoCentavos: 450, fecha: '2026-11-12', categoriaId: 'comida', nota: 'pupusas',
+    });
+    expect(interpretar('compré unos tamales por 3', datos, HOY)).toMatchObject({ categoriaId: 'comida', nota: 'tamales' });
+  });
+});
+
 describe('registrar', () => {
   it('gasto con categoría, tarjeta y fecha', () => {
     expect(leer('Gasté 12.50 en almuerzo con la Visa ayer')).toEqual({

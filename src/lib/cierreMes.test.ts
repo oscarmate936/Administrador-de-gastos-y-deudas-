@@ -8,7 +8,9 @@ const categorias: Categoria[] = [
   { id: 'comida', nombre: 'Comida', emoji: '', color: '#000', orden: 1 },
   { id: 'super', nombre: 'Supermercado', emoji: '', color: '#000', orden: 2 },
 ] as Categoria[];
-const foto = (mes: string, deuda: number): Foto => ({ mes, fecha: `${mes}-28`, disponibleCentavos: 0, deudaTotalCentavos: deuda, deudas: [] });
+const foto = (mes: string, deuda: number, deudas: Foto['deudas'] = [{ tipo: 'tarjeta', id: 't1', nombre: 'Visa', saldoCentavos: deuda }]): Foto => ({
+  mes, fecha: `${mes}-28`, disponibleCentavos: 0, deudaTotalCentavos: deuda, deudas,
+});
 
 describe('resumen del mes que terminó', () => {
   const movimientos = [
@@ -30,9 +32,23 @@ describe('resumen del mes que terminó', () => {
       // La compra con tarjeta no sale del disponible: 900 − 120 − 250.
       sobroCentavos: 53000,
       bajoDeudaCentavos: 20000,
+      nuevas: [],
       mayor: { nombre: 'Comida', totalCentavos: 12000, porcentaje: 60 },
       contraAnteriorCentavos: -10000,
     });
+  });
+
+  it('una deuda que se agregó en el mes no cuenta como que la deuda subió', () => {
+    const historial = [
+      foto('2026-09', 300000),
+      foto('2026-10', 711520, [
+        { tipo: 'tarjeta', id: 't1', nombre: 'Visa', saldoCentavos: 280000 },
+        { tipo: 'prestamo', id: 'p1', nombre: 'Préstamo BAC', saldoCentavos: 431520 },
+      ]),
+    ];
+    const c = cierreDelMes({ movimientos, categorias, historial }, '2026-10')!;
+    expect(c.bajoDeudaCentavos).toBe(20000);
+    expect(c.nuevas).toEqual([{ nombre: 'Préstamo BAC', saldoCentavos: 431520 }]);
   });
 
   it('sin fotos de los dos meses no inventa cuánto bajó la deuda; sin movimientos no hay resumen', () => {

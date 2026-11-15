@@ -14,7 +14,7 @@ import { DIAS_A_APARTAR, calcularLibre, moverFondo, sugerirMeta } from '../lib/f
 import { cierreDelMes, mesParaResumen, type CierreMes } from '../lib/cierreMes';
 import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
 import { aDate, diasEntre, fechaCorta, hoy, mesDe, moverMes as moverMesInicio, nombreMes, sumarDias, textoFaltan } from '../lib/fechas';
-import { ordenarRecientes } from '../lib/resumen';
+import { esPagoDeDeuda, ordenarRecientes } from '../lib/resumen';
 import { calcularRitmo, type Ritmo } from '../lib/ritmo';
 import { estadoLimites } from '../lib/limites';
 import { omitirRecurrente, pendientes, registrarRecurrente } from '../lib/recurrentes';
@@ -104,7 +104,7 @@ export function Inicio(props: Props) {
   const suma = (lista: Movimiento[]) => lista.reduce((t, m) => t + m.montoCentavos, 0);
   const entro = suma(delMes.filter((m) => m.tipo === 'ingreso'));
   const gastado = suma(delMes.filter((m) => m.tipo === 'gasto'));
-  const aDeudas = suma(delMes.filter((m) => m.tipo === 'pago'));
+  const aDeudas = suma(delMes.filter(esPagoDeDeuda));
 
   const hayAtencion = atender.length > 0 || porConfirmar.length > 0 || limites.length > 0 || pedirRespaldo;
   const semana = agenda(datos, fechaHoy, sumarDias(fechaHoy, DIAS_SEMANA - 1), fechaHoy);
@@ -184,7 +184,7 @@ export function Inicio(props: Props) {
                 <span className="fila-texto">
                   <span className="fila-titulo">Haz un respaldo</span>
                   <span className="fila-detalle envolver">
-                    {diasSinRespaldo === null ? 'Tus datos solo están en este celular.' : `Tu último respaldo fue hace ${diasSinRespaldo} días.`}
+                    {diasSinRespaldo === null ? 'Aún no tienes una copia fuera del celular.' : `Tu último respaldo fue hace ${diasSinRespaldo} días.`}
                   </span>
                 </span>
                 <span className="opcion-flecha" aria-hidden="true">
@@ -768,6 +768,9 @@ function ResumenCierre({ cierre: c, alVerAnalisis }: { cierre: CierreMes; alVerA
         ? `Tus deudas bajaron ${formatearDinero(c.bajoDeudaCentavos)}.`
         : `Tus deudas subieron ${formatearDinero(-c.bajoDeudaCentavos)}.`,
     );
+  }
+  if (c.nuevas.length > 0) {
+    lineas.push(`Agregaste ${c.nuevas.map((d) => `${d.nombre} (${formatearDinero(d.saldoCentavos)})`).join(' y ')}; no cuenta como deuda nueva.`);
   }
   if (c.mayor) lineas.push(`En lo que más gastaste: ${c.mayor.nombre}, ${formatearDinero(c.mayor.totalCentavos)} (${c.mayor.porcentaje}%).`);
   if (c.contraAnteriorCentavos !== null && Math.abs(c.contraAnteriorCentavos) >= 500) {

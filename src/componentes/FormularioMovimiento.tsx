@@ -4,7 +4,7 @@ import type { Borrador } from '../datos';
 import { evaluarMonto } from '../lib/calculo';
 import { centavosATexto, formatearDinero } from '../lib/dinero';
 import { notasRecientes, ordenarPorUso, recordarComercio } from '../lib/frecuentes';
-import { esFechaValida, hoy } from '../lib/fechas';
+import { esFechaValida, fechaCorta, hoy } from '../lib/fechas';
 import { primeraFecha } from '../lib/recurrentes';
 import { sugerirCategoria } from '../lib/estados/categorias';
 import { marcarSalidaPropia } from '../lib/nativo';
@@ -158,6 +158,13 @@ export function FormularioMovimiento(props: Props) {
     if (!esFechaValida(fecha)) {
       setError('Elige una fecha válida.');
       return;
+    }
+    if (fecha > hoy()) {
+      if (tipo === 'ingreso') {
+        setError('Registra el ingreso cuando lo recibas: la fecha no puede ser futura.');
+        return;
+      }
+      if (!window.confirm(`La fecha es futura (${fechaCorta(fecha)}). El gasto contará desde ya. ¿Guardarlo así?`)) return;
     }
     const conTarjeta = tipo === 'gasto' && tarjetaId !== undefined;
     const numCuotas = Number(cuotas);

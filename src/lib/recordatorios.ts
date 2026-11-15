@@ -80,13 +80,14 @@ export function generarRecordatorios(e: Entrada, ahora: Date, horizonte = HORIZO
 
     if (r.pagos && est.pendienteCentavos > 0) {
       const minimo = est.pagoMinimoCentavos ? ` · mínimo ${formatearDinero(est.pagoMinimoCentavos)}` : '';
+      const conMinimo = !!est.pagoMinimoCentavos && est.pagoMinimoCentavos < est.pendienteCentavos;
       for (const dias of r.diasTarjeta) {
         agregar(`tarjeta:${t.id}:pago:${est.fechaLimite}:${dias}`, sumarDias(est.fechaLimite, -dias), {
           titulo: dias === 0 ? `Hoy es el último día para pagar ${t.nombre}` : `Pago de ${t.nombre} ${cuandoFalta(dias)}`,
           cuerpo: `Pago de contado: ${formatearDinero(est.pendienteCentavos)}${minimo}. Último día: ${fechaCorta(est.fechaLimite)}.`,
           destino,
           pagar: true,
-          pagoDirecto: { tipo: 'tarjeta', id: t.id, fecha: est.fechaLimite },
+          pagoDirecto: { tipo: 'tarjeta', id: t.id, fecha: est.fechaLimite, conMinimo: conMinimo || undefined },
         });
       }
       const vence = est.vencido ? sumarDias(hoy, 1) : sumarDias(est.fechaLimite, 1);
@@ -95,7 +96,7 @@ export function generarRecordatorios(e: Entrada, ahora: Date, horizonte = HORIZO
         cuerpo: 'Paga cuanto antes para evitar intereses y cargos por mora.',
         destino,
         pagar: true,
-        pagoDirecto: { tipo: 'tarjeta', id: t.id, fecha: est.fechaLimite },
+        pagoDirecto: { tipo: 'tarjeta', id: t.id, fecha: est.fechaLimite, conMinimo: conMinimo || undefined },
       });
     }
     if (r.pagos && est.proximoEstadoCentavos > 0) {
@@ -186,7 +187,7 @@ export function generarRecordatorios(e: Entrada, ahora: Date, horizonte = HORIZO
     for (let i = 0; i < 9; i++, fecha = sumarDias(fecha, cada)) {
       agregar(`respaldo:${fecha}`, fecha, {
         titulo: 'Haz un respaldo de tus finanzas',
-        cuerpo: 'Tus datos solo están en este celular. Toca para guardar una copia en Drive o en otro lugar.',
+        cuerpo: 'Si pierdes el celular, puedes perder tus datos. Toca para guardar una copia en Drive o en otro lugar.',
         destino: { tipo: 'ajustes' },
       });
     }

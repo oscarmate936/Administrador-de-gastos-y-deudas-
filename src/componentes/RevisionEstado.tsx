@@ -214,7 +214,7 @@ export function RevisionEstado({ estado, datos, tarjetaPreferida, alCerrar, alGu
                     <span className="fila-titulo">{f.mov.concepto || (f.mov.tipo === 'cargo' ? 'Cargo' : 'Abono')}</span>
                     <span className="fila-detalle">
                       {fechaCorta(f.mov.fecha)}
-                      {f.mov.tipo === 'abono' && ' · pago a la tarjeta'}
+                      {f.mov.tipo === 'abono' && (f.devolucion ? ' · devolución: no baja tu dinero' : ' · pago a la tarjeta')}
                       {f.duplicado && (f.registradoEl ? ` · ya registrado el ${fechaCorta(f.registradoEl)}` : ' · ya registrado')}
                     </span>
                   </span>
