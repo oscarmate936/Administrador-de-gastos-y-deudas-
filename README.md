@@ -27,9 +27,9 @@ no hay servidor ni cuentas.
 ## Qué hace
 
 **Día a día**
-- Sueldo mensual o quincenal (con su día de pago), otros ingresos y gastos por categoría.
+- Sueldo mensual o quincenal, con día fijo o sin él («llega del 18 al 22»), otros ingresos y gastos por categoría.
 - «Tu sueldo»: de cada sueldo se apartan las deudas que vencen antes del siguiente
-  (el total o el mínimo de cada tarjeta) y el bono de comida; se ve cuánto llevas de
+  (el total, lo recomendado o el mínimo de cada tarjeta; lo recomendado cubre los intereses y las cuotas a plazos) y el bono de comida; se ve cuánto llevas de
   cada apartado y lo que queda para lo demás.
 - Gastos que se repiten cada mes, propuestos en Inicio para confirmar.
 - Límites de gasto por categoría con avisos al 80% y al 100%.

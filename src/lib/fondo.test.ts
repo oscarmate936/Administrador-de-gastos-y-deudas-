@@ -40,7 +40,8 @@ describe('pagar el total o solo el mínimo de una tarjeta', () => {
   };
 
   it('da el monto de cada forma de pago', () => {
-    expect(apartadoPorForma(tarjeta, [], '2026-11-15', '2026-11-30')).toEqual({ totalCentavos: 200000, minimoCentavos: 8000, minimoAprox: false });
+    // Recomendado: el mayor entre el mínimo ($80) y los intereses del mes más el 1 % ($50 + $20).
+    expect(apartadoPorForma(tarjeta, [], '2026-11-15', '2026-11-30')).toEqual({ totalCentavos: 200000, recomendadoCentavos: 8000, minimoCentavos: 8000, minimoAprox: false });
   });
 
 });

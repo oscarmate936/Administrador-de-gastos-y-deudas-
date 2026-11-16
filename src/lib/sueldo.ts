@@ -1,7 +1,7 @@
 import type { Movimiento, Prestamo, Tarjeta } from '../db';
 import type { AjustesSueldo } from './ajustes';
 import { fechaConDia, primerDiaDespues, proximosPagos, ultimoDiaHasta, type ProximoPago } from './deudas';
-import { aDate, diasEntre, sumarDias } from './fechas';
+import { aDate, diasEntre, fechaCorta, sumarDias } from './fechas';
 import { calcularDisponible, esPagoDeDeuda } from './resumen';
 
 // Tu sueldo y en qué se va: de cada sueldo se apartan las deudas que vencen
@@ -20,17 +20,29 @@ export function diasDePago(s: Pick<AjustesSueldo, 'frecuencia' | 'dia'>, diaSuge
 export interface Periodo {
   /** Desde el sueldo que se está usando (o el día en que tocaba). */
   desde: string;
-  /** El día del próximo sueldo (no incluido en el periodo). */
+  /** El día del próximo sueldo, o el primero en que puede llegar (no incluido en el periodo). */
   hasta: string;
+  /** Si el pago no tiene día fijo: el último día en que puede llegar el próximo sueldo. */
+  hastaMax?: string;
   /** El sueldo registrado en este periodo; undefined si todavía no se registra. */
   sueldo?: Movimiento;
+  /** Ya empezaron los días en que llega el sueldo y todavía no se registra. */
+  esperando?: boolean;
 }
+
+/** Cuándo llega el próximo sueldo: «el 18 dic» o, sin día fijo, «del 18 al 22 dic». */
+export const cuandoLlega = (p: Periodo): string =>
+  p.hastaMax ? `del ${aDate(p.hasta).getDate()} al ${fechaCorta(p.hastaMax)}` : `el ${fechaCorta(p.hasta)}`;
+
+/** «tu sueldo del 18 dic» o, sin día fijo, «tu sueldo (llega del 18 al 22 dic)». */
+export const textoProximoSueldo = (p: Periodo): string =>
+  p.hastaMax ? `tu sueldo (llega ${cuandoLlega(p)})` : `tu sueldo del ${fechaCorta(p.hasta)}`;
 
 /** Un sueldo se acepta como del periodo aunque llegue hasta una semana antes. */
 const DIAS_DE_ADELANTO = 7;
 
 /** El periodo de sueldo en que cae `hoy`: del último sueldo al siguiente. */
-export function periodoDelSueldo(movimientos: Movimiento[], hoy: string, s: Pick<AjustesSueldo, 'frecuencia' | 'dia'>): Periodo {
+export function periodoDelSueldo(movimientos: Movimiento[], hoy: string, s: Pick<AjustesSueldo, 'frecuencia' | 'dia' | 'diaHasta'>): Periodo {
   const sueldos = movimientos.filter((m) => m.tipo === 'ingreso' && m.esPago && m.fecha <= hoy);
   const ultimo = sueldos.reduce<Movimiento | undefined>(
     (a, m) => (!a || m.fecha > a.fecha || (m.fecha === a.fecha && m.creadoEn > a.creadoEn) ? m : a),
@@ -40,12 +52,27 @@ export function periodoDelSueldo(movimientos: Movimiento[], hoy: string, s: Pick
   const anterior = (f: string) => dias.map((d) => ultimoDiaHasta(d, f)).reduce((a, b) => (a > b ? a : b));
   const siguiente = (f: string) => dias.map((d) => primerDiaDespues(d, f)).reduce((a, b) => (a < b ? a : b));
 
+  // Sin día fijo (solo mensual): el sueldo llega entre dias[0] y diaHasta.
+  const rango = s.frecuencia !== 'quincenal' && s.diaHasta !== undefined && s.diaHasta > dias[0] ? Math.min(31, s.diaHasta) : undefined;
+  const finDeVentana = (inicio: string) => {
+    const d = aDate(inicio);
+    return rango ? fechaConDia(d.getFullYear(), d.getMonth(), rango) : undefined;
+  };
+
   const tocaba = anterior(hoy);
   const conSueldo = ultimo && ultimo.fecha >= sumarDias(tocaba, -DIAS_DE_ADELANTO);
-  const desde = conSueldo ? ultimo.fecha : tocaba;
-  // Si el sueldo llegó unos días antes de la fecha, el siguiente es el de la fecha que sigue a esa.
-  const hasta = siguiente(desde > tocaba ? sumarDias(desde, DIAS_DE_ADELANTO) : hoy);
-  return { desde, hasta, sueldo: conSueldo ? ultimo : undefined };
+  if (conSueldo) {
+    // Si el sueldo llegó unos días antes de la fecha, el siguiente es el de la fecha que sigue a esa.
+    const hasta = siguiente(ultimo.fecha > tocaba ? sumarDias(ultimo.fecha, DIAS_DE_ADELANTO) : hoy);
+    return { desde: ultimo.fecha, hasta, hastaMax: finDeVentana(hasta), sueldo: ultimo };
+  }
+  // Ya empezaron los días del sueldo y no ha llegado: se sigue con el sueldo anterior hasta el último día posible.
+  const fin = finDeVentana(tocaba);
+  if (fin && hoy < fin && ultimo && ultimo.fecha >= sumarDias(anterior(sumarDias(tocaba, -1)), -DIAS_DE_ADELANTO)) {
+    return { desde: ultimo.fecha, hasta: tocaba, hastaMax: fin, sueldo: ultimo, esperando: true };
+  }
+  const hasta = siguiente(hoy);
+  return { desde: tocaba, hasta, hastaMax: finDeVentana(hasta), sueldo: undefined };
 }
 
 export interface PlanSueldo {
@@ -142,7 +169,8 @@ export function planDelSueldo(
   const salidas = suma(enPeriodo.filter((m) => esPagoDeDeuda(m) || (m.tipo === 'gasto' && m.tarjetaId === undefined)));
   const fondo = Math.max(0, opciones.fondoCentavos ?? 0);
   const libre = disponible - faltaCentavos - (comida?.apartadoCentavos ?? 0) - fondo;
-  const diasRestantes = Math.max(1, diasEntre(hoy, periodo.hasta));
+  // Esperando un sueldo sin día fijo: lo que queda se reparte hasta el último día en que puede llegar.
+  const diasRestantes = Math.max(1, diasEntre(hoy, periodo.esperando && periodo.hastaMax ? periodo.hastaMax : periodo.hasta));
   return {
     periodo,
     ingresosCentavos: ingresos,

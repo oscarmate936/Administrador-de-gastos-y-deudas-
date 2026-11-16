@@ -48,6 +48,7 @@ export function FormularioPago(props: Props) {
     if (ePrestamo && !extraInicial && ePrestamo.proximaCuotaCentavos > 0) return centavosATexto(ePrestamo.proximaCuotaCentavos);
     // La tarjeta que se paga con el mínimo propone el mínimo; las demás, el pago de contado.
     if (eTarjeta && tarjeta?.formaPago === 'minimo' && eTarjeta.minimoPendienteCentavos > 0) return centavosATexto(eTarjeta.minimoPendienteCentavos);
+    if (eTarjeta && tarjeta?.formaPago === 'recomendado' && eTarjeta.recomendadoPendienteCentavos > 0) return centavosATexto(eTarjeta.recomendadoPendienteCentavos);
     if (eTarjeta && eTarjeta.pendienteCentavos > 0) return centavosATexto(eTarjeta.pendienteCentavos);
     return '';
   });
@@ -214,6 +215,13 @@ export function FormularioPago(props: Props) {
                 {eTarjeta.minimoEsEstimado ? 'Mínimo aprox.' : 'Pago mínimo'} {formatearDinero(eTarjeta.minimoPendienteCentavos)}
               </button>
             )}
+            {eTarjeta.recomendadoAparte &&
+              eTarjeta.recomendadoPendienteCentavos > eTarjeta.minimoPendienteCentavos &&
+              eTarjeta.recomendadoPendienteCentavos < eTarjeta.pendienteCentavos && (
+                <button type="button" className="chip" onClick={() => cambiarMonto(centavosATexto(eTarjeta.recomendadoPendienteCentavos))}>
+                  Recomendado {formatearDinero(eTarjeta.recomendadoPendienteCentavos)}
+                </button>
+              )}
             {eTarjeta.pendienteCentavos > 0 && (
               <button type="button" className="chip" onClick={() => cambiarMonto(centavosATexto(eTarjeta.pendienteCentavos))}>
                 Pago de contado {formatearDinero(eTarjeta.pendienteCentavos)}

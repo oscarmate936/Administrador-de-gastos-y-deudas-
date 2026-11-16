@@ -4,6 +4,7 @@ import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { IconoAnterior } from '../componentes/Iconos';
 import { Plastico, conLimite } from './Deudas';
 import { Ayuda } from '../componentes/Ayuda';
+import { AYUDA_FORMA, SegmentosForma } from '../componentes/FormaDePago';
 import { estadoTarjeta, sumarMeses } from '../lib/deudas';
 import { formatearDinero } from '../lib/dinero';
 import { fechaCorta, hoy, mesCorto, textoFaltan } from '../lib/fechas';
@@ -98,6 +99,12 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
               {e.pendienteCentavos > 0 ? formatearDinero(e.pendienteCentavos) : 'Pagado'}
             </dd>
           </div>
+          {e.recomendadoAparte && e.recomendadoPendienteCentavos > e.minimoPendienteCentavos && (
+            <div>
+              <dt>Pago recomendado</dt>
+              <dd>{formatearDinero(e.recomendadoPendienteCentavos)}</dd>
+            </div>
+          )}
           {(e.pendienteCentavos > 0 || e.pagoMinimoCentavos !== null) && (
             <div>
               <dt>Pago mínimo pendiente <Ayuda termino="pago mínimo" /></dt>
@@ -128,19 +135,21 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
         </dl>
         <div className="campo">
           <span>Cada mes pago</span>
-          <div className="segmentos" role="group" aria-label="Cómo pagas esta tarjeta">
-            <button type="button" aria-pressed={t.formaPago !== 'minimo'} onClick={() => void db.tarjetas.update(t.id, { formaPago: 'total' })}>
-              El total
-            </button>
-            <button type="button" aria-pressed={t.formaPago === 'minimo'} onClick={() => void db.tarjetas.update(t.id, { formaPago: 'minimo' })}>
-              El mínimo
-            </button>
-          </div>
-          <span className="ayuda sin-margen">
-            {t.formaPago === 'minimo'
-              ? 'La app aparta solo el mínimo de tu sueldo y deja de avisarte cuando lo cubres.'
-              : 'La app aparta el pago de contado de tu sueldo y te avisa hasta que lo pagues.'}
-          </span>
+          <SegmentosForma
+            valor={t.formaPago}
+            alCambiar={(formaPago) => void db.tarjetas.update(t.id, { formaPago })}
+            etiqueta="Cómo pagas esta tarjeta"
+            montos={
+              e.pendienteCentavos > 0
+                ? {
+                    total: formatearDinero(e.pendienteCentavos),
+                    recomendado: formatearDinero(e.recomendadoPendienteCentavos),
+                    minimo: formatearDinero(e.minimoPendienteCentavos),
+                  }
+                : undefined
+            }
+          />
+          <span className="ayuda sin-margen">{AYUDA_FORMA[t.formaPago ?? 'total']}</span>
         </div>
         <p className="ayuda sin-margen">
           {e.segunEstado

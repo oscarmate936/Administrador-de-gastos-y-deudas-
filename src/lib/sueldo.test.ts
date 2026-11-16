@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Movimiento, Prestamo, Tarjeta } from '../db';
 import { AJUSTES_INICIALES, type AjustesSueldo } from './ajustes';
-import { diasDePago, periodoDelSueldo, planDelSueldo } from './sueldo';
+import { diasDePago, periodoDelSueldo, planDelSueldo, textoProximoSueldo } from './sueldo';
 
 let n = 0;
 const mov = (m: Partial<Movimiento> & Pick<Movimiento, 'tipo' | 'montoCentavos' | 'fecha'>): Movimiento => ({ id: `m${n++}`, nota: '', creadoEn: n, ...m });
@@ -36,6 +36,36 @@ describe('periodo del sueldo', () => {
     const q: AjustesSueldo = { ...AJUSTES_INICIALES.sueldo, frecuencia: 'quincenal', dia: 15 };
     expect(periodoDelSueldo([], '2026-11-20', q)).toMatchObject({ desde: '2026-11-15', hasta: '2026-11-30' });
     expect(periodoDelSueldo([], '2026-12-03', q)).toMatchObject({ desde: '2026-11-30', hasta: '2026-12-15' });
+  });
+});
+
+describe('sueldo sin día fijo (del 18 al 22)', () => {
+  const rango: AjustesSueldo = { ...AJUSTES_INICIALES.sueldo, dia: 18, diaHasta: 22 };
+  const octubre = mov({ tipo: 'ingreso', esPago: true, montoCentavos: 76500, fecha: '2026-10-20' });
+
+  it('aparta pensando en el primer día posible y lo dice como una ventana', () => {
+    const p = periodoDelSueldo([octubre], '2026-11-05', rango);
+    expect(p).toMatchObject({ desde: '2026-10-20', hasta: '2026-11-18', hastaMax: '2026-11-22', sueldo: octubre });
+    expect(p.esperando).toBeUndefined();
+    expect(textoProximoSueldo(p)).toBe('tu sueldo (llega del 18 al 22 nov)');
+  });
+
+  it('del 18 al 22, mientras no llega, sigue con el sueldo anterior y lo espera', () => {
+    const p = periodoDelSueldo([octubre], '2026-11-20', rango);
+    expect(p).toMatchObject({ desde: '2026-10-20', hasta: '2026-11-18', hastaMax: '2026-11-22', esperando: true });
+    // Lo que queda se reparte hasta el 22, no en un solo día.
+    expect(planDelSueldo({ movimientos: [octubre], tarjetas: [], prestamos: [] }, '2026-11-20', { sueldo: rango }).diasRestantes).toBe(2);
+  });
+
+  it('al registrar el sueldo del 21, el siguiente es del 18 al 22 de diciembre', () => {
+    const noviembre = mov({ tipo: 'ingreso', esPago: true, montoCentavos: 76500, fecha: '2026-11-21' });
+    expect(periodoDelSueldo([octubre, noviembre], '2026-11-21', rango)).toMatchObject({
+      desde: '2026-11-21', hasta: '2026-12-18', hastaMax: '2026-12-22', sueldo: noviembre,
+    });
+  });
+
+  it('si pasa el 22 sin registrarlo, el periodo empieza el 18 sin sueldo', () => {
+    expect(periodoDelSueldo([octubre], '2026-11-23', rango)).toMatchObject({ desde: '2026-11-18', hasta: '2026-12-18', sueldo: undefined });
   });
 });
 

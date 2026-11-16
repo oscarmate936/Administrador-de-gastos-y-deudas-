@@ -102,7 +102,7 @@ function leerTarjeta(v: unknown, i: number): Tarjeta {
     creadoEn: typeof v.creadoEn === 'number' ? v.creadoEn : Date.now(),
     ultimos4: typeof v.ultimos4 === 'string' && /^\d{4}$/.test(v.ultimos4) ? v.ultimos4 : undefined,
     tasaAnual: typeof v.tasaAnual === 'number' && Number.isFinite(v.tasaAnual) && v.tasaAnual >= 0 ? v.tasaAnual : undefined,
-    formaPago: v.formaPago === 'minimo' || v.formaPago === 'total' ? v.formaPago : undefined,
+    formaPago: v.formaPago === 'minimo' || v.formaPago === 'total' || v.formaPago === 'recomendado' ? v.formaPago : undefined,
     ultimoEstado: leerUltimoEstado(v.ultimoEstado),
   };
 }

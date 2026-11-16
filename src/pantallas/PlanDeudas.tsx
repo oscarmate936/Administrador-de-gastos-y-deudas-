@@ -231,7 +231,7 @@ export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
             {sinTasa.map((d) => (
               <li key={`t-${d.id}`}>
                 <strong>{d.nombre}</strong>: registra su tasa de interés (Editar en su detalle). Sin ella se calcula como si no
-                cobrara intereses.
+                cobrara intereses; si su costo ya va incluido en lo que debes (como un adelanto), está bien así.
               </li>
             ))}
             {estimados.map((d) => (

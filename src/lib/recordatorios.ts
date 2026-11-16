@@ -1,6 +1,6 @@
 import type { Movimiento, Prestamo, Tarjeta } from '../db';
 import type { Ajustes } from './ajustes';
-import { estadoPrestamo, estadoTarjeta, fechaConDia, minimoEstimado, sumarMeses } from './deudas';
+import { aPagarSegunForma, estadoPrestamo, estadoTarjeta, fechaConDia, minimoEstimado, pagaParcial, sumarMeses } from './deudas';
 import { formatearDinero } from './dinero';
 import { aDate, aFechaTexto, diasEntre, fechaCorta, moverMes, nombreMes, sumarDias } from './fechas';
 import type { ClavePago } from './pagoRapido';
@@ -78,16 +78,18 @@ export function generarRecordatorios(e: Entrada, ahora: Date, horizonte = HORIZO
     const est = estadoTarjeta(t, e.movimientos, hoy);
     const destino = { tipo: 'tarjeta' as const, id: t.id };
 
-    // Lo que la persona piensa pagar: el total o, si así paga la tarjeta, el mínimo.
-    const esMinimo = t.formaPago === 'minimo';
-    const porPagar = esMinimo ? est.minimoPendienteCentavos : est.pendienteCentavos;
+    // Lo que la persona piensa pagar: el total, lo recomendado o el mínimo.
+    const esMinimo = pagaParcial(t);
+    const porPagar = aPagarSegunForma(t, est);
+    const esRecomendado = t.formaPago === 'recomendado' && est.recomendadoPendienteCentavos > est.minimoPendienteCentavos;
     const aprox = est.minimoEsEstimado ? ' aprox.' : '';
     // «Pagué el mínimo» solo se ofrece cuando se sabe el mínimo exacto.
     const conMinimo = est.minimoPendienteCentavos > 0 && !est.minimoEsEstimado && est.minimoPendienteCentavos < est.pendienteCentavos;
     // Quien paga el mínimo sin saber el monto exacto (no importó el PDF) no recibe
     // «Pagué el total»: el aviso solo ofrece «Registrar pago», que abre el formulario.
+    // Lo recomendado tampoco tiene botón propio: «Registrar pago» abre el formulario con ese monto.
     const pagoDirecto =
-      esMinimo && est.minimoEsEstimado
+      (esMinimo && est.minimoEsEstimado) || esRecomendado
         ? undefined
         : {
             tipo: 'tarjeta' as const,
@@ -97,7 +99,9 @@ export function generarRecordatorios(e: Entrada, ahora: Date, horizonte = HORIZO
             prefiereMinimo: (esMinimo && conMinimo) || undefined,
           };
     if (r.pagos && porPagar > 0) {
-      const cuerpo = esMinimo
+      const cuerpo = esRecomendado
+        ? `Pago recomendado: ${formatearDinero(est.recomendadoPendienteCentavos)} · mínimo ${formatearDinero(est.minimoPendienteCentavos)}${aprox}. Último día: ${fechaCorta(est.fechaLimite)}.`
+        : esMinimo
         ? `Pago mínimo: ${formatearDinero(est.minimoPendienteCentavos)}${aprox} · de contado ${formatearDinero(est.pendienteCentavos)}. Último día: ${fechaCorta(est.fechaLimite)}.`
         : `Pago de contado: ${formatearDinero(est.pendienteCentavos)}${est.minimoPendienteCentavos > 0 && !est.minimoEsEstimado ? ` · mínimo ${formatearDinero(est.minimoPendienteCentavos)}` : ''}. Último día: ${fechaCorta(est.fechaLimite)}.`;
       for (const dias of r.diasTarjeta) {

@@ -11,7 +11,7 @@ import { Insignia, InsigniaCategoria, Simbolo } from '../componentes/Simbolo';
 import { pagosDelMes, type PagoDelMes } from '../lib/pagosDelMes';
 import { guardarAjuste, ordenInicio, type Ajustes, type AjustesFondo, type SeccionInicio } from '../lib/ajustes';
 import { moverFondo, sugerirMeta } from '../lib/fondo';
-import { planDelSueldo, type PlanSueldo } from '../lib/sueldo';
+import { cuandoLlega, planDelSueldo, textoProximoSueldo, type PlanSueldo } from '../lib/sueldo';
 import { cierreDelMes, mesParaResumen, type CierreMes } from '../lib/cierreMes';
 import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
 import { diasEntre, fechaCorta, hoy, mesDe, moverMes as moverMesInicio, nombreMes } from '../lib/fechas';
@@ -308,6 +308,7 @@ export function Inicio(props: Props) {
           movimientos={movimientos}
           hoy={fechaHoy}
           hasta={plan.periodo.hasta}
+          proximo={textoProximoSueldo(plan.periodo)}
           porApartar={plan.deudas.faltaCentavos}
           alCerrar={() => setVerComoPagas(false)}
         />
@@ -322,7 +323,8 @@ export function Inicio(props: Props) {
 function FilaPagoDelMes({ pago: p, color, hoy: fechaHoy, alTocar }: { pago: PagoDelMes; color: string; hoy: string; alTocar: () => void }) {
   const dias = diasEntre(fechaHoy, p.fecha);
   const clase = p.vencido ? 'fila-detalle envolver texto-peligro' : dias <= 5 ? 'fila-detalle envolver texto-alerta' : 'fila-detalle envolver';
-  const que = p.clase === 'minimo' ? (p.estimado ? 'Mínimo aprox.' : 'Mínimo') : p.clase === 'total' ? 'Resto del total' : 'Cuota';
+  const que =
+    p.clase === 'minimo' ? (p.estimado ? 'Mínimo aprox.' : 'Mínimo') : p.clase === 'recomendado' ? 'Recomendado' : p.clase === 'total' ? 'Resto del total' : 'Cuota';
   const cuando = p.vencido ? `venció ${fechaCorta(p.fecha)}` : dias === 0 ? 'vence hoy' : dias === 1 ? 'vence mañana' : `vence ${fechaCorta(p.fecha)}`;
   return (
     <li>
@@ -779,7 +781,7 @@ function Heroe({
   alCorregirSaldo: () => void;
   alAgregarIngreso: () => void;
 }) {
-  const proximo = `tu sueldo del ${fechaCorta(plan.periodo.hasta)}`;
+  const proximo = textoProximoSueldo(plan.periodo);
   if (sinSaldo) {
     // Más salidas que ingresos anotados: en vez de una cifra en negativo, se pide el dato que falta.
     return (
@@ -807,7 +809,11 @@ function Heroe({
       <p className="etiqueta">{falta ? 'Te faltan' : 'Te quedan'}</p>
       <p className="monto-grande">{formatearDinero(Math.abs(plan.libreCentavos))}</p>
       <p className="nota-principal">
-        {falta ? `para tus deudas y tu comida antes de ${proximo}.` : `para tus demás gastos hasta ${proximo}.`}
+        {falta
+          ? `para tus deudas y tu comida antes de ${proximo}.`
+          : plan.periodo.esperando
+            ? `para tus demás gastos mientras llega tu sueldo (${cuandoLlega(plan.periodo)}).`
+            : `para tus demás gastos hasta ${proximo}.`}
       </p>
       {!falta && plan.porDiaCentavos !== null && (
         <p className="pie-heroe">Unos {formatearDinero(plan.porDiaCentavos)} por día durante {plan.diasRestantes === 1 ? '1 día' : `${plan.diasRestantes} días`}.</p>
@@ -853,6 +859,14 @@ function TuSueldo({
         </button>
       </div>
       <div className="tarjeta sueldo">
+        {periodo.esperando && (
+          <div className="sueldo-falta">
+            <p>Tu sueldo de este mes llega {cuandoLlega(periodo)}. Regístralo cuando te paguen.</p>
+            <button type="button" className="boton chico primario" onClick={alAgregarIngreso}>
+              Registrar mi sueldo
+            </button>
+          </div>
+        )}
         {periodo.sueldo ? (
           <p className="sueldo-recibido">
             Recibiste <strong>{formatearDinero(periodo.sueldo.montoCentavos)}</strong> el {fechaCorta(periodo.sueldo.fecha)}

@@ -4,7 +4,7 @@ import type { Prestamo, Tarjeta } from '../db';
 import { Insignia, Simbolo } from '../componentes/Simbolo';
 import type { AjustesPlan } from '../lib/ajustes';
 import { costosEntre } from '../lib/costos';
-import { estadoPrestamo, estadoTarjeta, proximosPagos, sumarMeses, totalPorPagar } from '../lib/deudas';
+import { aPagarSegunForma, estadoPrestamo, estadoTarjeta, proximosPagos, sumarMeses, totalPorPagar } from '../lib/deudas';
 import { deudasParaPlan, simularPlan, sumaMinimos } from '../lib/plan';
 import { progresoDeudas } from '../lib/progreso';
 import { formatearDinero } from '../lib/dinero';
@@ -197,7 +197,7 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImpo
 /** Lo que falta pagar de este estado de cuenta según cómo se paga la tarjeta; 0 si ya pasó el plazo y no hay mora. */
 const porPagar = (t: Tarjeta, e: ReturnType<typeof estadoTarjeta>) => {
   if (e.diasParaLimite < 0 && !e.vencido) return 0;
-  return t.formaPago === 'minimo' ? e.minimoPendienteCentavos : e.pendienteCentavos;
+  return aPagarSegunForma(t, e);
 };
 
 /** Se sabe el crédito disponible: hay límite o lo dio el banco en el estado de cuenta. */

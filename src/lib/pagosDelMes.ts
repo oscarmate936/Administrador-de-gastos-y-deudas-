@@ -19,7 +19,7 @@ export interface PagoDelMes {
   montoCentavos: number;
   /** Último día de pago o fecha de la cuota. */
   fecha: string;
-  clase: 'minimo' | 'total' | 'cuota';
+  clase: 'minimo' | 'recomendado' | 'total' | 'cuota';
   /** true si el mínimo es un cálculo de la app (no se importó el estado de cuenta). */
   estimado: boolean;
   /** No se cubrió el mínimo o la cuota y ya pasó la fecha. */
@@ -39,7 +39,16 @@ export function pagosDelMes(datos: { tarjetas: Tarjeta[]; prestamos: Prestamo[];
     const e = estadoTarjeta(t, datos.movimientos, hoy);
     if (!e.vencido && !enVentana(e.fechaLimite)) continue;
     const base = { tipo: 'tarjeta' as const, id: t.id, nombre: t.nombre, fecha: e.fechaLimite, vencido: e.vencido };
-    if (e.minimoPendienteCentavos > 0) {
+    // Quien paga lo recomendado ve ese monto (más que el mínimo, para que la deuda baje).
+    if (t.formaPago === 'recomendado' && e.recomendadoPendienteCentavos > e.minimoPendienteCentavos) {
+      lista.push({
+        ...base,
+        montoCentavos: e.recomendadoPendienteCentavos,
+        clase: 'recomendado',
+        estimado: e.minimoEsEstimado,
+        totalCentavos: e.pendienteCentavos > e.recomendadoPendienteCentavos ? e.pendienteCentavos : undefined,
+      });
+    } else if (e.minimoPendienteCentavos > 0) {
       lista.push({
         ...base,
         montoCentavos: e.minimoPendienteCentavos,
@@ -47,7 +56,7 @@ export function pagosDelMes(datos: { tarjetas: Tarjeta[]; prestamos: Prestamo[];
         estimado: e.minimoEsEstimado,
         totalCentavos: e.pendienteCentavos > e.minimoPendienteCentavos ? e.pendienteCentavos : undefined,
       });
-    } else if (t.formaPago !== 'minimo' && e.pendienteCentavos > 0) {
+    } else if (t.formaPago !== 'minimo' && t.formaPago !== 'recomendado' && e.pendienteCentavos > 0) {
       // Mínimo cubierto: quien paga el total ve lo que le falta hasta el último día de pago.
       lista.push({ ...base, montoCentavos: e.pendienteCentavos, clase: 'total', estimado: false });
     }

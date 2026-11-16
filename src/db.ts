@@ -76,11 +76,12 @@ export interface Tarjeta {
   ultimos4?: string;
   tasaAnual?: number;
   /**
-   * Cómo se suele pagar: el total del estado de cuenta (lo normal si falta) o
-   * solo el mínimo. Decide cuánto se aparta de lo libre para gastar, qué piden
-   * los avisos y el monto que propone el formulario de pago.
+   * Cómo se suele pagar: el total del estado de cuenta (lo normal si falta), lo
+   * recomendado (lo mínimo para que la deuda baje: cubre los intereses y las
+   * cuotas de compras a plazos) o solo el mínimo del banco. Decide cuánto se
+   * aparta del sueldo, qué piden los avisos y el monto que propone el pago.
    */
-  formaPago?: 'total' | 'minimo';
+  formaPago?: 'total' | 'recomendado' | 'minimo';
   /** Datos del último estado de cuenta importado. */
   ultimoEstado?: UltimoEstado;
 }

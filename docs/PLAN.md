@@ -42,6 +42,7 @@ una versión instalable que se actualiza encima de la anterior sin borrar datos.
 | — | Revisión final: respaldos cifrados grandes, «pagué a la tarjeta» en el asistente, copias borradas con el PIN olvidado y diez detalles | Hecho (2.3.2) |
 | — | Tarjeta de Inicio sin cifras en negativo, con el desglose de la cifra, y «¿Cuánto pagas de cada tarjeta?» (total o mínimo) a un toque | Hecho (2.3.3) |
 | — | Tu sueldo: pago mensual o quincenal, bono de comida aparte y la tarjeta de Inicio con una sola cifra («Te quedan») | Hecho (2.4.0) |
+| — | Sueldo sin día fijo («del 18 al 22») y pago «Recomendado» por tarjeta (cubre intereses y cuotas a plazos) | Hecho (2.5.0) |
 | — | Registrar compras desde los SMS del banco | Pendiente: hacen falta ejemplos de los mensajes |
 
 La fase 3 puede adelantarse en cuanto lleguen los PDF; no depende de las demás.

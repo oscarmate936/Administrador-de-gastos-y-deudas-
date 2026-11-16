@@ -136,6 +136,15 @@ export interface EstadoTarjeta {
   minimoPendienteCentavos: number;
   /** true si `minimoPendienteCentavos` es un cálculo de la app. */
   minimoEsEstimado: boolean;
+  /**
+   * Lo que falta del pago recomendado: lo mínimo para que la deuda baje de
+   * verdad (el mínimo del banco, o los intereses del mes más el 1 % si son más,
+   * más las cuotas sin intereses de compras a plazos, que el mínimo no siempre
+   * incluye). Nunca menos que el mínimo ni más que el pago de contado.
+   */
+  recomendadoPendienteCentavos: number;
+  /** El recomendado es al menos $1 más que el mínimo (vale la pena ofrecerlo aparte). */
+  recomendadoAparte: boolean;
   /** true si las cifras del corte vienen de un estado de cuenta importado. */
   segunEstado: boolean;
   /**
@@ -269,6 +278,21 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
       pagadoAlMinimo >= base * PARTE_MINIMO_CUBIERTO ? 0 : Math.min(pendienteCentavos, Math.max(0, base - pagadoAlMinimo));
   }
 
+  // Pago recomendado: el mínimo no siempre baja la deuda (si no cubre los
+  // intereses, o si no incluye las cuotas de compras a plazos sin intereses,
+  // que pasan al saldo y empiezan a cobrar intereses).
+  const planesDelEstado = corteConocido ? planesBase : planes;
+  const cuotas = (conInteres: boolean) =>
+    planesDelEstado.filter((p) => p.saldoCentavos > 0 && (p.tasaMensual > 0) === conInteres).reduce((s, p) => s + p.cuotaCentavos, 0);
+  const minimoBase =
+    pagoMinimoCentavos !== null && ue?.pagoMinimoCentavos !== undefined ? ue.pagoMinimoCentavos : Math.min(saldoDelEstado, minimoEstimado(saldoDelEstado, tasa));
+  const piso = interesMensual(saldoDelEstado, tasa) + Math.round(saldoDelEstado * 0.01) + cuotas(true);
+  const recomendadoBase = Math.min(saldoDelEstado, Math.max(minimoBase, piso) + cuotas(false));
+  const recomendadoPendienteCentavos = Math.max(
+    minimoPendienteCentavos,
+    Math.min(pendienteCentavos, Math.max(0, recomendadoBase - pagadoAlMinimo)),
+  );
+
   const vencido = minimoPendienteCentavos > 0 && hoy > fechaLimite;
   // Los intereses estimados son parte de lo que se debe: van dentro del saldo,
   // para que «Saldo actual», «Debes», el pago de contado y el crédito disponible cuadren.
@@ -294,6 +318,8 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
     pagoMinimoCentavos,
     minimoPendienteCentavos,
     minimoEsEstimado: pagoMinimoCentavos === null,
+    recomendadoPendienteCentavos,
+    recomendadoAparte: recomendadoBase - minimoBase >= 100,
     segunEstado: segunEstado && corteConocido,
     vencido,
     diasParaLimite: diasEntre(hoy, fechaLimite),
@@ -311,6 +337,18 @@ const DIFERENCIA_SIN_INTERES = 500;
  */
 export function diasDePlazo(diaCorte: number, diaPago: number): number {
   return diaPago > diaCorte ? diaPago - diaCorte : diaPago + 30 - diaCorte;
+}
+
+export type FormaPago = 'total' | 'recomendado' | 'minimo';
+
+/** Si la tarjeta no se paga completa cada mes (se paga el mínimo o lo recomendado). */
+export const pagaParcial = (t: Pick<Tarjeta, 'formaPago'>) => t.formaPago === 'minimo' || t.formaPago === 'recomendado';
+
+/** Lo que la persona piensa pagar del estado de cuenta según cómo paga la tarjeta. */
+export function aPagarSegunForma(t: Pick<Tarjeta, 'formaPago'>, e: EstadoTarjeta): number {
+  if (t.formaPago === 'minimo') return e.minimoPendienteCentavos;
+  if (t.formaPago === 'recomendado') return e.recomendadoPendienteCentavos;
+  return e.pendienteCentavos;
 }
 
 /** Con un mínimo aproximado, pagar esta parte lo da por cubierto. */
@@ -730,9 +768,9 @@ export function proximosPagos(
   const lista: ProximoPago[] = [];
   for (const t of tarjetas) {
     const e = estadoTarjeta(t, movimientos, hoy);
-    // Lo que la persona piensa pagar de este estado de cuenta: el total o el mínimo.
-    const esMinimo = t.formaPago === 'minimo';
-    const porPagar = esMinimo ? e.minimoPendienteCentavos : e.pendienteCentavos;
+    // Lo que la persona piensa pagar de este estado de cuenta: el total, lo recomendado o el mínimo.
+    const esMinimo = pagaParcial(t);
+    const porPagar = aPagarSegunForma(t, e);
     // Sigue vigente hasta el último día de pago; después, solo si no se cubrió el
     // mínimo (vencido). Lo demás pasa al siguiente estado de cuenta.
     if (porPagar > 0 && (hoy <= e.fechaLimite || e.vencido)) {

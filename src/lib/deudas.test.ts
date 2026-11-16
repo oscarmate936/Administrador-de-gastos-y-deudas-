@@ -551,3 +551,48 @@ describe('préstamos', () => {
     expect(totalPorPagar(lista, 45)).toBe(25000);
   });
 });
+
+describe('pago recomendado de una tarjeta', () => {
+  const base: Tarjeta = {
+    id: 'r1', nombre: 'Visa', banco: '', limiteCentavos: 100000, diaCorte: 6, diaPago: 1, saldoInicialCentavos: 40000,
+    pendienteInicialCentavos: 40000, fechaSaldo: '2026-11-06', color: '', creadoEn: 0, tasaAnual: 40,
+    ultimoEstado: { fechaCorte: '2026-11-06', fechaLimite: '2026-12-01', pagoContadoCentavos: 40000, pagoMinimoCentavos: 800, saldoCentavos: 40000 },
+  };
+
+  it('si el mínimo no cubre los intereses, recomienda intereses más el 1 %', () => {
+    const e = estadoTarjeta(base, [], '2026-11-16');
+    // $400 al 40 % anual: $13.33 de intereses al mes, más $4.00.
+    expect(e.minimoPendienteCentavos).toBe(800);
+    expect(e.recomendadoPendienteCentavos).toBe(1733);
+    expect(e.recomendadoAparte).toBe(true);
+  });
+
+  it('suma las cuotas sin intereses de compras a plazos, que el mínimo no incluye', () => {
+    const conPlazos: Tarjeta = {
+      ...base, tasaAnual: 48, saldoInicialCentavos: 50000, pendienteInicialCentavos: 50000,
+      ultimoEstado: {
+        ...base.ultimoEstado!, pagoContadoCentavos: 50000, pagoMinimoCentavos: 6000, saldoCentavos: 50000,
+        planes: [
+          { descripcion: 'Tienda', tasaMensual: 0, cuotaActual: 4, cuotasTotales: 12, cuotaCentavos: 2500, saldoCentavos: 20000 },
+          { descripcion: 'Otra', tasaMensual: 0, cuotaActual: 10, cuotasTotales: 12, cuotaCentavos: 2000, saldoCentavos: 4000 },
+        ],
+      },
+    };
+    const e = estadoTarjeta(conPlazos, [], '2026-11-16');
+    expect(e.recomendadoPendienteCentavos).toBe(6000 + 2500 + 2000);
+    // Lo pagado cuenta; nunca menos que lo que falta del mínimo ni más que el pago de contado.
+    const pago: Movimiento = { id: 'p', tipo: 'pago', montoCentavos: 5000, fecha: '2026-11-10', tarjetaId: 'r1', nota: '', creadoEn: 1 };
+    const despues = estadoTarjeta(conPlazos, [pago], '2026-11-16');
+    expect(despues.minimoPendienteCentavos).toBe(1000);
+    expect(despues.recomendadoPendienteCentavos).toBe(5500);
+    // Con lo recomendado ya pagado, no falta nada de eso (aunque queden $20 del pago de contado).
+    const grande = estadoTarjeta(conPlazos, [{ ...pago, montoCentavos: 48000 }], '2026-11-16');
+    expect(grande.pendienteCentavos).toBe(2000);
+    expect(grande.recomendadoPendienteCentavos).toBe(0);
+  });
+
+  it('con «Recomendado», los próximos pagos piden ese monto', () => {
+    const pagos = proximosPagos([{ ...base, formaPago: 'recomendado' }], [], [], '2026-11-16');
+    expect(pagos[0]).toMatchObject({ montoCentavos: 1733, esMinimo: true });
+  });
+});

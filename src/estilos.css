@@ -2250,8 +2250,20 @@ body {
   padding: 12px 14px;
 }
 
-.como-pagas .segmentos button {
+.segmentos-forma button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
   font-size: 0.86rem;
+  line-height: 1.2;
+}
+
+.segmento-monto {
+  font-size: 0.78rem;
+  font-weight: 600;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Tu sueldo: deudas, comida y lo demás ---------- */

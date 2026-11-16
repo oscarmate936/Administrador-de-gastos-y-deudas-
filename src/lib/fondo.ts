@@ -1,14 +1,15 @@
 import type { Movimiento, Tarjeta } from '../db';
-import { proximosPagos } from './deudas';
+import { proximosPagos, type FormaPago } from './deudas';
 import { mesDe, moverMes } from './fechas';
 
 // Fondo de emergencia: dinero que sigue en tu cuenta pero que apartas para
 // imprevistos. No se resta de lo que tienes, sí de lo que te queda para gastar
 // (lib/sueldo.ts), así no lo gastas sin darte cuenta.
 
-/** Lo que se apartaría de una tarjeta en los próximos días si se paga el total o solo el mínimo. */
+/** Lo que se apartaría de una tarjeta antes del próximo sueldo según cómo se pague. */
 export interface ApartadoTarjeta {
   totalCentavos: number;
+  recomendadoCentavos: number;
   minimoCentavos: number;
   /** El mínimo es un cálculo de la app (no se importó el estado de cuenta). */
   minimoAprox: boolean;
@@ -16,11 +17,12 @@ export interface ApartadoTarjeta {
 
 /** `hasta`: el día del próximo sueldo; cuenta lo que vence antes (y lo vencido). */
 export function apartadoPorForma(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: string, hasta: string): ApartadoTarjeta {
-  const con = (formaPago: 'total' | 'minimo') =>
-    proximosPagos([{ ...tarjeta, formaPago }], [], movimientos, hoy).filter((p) => p.fecha < hasta);
+  const con = (formaPago: FormaPago) => proximosPagos([{ ...tarjeta, formaPago }], [], movimientos, hoy).filter((p) => p.fecha < hasta);
+  const suma = (lista: ReturnType<typeof con>) => lista.reduce((t, p) => t + p.montoCentavos, 0);
   const minimos = con('minimo');
   return {
-    totalCentavos: con('total').reduce((t, p) => t + p.montoCentavos, 0),
+    totalCentavos: suma(con('total')),
+    recomendadoCentavos: suma(con('recomendado')),
     minimoCentavos: minimos.reduce((t, p) => t + p.montoCentavos, 0),
     minimoAprox: minimos.some((p) => p.estimado),
   };

@@ -119,6 +119,11 @@ export interface AjustesSueldo {
   frecuencia: 'mensual' | 'quincenal';
   /** Día del mes en que te pagan; sin él, el del último sueldo registrado. */
   dia?: number;
+  /**
+   * Solo mensual, si el pago no tiene día fijo: llega entre `dia` y este día
+   * (por ejemplo, del 18 al 22). Se aparta pensando en el primer día posible.
+   */
+  diaHasta?: number;
   /** Bono de comida al mes; 0 si no hay. */
   comidaCentavos: number;
   /** Categorías cuyos gastos salen del bono de comida. */

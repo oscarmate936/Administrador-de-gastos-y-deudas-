@@ -572,7 +572,7 @@ export function App() {
               <Opcion
                 icono={<Insignia color="var(--positivo)" simbolo="ingreso" cuadrada />}
                 titulo="Tu sueldo"
-                detalle={`${ajustes!.sueldo.frecuencia === 'quincenal' ? 'Cada quincena' : 'Cada mes'}${ajustes!.sueldo.dia ? `, el día ${ajustes!.sueldo.dia}` : ''}${ajustes!.sueldo.comidaCentavos > 0 ? ` · bono de comida ${formatearDinero(ajustes!.sueldo.comidaCentavos)}` : ''}`}
+                detalle={`${ajustes!.sueldo.frecuencia === 'quincenal' ? 'Cada quincena' : 'Cada mes'}${ajustes!.sueldo.dia ? (ajustes!.sueldo.diaHasta ? `, del ${ajustes!.sueldo.dia} al ${ajustes!.sueldo.diaHasta}` : `, el día ${ajustes!.sueldo.dia}`) : ''}${ajustes!.sueldo.comidaCentavos > 0 ? ` · bono de comida ${formatearDinero(ajustes!.sueldo.comidaCentavos)}` : ''}`}
                 alTocar={() => setVerSueldo(true)}
               />
             }
