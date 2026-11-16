@@ -22,9 +22,12 @@ export function resumenWidget(
   fondoCentavos = 0,
   ajusteSaldoCentavos = 0,
 ): ResumenWidget {
-  const { cifra, conLibre } = calcularLibre(datos, hoy, fondoCentavos, ajusteSaldoCentavos);
+  const { cifra, conLibre, disponible } = calcularLibre(datos, hoy, fondoCentavos, ajusteSaldoCentavos);
   const ritmo = calcularRitmo(datos.movimientos, hoy, cifra);
   const actualizado = `Actualizado ${fmtDia.format(ahora).replace('.', '')}, ${fmtHora.format(ahora)}`;
+  // Igual que Inicio: sin cifras en negativo.
+  if (disponible < 0) return { etiqueta: 'Falta un dato', monto: '¿Cuánto tienes?', detalle: `Abre la app y dilo · ${actualizado}` };
+  if (cifra < 0) return { etiqueta: 'Te faltan para tus pagos', monto: formatearDinero(-cifra), detalle: actualizado };
   return {
     etiqueta: conLibre ? 'Libre para gastar' : 'Disponible',
     monto: formatearDinero(cifra),

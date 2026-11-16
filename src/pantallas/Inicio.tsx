@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import type { Datos, Detalle, Formulario } from '../datos';
 import { Asistente } from '../componentes/Asistente';
 import { Ayuda } from '../componentes/Ayuda';
+import { ComoPagas, textoComoPagas } from '../componentes/ComoPagas';
 import { db, type Movimiento } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { Hoja } from '../componentes/Hoja';
@@ -57,6 +58,7 @@ export function Inicio(props: Props) {
   const { movimientos, mapaCategorias, tarjetas, prestamos } = datos;
   const fechaHoy = hoy();
   const [editando, setEditando] = useState(false);
+  const [verComoPagas, setVerComoPagas] = useState(false);
 
   if (movimientos.length === 0 && tarjetas.length === 0 && prestamos.length === 0) {
     return (
@@ -91,6 +93,9 @@ export function Inicio(props: Props) {
   const pedirRespaldo = (diasSinRespaldo === null || diasSinRespaldo >= DIAS_ENTRE_RESPALDOS) && pasoVisible !== 'respaldo';
 
   const ritmo = calcularRitmo(movimientos, fechaHoy, cifra);
+  // Con más salidas que ingresos anotados falta un dato: cuánto dinero hay de verdad.
+  const sinSaldo = disponible < 0;
+  const hayIngresos = movimientos.some((m) => m.tipo === 'ingreso');
 
   // Resumen del mes: lo que entró, lo que gastaste (también con tarjeta) y lo que pagaste a deudas.
   const delMes = movimientos.filter((m) => mesDe(m.fecha) === mes);
@@ -259,38 +264,105 @@ export function Inicio(props: Props) {
 
   const orden = ordenInicio(ajustes.inicio).filter((s) => !ajustes.inicio.ocultas.includes(s));
 
+  // Debajo de los pagos: si de las tarjetas se cuenta el total o el mínimo, y cómo cambiarlo.
+  const cambiarPagos = tarjetas.length > 0 && (
+    <div className="desglose-cambiar">
+      <dt className="solo-lectores">Tarjetas</dt>
+      <dd>
+        <button type="button" className="enlace-heroe" onClick={() => setVerComoPagas(true)}>
+          {textoComoPagas(tarjetas)} · <strong>Cambiar</strong>
+        </button>
+      </dd>
+    </div>
+  );
+
   return (
     <>
-      <section className={cifra < 0 ? 'tarjeta-principal negativo' : 'tarjeta-principal'}>
-        <p className="etiqueta">
-          {conLibre ? 'Libre para gastar' : 'Disponible'}
-          {conLibre && <Ayuda termino="libre para gastar" clara />}
-        </p>
-        <p className="monto-grande">{formatearDinero(cifra)}</p>
-        <p className="nota-principal">
-          {conLibre
-            ? textoApartado(disponible, porApartar, fondo)
-            : disponible < 0
-              ? 'Ha salido más dinero del que has registrado como ingreso.'
-              : ajustes.saldo.ajusteCentavos !== 0
-                ? `Lo que dijiste tener${ajustes.saldo.fecha ? ` el ${fechaCorta(ajustes.saldo.fecha)}` : ''}, con lo que has anotado desde entonces.`
-                : 'Lo que has recibido menos lo que ha salido.'}
-        </p>
-        {ritmo && <HeroeRitmo ritmo={ritmo} hoy={fechaHoy} />}
-        {/* Sin sueldo registrado o con la cifra en negativo: dos formas de ponerla al día. */}
-        {(!ritmo || disponible < 0) && (
+      {sinSaldo ? (
+        // Más salidas que ingresos anotados: nadie tiene dinero en negativo, así que
+        // en vez de una cifra roja se pide el dato que falta.
+        <section className="tarjeta-principal">
+          <p className="etiqueta">Falta un dato</p>
+          <p className="titulo-heroe">¿Cuánto dinero tienes hoy?</p>
+          <p className="nota-principal">
+            {hayIngresos
+              ? `Has anotado ${formatearDinero(-disponible)} más en gastos y pagos que en ingresos.`
+              : `Has anotado ${formatearDinero(-disponible)} en gastos y pagos, pero ningún ingreso.`}{' '}
+            Dime cuánto tienes y te digo cuánto puedes gastar.
+          </p>
           <div className="acciones-heroe">
+            <button type="button" className="boton boton-heroe solido" onClick={props.alCorregirSaldo}>
+              Decir cuánto tengo hoy
+            </button>
             {!ritmo && (
               <button type="button" className="boton boton-heroe" onClick={alAgregarIngreso}>
                 Registrar mi sueldo
               </button>
             )}
-            <button type="button" className="boton boton-heroe" onClick={props.alCorregirSaldo}>
-              Decir cuánto tengo hoy
-            </button>
           </div>
-        )}
-      </section>
+          {porApartar > 0 && (
+            <dl className="desglose-heroe">
+              <div>
+                <dt>Pagos de los próximos {DIAS_A_APARTAR} días</dt>
+                <dd>{formatearDinero(porApartar)}</dd>
+              </div>
+              {cambiarPagos}
+            </dl>
+          )}
+        </section>
+      ) : (
+        <section className={cifra < 0 ? 'tarjeta-principal negativo' : 'tarjeta-principal'}>
+          <p className="etiqueta">
+            {cifra < 0 ? 'Te faltan' : conLibre ? 'Libre para gastar' : 'Disponible'}
+            {conLibre && cifra >= 0 && <Ayuda termino="libre para gastar" clara />}
+          </p>
+          <p className="monto-grande">{formatearDinero(Math.abs(cifra))}</p>
+          {cifra < 0 && (
+            <p className="nota-principal">
+              para cubrir tus pagos de los próximos {DIAS_A_APARTAR} días{fondo > 0 ? ' sin tocar tu fondo de emergencia' : ''}.
+              {tarjetas.some((t) => t.formaPago !== 'minimo') && ' Si de una tarjeta solo pagas el mínimo, toca «Cambiar».'}
+            </p>
+          )}
+          {conLibre ? (
+            <dl className="desglose-heroe">
+              <div>
+                <dt>Tienes</dt>
+                <dd>{formatearDinero(disponible)}</dd>
+              </div>
+              {porApartar > 0 && (
+                <div>
+                  <dt>Pagos de los próximos {DIAS_A_APARTAR} días</dt>
+                  <dd>−{formatearDinero(porApartar)}</dd>
+                </div>
+              )}
+              {porApartar > 0 && cambiarPagos}
+              {fondo > 0 && (
+                <div>
+                  <dt>Fondo de emergencia</dt>
+                  <dd>−{formatearDinero(fondo)}</dd>
+                </div>
+              )}
+            </dl>
+          ) : (
+            <p className="nota-principal">
+              {ajustes.saldo.ajusteCentavos !== 0
+                ? `Lo que dijiste tener${ajustes.saldo.fecha ? ` el ${fechaCorta(ajustes.saldo.fecha)}` : ''}, con lo que has anotado desde entonces.`
+                : 'Lo que has recibido menos lo que ha salido.'}
+            </p>
+          )}
+          {ritmo && <HeroeRitmo ritmo={ritmo} hoy={fechaHoy} />}
+          {!ritmo && (
+            <div className="acciones-heroe">
+              <button type="button" className="boton boton-heroe" onClick={alAgregarIngreso}>
+                Registrar mi sueldo
+              </button>
+              <button type="button" className="boton boton-heroe" onClick={props.alCorregirSaldo}>
+                Decir cuánto tengo hoy
+              </button>
+            </div>
+          )}
+        </section>
+      )}
 
       {cierre && <ResumenCierre cierre={cierre} alVerAnalisis={alVerAnalisis} />}
 
@@ -302,6 +374,16 @@ export function Inicio(props: Props) {
         <Simbolo nombre="lapiz" tamano={18} /> Editar Inicio
       </button>
       {editando && <EditarInicio ajustes={ajustes} alCerrar={() => setEditando(false)} />}
+      {verComoPagas && (
+        <ComoPagas
+          tarjetas={tarjetas}
+          prestamos={prestamos}
+          movimientos={movimientos}
+          hoy={fechaHoy}
+          porApartar={porApartar}
+          alCerrar={() => setVerComoPagas(false)}
+        />
+      )}
     </>
   );
 }
@@ -577,15 +659,6 @@ export function colorDeuda(datos: Datos, p: { tipo: 'tarjeta' | 'prestamo'; id: 
 }
 
 // ---------- Fondo de emergencia ----------
-
-/** «Tienes $X; $Y son de pagos de los próximos 15 días y $Z están en tu fondo.» */
-function textoApartado(disponible: number, porApartar: number, fondo: number): string {
-  const partes = [
-    porApartar > 0 && `${formatearDinero(porApartar)} son de pagos de los próximos ${DIAS_A_APARTAR} días`,
-    fondo > 0 && `${formatearDinero(fondo)} están en tu fondo de emergencia`,
-  ].filter(Boolean);
-  return `Tienes ${formatearDinero(disponible)}; ${partes.join(' y ')}.`;
-}
 
 function TarjetaFondo({ fondo, sugerida, cifra }: { fondo: AjustesFondo; sugerida: number; cifra: number }) {
   const [hoja, setHoja] = useState<'crear' | 'apartar' | 'usar' | null>(null);

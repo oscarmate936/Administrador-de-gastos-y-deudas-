@@ -2255,6 +2255,76 @@ body {
   color: #fff;
 }
 
+.boton-heroe.solido {
+  background: #fff;
+  color: var(--heroe-2);
+  font-weight: 700;
+}
+
+.titulo-heroe {
+  font-size: 1.55rem;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+/* «De tus tarjetas cuento el total · Cambiar» debajo de los pagos. */
+.desglose-heroe .desglose-cambiar {
+  margin-top: -2px;
+}
+
+.enlace-heroe {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-size: 0.84rem;
+  text-align: left;
+  opacity: 0.92;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.como-pagas li {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+.como-pagas .segmentos button {
+  font-size: 0.86rem;
+}
+
+/* De dónde sale la cifra: una fila por cada cosa que se suma o se resta. */
+.desglose-heroe {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgb(255 255 255 / 22%);
+  font-size: 0.9rem;
+}
+
+.desglose-heroe div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.desglose-heroe dt {
+  opacity: 0.88;
+}
+
+.desglose-heroe dd {
+  font-weight: 680;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .monto-medio {
   font-size: 1.7rem;
   font-weight: 800;

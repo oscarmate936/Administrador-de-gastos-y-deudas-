@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Movimiento, Prestamo } from '../db';
-import { calcularLibre, META_INICIAL, moverFondo, sugerirMeta } from './fondo';
+import type { Movimiento, Prestamo, Tarjeta } from '../db';
+import { apartadoPorForma, calcularLibre, META_INICIAL, moverFondo, sugerirMeta } from './fondo';
 
 let n = 0;
 const mov = (m: Partial<Movimiento> & Pick<Movimiento, 'tipo' | 'montoCentavos' | 'fecha'>): Movimiento => ({ id: `m${n++}`, nota: '', creadoEn: 0, ...m });
@@ -56,5 +56,26 @@ describe('fondo de emergencia', () => {
     expect(moverFondo(10000, 'usar', 10000)).toBe(0);
     expect(moverFondo(10000, 'usar', 10001)).toBeNull();
     expect(moverFondo(10000, 'apartar', 0)).toBeNull();
+  });
+});
+
+describe('pagar el total o solo el mínimo de una tarjeta', () => {
+  // Debe $3,000 y el estado de cuenta pide $2,000 de contado o $80 de mínimo; vence el 20.
+  const tarjeta: Tarjeta = {
+    id: 't1', nombre: 'Visa', banco: '', limiteCentavos: 400000, diaCorte: 25, diaPago: 20,
+    saldoInicialCentavos: 300000, pendienteInicialCentavos: 200000, fechaSaldo: '2026-10-25', color: '', creadoEn: 0, tasaAnual: 30,
+    ultimoEstado: { fechaCorte: '2026-10-25', fechaLimite: '2026-11-20', pagoContadoCentavos: 200000, pagoMinimoCentavos: 8000, saldoCentavos: 300000 },
+  };
+  const sueldo: Movimiento = { id: 's', tipo: 'ingreso', esPago: true, montoCentavos: 50000, fecha: '2026-11-01', nota: '', creadoEn: 0 };
+
+  it('da el monto de cada forma de pago', () => {
+    expect(apartadoPorForma(tarjeta, [], '2026-11-15')).toEqual({ totalCentavos: 200000, minimoCentavos: 8000, minimoAprox: false });
+  });
+
+  it('con «el mínimo» la app aparta el mínimo y ya no queda en rojo', () => {
+    const total = calcularLibre({ movimientos: [sueldo], tarjetas: [tarjeta], prestamos: [] }, '2026-11-15');
+    expect(total).toMatchObject({ porApartar: 200000, cifra: -150000 });
+    const minimo = calcularLibre({ movimientos: [sueldo], tarjetas: [{ ...tarjeta, formaPago: 'minimo' }], prestamos: [] }, '2026-11-15');
+    expect(minimo).toMatchObject({ porApartar: 8000, cifra: 42000 });
   });
 });

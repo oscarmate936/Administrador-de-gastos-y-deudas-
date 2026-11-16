@@ -14,8 +14,16 @@ describe('resumenWidget', () => {
     expect(r.detalle).toMatch(/^\$125\.00 por día · Actualizado 10 nov, 9:41/);
   });
   it('sin pago registrado solo dice cuándo se actualizó', () => {
-    const r = resumenWidget({ movimientos: [gasto], tarjetas: [], prestamos: [] }, '2026-11-10', new Date(2026, 10, 10, 18, 5));
-    expect(r.monto).toBe('-$150.00');
+    const r = resumenWidget({ movimientos: [gasto], tarjetas: [], prestamos: [] }, '2026-11-10', new Date(2026, 10, 10, 18, 5), 0, 20000);
+    expect(r.monto).toBe('$50.00');
     expect(r.detalle).toMatch(/^Actualizado 10 nov, 6:05/);
+  });
+  it('sin cifras en negativo: pide el dato que falta o dice cuánto falta para los pagos', () => {
+    const r = resumenWidget({ movimientos: [gasto], tarjetas: [], prestamos: [] }, '2026-11-10', new Date(2026, 10, 10, 18, 5));
+    expect(r).toMatchObject({ etiqueta: 'Falta un dato', monto: '¿Cuánto tienes?' });
+    const prestamo = { id: 'p', nombre: 'P', acreedor: '', saldoInicialCentavos: 100000, tasaAnual: 0, cuotaCentavos: 30000, primeraCuota: '2026-11-15', creadoEn: 0 };
+    const f = resumenWidget({ movimientos: [pago, gasto], tarjetas: [], prestamos: [prestamo] }, '2026-11-10', new Date(2026, 10, 10, 18, 5), 0, -70000);
+    // Tiene $50 y la cuota es de $300: faltan $250.
+    expect(f).toMatchObject({ etiqueta: 'Te faltan para tus pagos', monto: '$250.00' });
   });
 });

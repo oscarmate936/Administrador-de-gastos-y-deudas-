@@ -60,7 +60,11 @@ export function FormularioSaldo({ movimientos, saldo, alCerrar, alGuardar }: Pro
               setError('');
             }}
           />
-          <span className="ayuda sin-margen">Según lo que has anotado, la app calculaba {formatearDinero(actual)}.</span>
+          <span className="ayuda sin-margen">
+            {actual < 0
+              ? `Según lo que has anotado, salieron ${formatearDinero(-actual)} más de lo que entró.`
+              : `Según lo que has anotado, la app calculaba ${formatearDinero(actual)}.`}
+          </span>
         </label>
         {saldo.ajusteCentavos !== 0 && (
           <p className="ayuda sin-margen">

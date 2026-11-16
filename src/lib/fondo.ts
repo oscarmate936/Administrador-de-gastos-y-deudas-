@@ -9,6 +9,25 @@ import { calcularDisponible } from './resumen';
 
 /** Días hacia adelante cuyos pagos se apartan al calcular lo libre. */
 export const DIAS_A_APARTAR = 15;
+/** Lo que se apartaría de una tarjeta en los próximos días si se paga el total o solo el mínimo. */
+export interface ApartadoTarjeta {
+  totalCentavos: number;
+  minimoCentavos: number;
+  /** El mínimo es un cálculo de la app (no se importó el estado de cuenta). */
+  minimoAprox: boolean;
+}
+
+export function apartadoPorForma(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: string): ApartadoTarjeta {
+  const con = (formaPago: 'total' | 'minimo') =>
+    proximosPagos([{ ...tarjeta, formaPago }], [], movimientos, hoy).filter((p) => p.dias <= DIAS_A_APARTAR);
+  const minimos = con('minimo');
+  return {
+    totalCentavos: con('total').reduce((t, p) => t + p.montoCentavos, 0),
+    minimoCentavos: minimos.reduce((t, p) => t + p.montoCentavos, 0),
+    minimoAprox: minimos.some((p) => p.estimado),
+  };
+}
+
 /** Meta cuando todavía no hay gastos para calcular una. */
 export const META_INICIAL = 30000;
 
