@@ -52,6 +52,8 @@ export function leerEstadoTarjeta(paginas: Pagina[]): EstadoCuentaTarjeta {
   const fechaLimite = buscarValor(p1, /^FECHA LIMITE DE PAGO/, leerFecha);
   const pagoContado = buscarValor(p1, /^PAGO DE CONTADO( \(\$\)| TDC)?$/, leerMonto);
   const pagoMinimo = buscarValor(p1, /^PAGO MINIMO( \(\$\)| TDC)?$/, leerMonto);
+  // Davivienda imprime además un «pago recomendado» (el mínimo más las cuotas de compras a plazos).
+  const pagoRecomendado = buscarValor(p1, /^PAGO RECOMENDADO/, leerMonto);
   const limite = buscarValor(p1, /^LIMITE DE CREDITO/, leerMonto);
   const disponible = buscarValor(p1, /^CREDITO DISPONIBLE/, leerMonto);
   const saldoTotal = buscarValor(p1, /^\(=\) ?SALDO TOTAL/, leerMonto);
@@ -92,6 +94,7 @@ export function leerEstadoTarjeta(paginas: Pagina[]): EstadoCuentaTarjeta {
     saldoCentavos: saldo,
     pagoContadoCentavos: pagoContado!,
     pagoMinimoCentavos: pagoMinimo,
+    pagoRecomendadoCentavos: pagoRecomendado,
     tasaAnual: tasa,
     movimientos,
     planes: paginas.flatMap((p) => leerPlanes(p.items)).filter((p) => p.saldoCentavos > 0),

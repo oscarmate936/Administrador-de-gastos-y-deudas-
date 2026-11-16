@@ -19,16 +19,12 @@ interface Props {
 /** Pagos extra que se comparan: $20, $50 y $100 al mes. */
 const EXTRAS = [2000, 5000, 10000];
 
-/** Redondea hacia arriba a los siguientes $10. */
-const redondear = (centavos: number) => Math.ceil(centavos / 1000) * 1000;
-
 export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
   const fechaHoy = hoy();
   const deudas = deudasParaPlan(datos, fechaHoy);
   const minimos = sumaMinimos(deudas);
-  const [texto, setTexto] = useState(() =>
-    centavosATexto(ajustes.pagoMensualCentavos ?? redondear(minimos * 1.25)),
-  );
+  // Sin un monto elegido, empieza con lo que ya pagas cada mes (la suma de los mínimos).
+  const [texto, setTexto] = useState(() => centavosATexto(ajustes.pagoMensualCentavos ?? Math.ceil(minimos / 100) * 100));
   const metodo = ajustes.metodo;
   const pago = textoACentavos(texto);
 

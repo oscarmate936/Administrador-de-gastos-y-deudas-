@@ -67,6 +67,15 @@ describe('archivo de deudas', () => {
     expect(v).toMatchObject({ sinCambios: true, tarjeta: { fechaSaldo: '2026-12-06', saldoInicialCentavos: 12345, formaPago: 'recomendado' } });
   });
 
+  it('cargarlo otra vez después de pagar cuotas no deshace los pagos', () => {
+    const cuota: Movimiento = { id: 'c', tipo: 'pago', montoCentavos: 7000, fecha: '2026-12-03', prestamoId: 'archivo-p', capitalCentavos: 4000, cuotaCentavos: 7000, nota: '', creadoEn: 1 };
+    const plan = planImportacion(leerArchivoDeudas(texto), { tarjetas: [], prestamos: [prestamo], movimientos: [cuota] }, '2026-12-05');
+    expect(plan.prestamos[0]).toMatchObject({ nuevo: false, sinCambios: true });
+    const e = estadoPrestamo(plan.prestamos[0].prestamo, [cuota], '2026-12-05');
+    expect(e.saldoCentavos).toBe(396000);
+    expect(e.proximaFecha).toBe('2027-01-03');
+  });
+
   it('se guarda todo de una vez, con el sueldo, sin tocar los movimientos', async () => {
     const base = new BaseDeDatos('archivo-deudas-prueba');
     await base.open();

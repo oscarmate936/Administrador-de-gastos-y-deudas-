@@ -69,8 +69,9 @@ export function ComoPagas({ tarjetas, prestamos, movimientos, hoy, hasta, proxim
                       ? undefined
                       : {
                           total: formatearDinero(a.totalCentavos),
-                          recomendado: formatearDinero(a.recomendadoCentavos),
-                          minimo: `${formatearDinero(a.minimoCentavos)}${a.minimoAprox ? ' aprox.' : ''}`,
+                          // Ya pagado: «Cubierto» en vez de $0.00.
+                          recomendado: a.recomendadoCentavos > 0 ? formatearDinero(a.recomendadoCentavos) : 'Cubierto',
+                          minimo: a.minimoCentavos > 0 ? `${formatearDinero(a.minimoCentavos)}${a.minimoAprox ? ' aprox.' : ''}` : 'Cubierto',
                         }
                   }
                 />

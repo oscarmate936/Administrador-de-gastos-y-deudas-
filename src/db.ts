@@ -91,6 +91,8 @@ export interface UltimoEstado {
   fechaLimite: string;
   pagoContadoCentavos: number;
   pagoMinimoCentavos?: number;
+  /** «Pago recomendado» del banco, si lo imprime (Davivienda: mínimo más cuotas de compras a plazos). */
+  pagoRecomendadoCentavos?: number;
   saldoCentavos: number;
   /** Crédito disponible según el banco (algunos no descuentan los intereses del límite). */
   disponibleCentavos?: number;

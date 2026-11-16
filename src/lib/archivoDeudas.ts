@@ -1,6 +1,6 @@
 import type { BaseDeDatos, Movimiento, Prestamo, Tarjeta } from '../db';
 import { guardarAjuste, leerAjustes, limpiarGrupo, AJUSTES_INICIALES, type AjustesSueldo } from './ajustes';
-import { ajustarPrestamo } from './deudas';
+import { ajustarPrestamo, estadoPrestamo } from './deudas';
 import { normalizar } from './estados/lectura';
 import { leerPrestamo, leerTarjeta } from './respaldo';
 
@@ -48,7 +48,7 @@ export function leerArchivoDeudas(texto: string): ArchivoDeudas {
 export interface PlanImportacion {
   /** Tarjetas a guardar: nuevas o la existente puesta al día (mismo id). */
   tarjetas: Array<{ tarjeta: Tarjeta; nueva: boolean; sinCambios?: boolean }>;
-  prestamos: Array<{ prestamo: Prestamo; nuevo: boolean }>;
+  prestamos: Array<{ prestamo: Prestamo; nuevo: boolean; sinCambios?: boolean }>;
   sueldo?: Partial<AjustesSueldo>;
 }
 
@@ -96,6 +96,11 @@ export function planImportacion(
   const prestamos = archivo.prestamos.map((p, i) => {
     const igual = prestamoIgual(p, actuales.prestamos, archivo.prestamos);
     if (!igual) return { prestamo: { ...p, creadoEn: ahora + 100 + i }, nuevo: true };
+    // Si en el celular ya se pagaron cuotas posteriores a las del archivo, el archivo es viejo: no se toca.
+    const enCelular = estadoPrestamo(igual, actuales.movimientos, hoy);
+    if (enCelular.proximaFecha === null || enCelular.proximaFecha > p.primeraCuota) {
+      return { prestamo: igual, nuevo: false, sinCambios: true };
+    }
     // Con pagos ya registrados: se ajusta a lo que dice el archivo sin borrarlos.
     const ajustado = ajustarPrestamo(igual, actuales.movimientos, hoy, {
       saldoCentavos: p.saldoInicialCentavos,

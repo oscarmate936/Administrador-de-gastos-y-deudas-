@@ -110,7 +110,9 @@ export function Inicio(props: Props) {
 
   // Una fila por deuda: lo vencido va en «Requiere atención» y lo demás en
   // «Próximos pagos» (todo junto si esa sección está oculta).
-  const pagosPendientes = pagosDelMes(datos, fechaHoy);
+  // Lo que vence antes del próximo sueldo, como en «Tu sueldo» (mientras se espera el sueldo, lo de los próximos días).
+  const hastaSueldo = plan.periodo.esperando ? undefined : plan.periodo.hasta;
+  const pagosPendientes = pagosDelMes(datos, fechaHoy, hastaSueldo);
   const atencionVisible = !ajustes.inicio.ocultas.includes('atencion');
   const atender = atencionVisible ? pagosPendientes.filter((p) => p.vencido) : [];
   const pagosMes = atencionVisible ? pagosPendientes.filter((p) => !p.vencido) : pagosPendientes;
@@ -211,7 +213,11 @@ export function Inicio(props: Props) {
           {pagosMes.length > 0 && <span className="texto-tenue">Total {formatearDinero(totalMes)}</span>}
         </div>
         {pagosMes.length === 0 ? (
-          <p className="tarjeta texto-tenue">No te queda ningún pago pendiente en {nombreMes(mes).split(' ')[0].toLowerCase()}.</p>
+          <p className="tarjeta texto-tenue">
+            {hastaSueldo
+              ? `No te queda ningún pago pendiente antes de ${textoProximoSueldo(plan.periodo)}.`
+              : `No te queda ningún pago pendiente en ${nombreMes(mes).split(' ')[0].toLowerCase()}.`}
+          </p>
         ) : (
           <ul className="lista tarjeta" aria-label="Lo que falta pagar a cada deuda; toca una para registrar el pago">
             {pagosMes.map((p) => (
@@ -874,6 +880,8 @@ function TuSueldo({
               ` y ${formatearDinero(plan.ingresosCentavos - periodo.sueldo.montoCentavos)} de otros ingresos`}
             .{deAntes}
           </p>
+        ) : periodo.esperando ? (
+          deAntes && <p className="sueldo-recibido">{deAntes.trim()}</p>
         ) : (
           <div className="sueldo-falta">
             <p>Aún no registras tu sueldo de este periodo.{deAntes}</p>

@@ -68,8 +68,11 @@ export function periodoDelSueldo(movimientos: Movimiento[], hoy: string, s: Pick
   }
   // Ya empezaron los días del sueldo y no ha llegado: se sigue con el sueldo anterior hasta el último día posible.
   const fin = finDeVentana(tocaba);
-  if (fin && hoy < fin && ultimo && ultimo.fecha >= sumarDias(anterior(sumarDias(tocaba, -1)), -DIAS_DE_ADELANTO)) {
-    return { desde: ultimo.fecha, hasta: tocaba, hastaMax: fin, sueldo: ultimo, esperando: true };
+  if (fin && hoy <= fin) {
+    // Aunque no se haya registrado el sueldo anterior: el periodo es el que termina con este.
+    const previo = anterior(sumarDias(tocaba, -1));
+    const sueldoPrevio = ultimo && ultimo.fecha >= sumarDias(previo, -DIAS_DE_ADELANTO) ? ultimo : undefined;
+    return { desde: sueldoPrevio?.fecha ?? previo, hasta: tocaba, hastaMax: fin, sueldo: sueldoPrevio, esperando: true };
   }
   const hasta = siguiente(hoy);
   return { desde: tocaba, hasta, hastaMax: finDeVentana(hasta), sueldo: undefined };

@@ -116,6 +116,7 @@ function leerUltimoEstado(v: unknown): UltimoEstado | undefined {
     fechaLimite: v.fechaLimite,
     pagoContadoCentavos: v.pagoContadoCentavos,
     pagoMinimoCentavos: esCentavos(v.pagoMinimoCentavos) ? v.pagoMinimoCentavos : undefined,
+    pagoRecomendadoCentavos: esCentavos(v.pagoRecomendadoCentavos) ? v.pagoRecomendadoCentavos : undefined,
     saldoCentavos: v.saldoCentavos,
     disponibleCentavos:
       typeof v.disponibleCentavos === 'number' && Number.isSafeInteger(v.disponibleCentavos) ? v.disponibleCentavos : undefined,

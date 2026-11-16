@@ -59,7 +59,8 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImpo
   const costoMes = costosEntre(datos, `${mesDe(fechaHoy)}-01`, fechaHoy);
   const progreso = progresoDeudas(datos.historial, deudaTotal);
   const deudasPlan = deudasParaPlan(datos, fechaHoy);
-  const pagoPlan = plan.pagoMensualCentavos ?? Math.ceil((sumaMinimos(deudasPlan) * 1.25) / 1000) * 1000;
+  // Sin un pago elegido en el plan, lo que ya pagas cada mes (la suma de los mínimos).
+  const pagoPlan = plan.pagoMensualCentavos ?? Math.ceil(sumaMinimos(deudasPlan) / 100) * 100;
   const resultado = deudasPlan.length > 0 ? simularPlan(deudasPlan, pagoPlan, plan.metodo) : null;
   const meta = resultado?.alcanza && resultado.meses !== null ? mesCorto(sumarMeses(fechaHoy, resultado.meses - 1)) : null;
 

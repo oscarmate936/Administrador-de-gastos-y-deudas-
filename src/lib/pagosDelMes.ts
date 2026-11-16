@@ -5,8 +5,9 @@ import { diasEntre, mesDe } from './fechas';
 // «Próximos pagos» de Inicio: una fila por deuda con lo que hay que pagar.
 // Tarjetas: el pago mínimo pendiente del estado de cuenta (y, como dato, el pago
 // de contado); cubierto el mínimo, lo que falta del total si la tarjeta se paga
-// completa. Préstamos: la cuota. Entra lo que vence este mes, lo de los
-// próximos días aunque sea del mes siguiente y lo vencido.
+// completa. Préstamos: la cuota. Entra lo vencido y lo que vence antes del
+// próximo sueldo (`hasta`); sin sueldo configurado, lo de este mes y lo de los
+// próximos 7 días aunque sea del mes siguiente.
 
 /** Días hacia adelante que se muestran aunque el pago sea del mes siguiente. */
 export const DIAS_ADELANTE = 7;
@@ -28,16 +29,36 @@ export interface PagoDelMes {
   totalCentavos?: number;
 }
 
-export function pagosDelMes(datos: { tarjetas: Tarjeta[]; prestamos: Prestamo[]; movimientos: Movimiento[] }, hoy: string): PagoDelMes[] {
+export function pagosDelMes(
+  datos: { tarjetas: Tarjeta[]; prestamos: Prestamo[]; movimientos: Movimiento[] },
+  hoy: string,
+  /** Día del próximo sueldo: entra lo que vence antes. Sin él, lo de este mes y los próximos 7 días. */
+  hasta?: string,
+): PagoDelMes[] {
   const mes = mesDe(hoy);
   const enVentana = (fecha: string) => {
     const dias = diasEntre(hoy, fecha);
-    return dias >= 0 && (mesDe(fecha) === mes || dias <= DIAS_ADELANTE);
+    if (dias < 0) return false;
+    return hasta ? fecha < hasta : mesDe(fecha) === mes || dias <= DIAS_ADELANTE;
   };
   const lista: PagoDelMes[] = [];
   for (const t of datos.tarjetas) {
     const e = estadoTarjeta(t, datos.movimientos, hoy);
-    if (!e.vencido && !enVentana(e.fechaLimite)) continue;
+    if (!e.vencido && !enVentana(e.fechaLimite)) {
+      // Con el estado de cuenta actual ya cerrado, el siguiente puede vencer antes del próximo sueldo.
+      if (hasta && e.proximoEstadoCentavos > 0 && enVentana(e.proximaFechaLimite)) {
+        const forma = t.formaPago ?? 'total';
+        const monto = forma === 'minimo' ? e.proximoMinimoCentavos : forma === 'recomendado' ? e.proximoRecomendadoCentavos : e.proximoEstadoCentavos;
+        if (monto > 0) {
+          lista.push({
+            tipo: 'tarjeta', id: t.id, nombre: t.nombre, fecha: e.proximaFechaLimite, vencido: false, estimado: true, montoCentavos: monto,
+            clase: forma === 'total' ? 'total' : forma,
+            totalCentavos: forma !== 'total' && e.proximoEstadoCentavos > monto ? e.proximoEstadoCentavos : undefined,
+          });
+        }
+      }
+      continue;
+    }
     const base = { tipo: 'tarjeta' as const, id: t.id, nombre: t.nombre, fecha: e.fechaLimite, vencido: e.vencido };
     // Quien paga lo recomendado ve ese monto (más que el mínimo, para que la deuda baje).
     if (t.formaPago === 'recomendado' && e.recomendadoPendienteCentavos > e.minimoPendienteCentavos) {

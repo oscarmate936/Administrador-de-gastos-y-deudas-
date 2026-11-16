@@ -141,6 +141,7 @@ export function tarjetaDesdeEstado(
       fechaLimite: estado.fechaLimite,
       pagoContadoCentavos: estado.pagoContadoCentavos,
       pagoMinimoCentavos: estado.pagoMinimoCentavos ?? undefined,
+      pagoRecomendadoCentavos: estado.pagoRecomendadoCentavos ?? undefined,
       saldoCentavos: saldo,
       disponibleCentavos: estado.disponibleCentavos ?? undefined,
       planes: estado.planes.length > 0 ? estado.planes : undefined,

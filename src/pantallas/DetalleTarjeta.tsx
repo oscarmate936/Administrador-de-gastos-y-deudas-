@@ -143,8 +143,8 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
               e.pendienteCentavos > 0
                 ? {
                     total: formatearDinero(e.pendienteCentavos),
-                    recomendado: formatearDinero(e.recomendadoPendienteCentavos),
-                    minimo: formatearDinero(e.minimoPendienteCentavos),
+                    recomendado: e.recomendadoPendienteCentavos > 0 ? formatearDinero(e.recomendadoPendienteCentavos) : 'Cubierto',
+                    minimo: e.minimoPendienteCentavos > 0 ? formatearDinero(e.minimoPendienteCentavos) : 'Cubierto',
                   }
                 : undefined
             }

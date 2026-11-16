@@ -156,6 +156,10 @@ export interface EstadoTarjeta {
   diasParaLimite: number;
   /** Lo que saldría en el próximo estado de cuenta si no se compra ni se paga nada más. */
   proximoEstadoCentavos: number;
+  /** Mínimo aproximado de ese próximo estado de cuenta (con la cuota del extrafinanciamiento). */
+  proximoMinimoCentavos: number;
+  /** Pago recomendado de ese próximo estado de cuenta (con las cuotas de compras a plazos). */
+  proximoRecomendadoCentavos: number;
   /** Último día de pago de ese próximo estado de cuenta. */
   proximaFechaLimite: string;
 }
@@ -267,31 +271,53 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
     corteConocido && segunEstado && ue.pagoMinimoCentavos !== undefined
       ? Math.min(pendienteCentavos, Math.max(0, ue.pagoMinimoCentavos - pagadoAlMinimo))
       : null;
+  // Cuotas de compras a plazos y extrafinanciamientos que entran en el estado de
+  // cuenta de un corte. El banco cobra dentro del mínimo las que tienen intereses
+  // (el extrafinanciamiento); las sin intereses no siempre van en el mínimo, y si
+  // no se pagan pasan al saldo y empiezan a cobrar intereses.
+  const facturadoDePlanes = (corte: string, conInteres: boolean): number => {
+    if (!ue || planesBase.length === 0) return 0;
+    const n = cortesEntre(ue.fechaCorte, corte);
+    return planesBase
+      .filter((p) => (p.tasaMensual > 0) === conInteres)
+      .reduce((t, p) => t + (n <= 0 ? p.cuotaCentavos : proyectarPlan(p, n).cobradoCentavos - proyectarPlan(p, n - 1).cobradoCentavos), 0);
+  };
+  /** Mínimo aproximado y pago recomendado de un estado de cuenta de `monto` cortado en `corte`. */
+  const pagosDelEstado = (monto: number, corte: string, minimoDelBanco?: number, recomendadoDelBanco?: number) => {
+    const conInteres = facturadoDePlanes(corte, true);
+    const sinInteres = facturadoDePlanes(corte, false);
+    const revolvente = Math.max(0, monto - conInteres - sinInteres);
+    const minimo = minimoDelBanco ?? Math.min(monto, minimoEstimado(revolvente, tasa) + conInteres);
+    // Lo mínimo para que la deuda baje: cubrir los intereses del mes más el 1 %.
+    const piso = interesMensual(revolvente, tasa) + Math.round(revolvente * 0.01) + conInteres;
+    const calculado = Math.max(minimo, piso) + sinInteres;
+    const recomendado = recomendadoDelBanco !== undefined ? Math.max(recomendadoDelBanco, piso + sinInteres, minimo) : calculado;
+    return { minimo: Math.min(monto, minimo), recomendado: Math.min(monto, recomendado) };
+  };
+
+  const conEstadoDelBanco = pagoMinimoCentavos !== null && ue?.pagoMinimoCentavos !== undefined;
+  const delEstado = pagosDelEstado(
+    saldoDelEstado,
+    corteAnterior,
+    conEstadoDelBanco ? ue.pagoMinimoCentavos : undefined,
+    conEstadoDelBanco ? ue.pagoRecomendadoCentavos : undefined,
+  );
   let minimoPendienteCentavos: number;
   if (pagoMinimoCentavos !== null) {
     minimoPendienteCentavos = pagoMinimoCentavos;
   } else {
     // Sin estado de cuenta importado: un cálculo sobre lo que pedía el estado de
     // cuenta. Como es aproximado, se da por cubierto al pagar casi todo (80 %).
-    const base = Math.min(saldoDelEstado, minimoEstimado(saldoDelEstado, tasa));
+    const base = delEstado.minimo;
     minimoPendienteCentavos =
       pagadoAlMinimo >= base * PARTE_MINIMO_CUBIERTO ? 0 : Math.min(pendienteCentavos, Math.max(0, base - pagadoAlMinimo));
   }
-
-  // Pago recomendado: el mínimo no siempre baja la deuda (si no cubre los
-  // intereses, o si no incluye las cuotas de compras a plazos sin intereses,
-  // que pasan al saldo y empiezan a cobrar intereses).
-  const planesDelEstado = corteConocido ? planesBase : planes;
-  const cuotas = (conInteres: boolean) =>
-    planesDelEstado.filter((p) => p.saldoCentavos > 0 && (p.tasaMensual > 0) === conInteres).reduce((s, p) => s + p.cuotaCentavos, 0);
-  const minimoBase =
-    pagoMinimoCentavos !== null && ue?.pagoMinimoCentavos !== undefined ? ue.pagoMinimoCentavos : Math.min(saldoDelEstado, minimoEstimado(saldoDelEstado, tasa));
-  const piso = interesMensual(saldoDelEstado, tasa) + Math.round(saldoDelEstado * 0.01) + cuotas(true);
-  const recomendadoBase = Math.min(saldoDelEstado, Math.max(minimoBase, piso) + cuotas(false));
   const recomendadoPendienteCentavos = Math.max(
     minimoPendienteCentavos,
-    Math.min(pendienteCentavos, Math.max(0, recomendadoBase - pagadoAlMinimo)),
+    Math.min(pendienteCentavos, Math.max(0, delEstado.recomendado - pagadoAlMinimo)),
   );
+  const proximoEstadoCentavos = pendienteDelCorte(proximoCorte, interesEstimadoCentavos);
+  const delProximo = pagosDelEstado(proximoEstadoCentavos, proximoCorte);
 
   const vencido = minimoPendienteCentavos > 0 && hoy > fechaLimite;
   // Los intereses estimados son parte de lo que se debe: van dentro del saldo,
@@ -319,11 +345,13 @@ export function estadoTarjeta(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: 
     minimoPendienteCentavos,
     minimoEsEstimado: pagoMinimoCentavos === null,
     recomendadoPendienteCentavos,
-    recomendadoAparte: recomendadoBase - minimoBase >= 100,
+    recomendadoAparte: delEstado.recomendado - delEstado.minimo >= 100,
     segunEstado: segunEstado && corteConocido,
     vencido,
     diasParaLimite: diasEntre(hoy, fechaLimite),
-    proximoEstadoCentavos: pendienteDelCorte(proximoCorte, interesEstimadoCentavos),
+    proximoEstadoCentavos,
+    proximoMinimoCentavos: delProximo.minimo,
+    proximoRecomendadoCentavos: delProximo.recomendado,
     proximaFechaLimite: primerDiaDespues(tarjeta.diaPago, proximoCorte),
   };
 }
@@ -791,7 +819,8 @@ export function proximosPagos(
         id: t.id,
         nombre: t.nombre,
         fecha: e.proximaFechaLimite,
-        montoCentavos: esMinimo ? Math.min(e.proximoEstadoCentavos, minimoEstimado(e.proximoEstadoCentavos, t.tasaAnual ?? 0)) : e.proximoEstadoCentavos,
+        montoCentavos:
+          t.formaPago === 'minimo' ? e.proximoMinimoCentavos : t.formaPago === 'recomendado' ? e.proximoRecomendadoCentavos : e.proximoEstadoCentavos,
         vencido: false,
         dias: diasEntre(hoy, e.proximaFechaLimite),
         estimado: true,

@@ -77,12 +77,13 @@ export function ImportarDeudas({ texto, alCerrar, alTerminar }: Props) {
                   </span>
                 </li>
               ))}
-              {plan.prestamos.map(({ prestamo: p, nuevo }) => (
+              {plan.prestamos.map(({ prestamo: p, nuevo, sinCambios }) => (
                 <li key={p.id} className="fila-info">
                   <span className="fila-texto">
                     <span className="fila-titulo">{p.nombre}</span>
                     <span className="fila-detalle envolver">
-                      {nuevo ? 'Nuevo' : 'Se pone al día, sin borrar sus pagos'} · cuota {formatearDinero(p.cuotaCentavos)}
+                      {nuevo ? 'Nuevo' : sinCambios ? 'Ya tienes datos más recientes: se queda como está' : 'Se pone al día, sin borrar sus pagos'} · cuota{' '}
+                      {formatearDinero(p.cuotaCentavos)}
                       {nuevo && ` · debes ${formatearDinero(estadoPrestamo(p, [], fecha).saldoCentavos)}`}
                     </span>
                   </span>

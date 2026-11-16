@@ -1,6 +1,6 @@
 import type { Movimiento, Prestamo, Tarjeta } from '../db';
 import type { Ajustes } from './ajustes';
-import { aPagarSegunForma, estadoPrestamo, estadoTarjeta, fechaConDia, minimoEstimado, pagaParcial, sumarMeses } from './deudas';
+import { aPagarSegunForma, estadoPrestamo, estadoTarjeta, fechaConDia, pagaParcial, sumarMeses } from './deudas';
 import { formatearDinero } from './dinero';
 import { aDate, aFechaTexto, diasEntre, fechaCorta, moverMes, nombreMes, sumarDias } from './fechas';
 import type { ClavePago } from './pagoRapido';
@@ -126,9 +126,11 @@ export function generarRecordatorios(e: Entrada, ahora: Date, horizonte = HORIZO
       });
     }
     if (r.pagos && est.proximoEstadoCentavos > 0) {
-      const minimoProximo = Math.min(est.proximoEstadoCentavos, minimoEstimado(est.proximoEstadoCentavos, t.tasaAnual ?? 0));
-      const cuerpoProximo = esMinimo
-        ? `Según lo registrado, el mínimo sería de unos ${formatearDinero(minimoProximo)} (de contado, unos ${formatearDinero(est.proximoEstadoCentavos)}). Revisa tu estado de cuenta.`
+      const cuerpoProximo =
+        t.formaPago === 'recomendado'
+          ? `Según lo registrado, lo recomendado sería unos ${formatearDinero(est.proximoRecomendadoCentavos)} (mínimo de unos ${formatearDinero(est.proximoMinimoCentavos)}). Revisa tu estado de cuenta.`
+          : esMinimo
+        ? `Según lo registrado, el mínimo sería de unos ${formatearDinero(est.proximoMinimoCentavos)} (de contado, unos ${formatearDinero(est.proximoEstadoCentavos)}). Revisa tu estado de cuenta.`
         : `Según lo registrado, serían unos ${formatearDinero(est.proximoEstadoCentavos)}. Revisa tu estado de cuenta.`;
       for (const dias of r.diasTarjeta) {
         agregar(`tarjeta:${t.id}:pago:${est.proximaFechaLimite}:${dias}`, sumarDias(est.proximaFechaLimite, -dias), {

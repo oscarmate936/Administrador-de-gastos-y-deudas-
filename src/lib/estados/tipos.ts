@@ -49,6 +49,8 @@ export interface EstadoCuentaTarjeta {
   saldoCentavos: number;
   pagoContadoCentavos: number;
   pagoMinimoCentavos: number | null;
+  /** «Pago recomendado» del banco, si lo imprime. */
+  pagoRecomendadoCentavos?: number | null;
   tasaAnual: number | null;
   movimientos: MovimientoEstado[];
   /** Compras a plazos y extrafinanciamientos vigentes (no están dentro del saldo). */
