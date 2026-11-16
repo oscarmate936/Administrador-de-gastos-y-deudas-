@@ -1,14 +1,11 @@
-import type { Movimiento, Prestamo, Tarjeta } from '../db';
-import { proximosPagos, totalPorPagar } from './deudas';
+import type { Movimiento, Tarjeta } from '../db';
+import { proximosPagos } from './deudas';
 import { mesDe, moverMes } from './fechas';
-import { calcularDisponible } from './resumen';
 
-// Fondo de emergencia y «libre para gastar». El fondo es dinero que sigue en tu
-// cuenta pero que apartas para imprevistos: no se resta de lo disponible, sí de
-// lo libre para gastar, así no lo gastas sin darte cuenta.
+// Fondo de emergencia: dinero que sigue en tu cuenta pero que apartas para
+// imprevistos. No se resta de lo que tienes, sí de lo que te queda para gastar
+// (lib/sueldo.ts), así no lo gastas sin darte cuenta.
 
-/** Días hacia adelante cuyos pagos se apartan al calcular lo libre. */
-export const DIAS_A_APARTAR = 15;
 /** Lo que se apartaría de una tarjeta en los próximos días si se paga el total o solo el mínimo. */
 export interface ApartadoTarjeta {
   totalCentavos: number;
@@ -17,9 +14,10 @@ export interface ApartadoTarjeta {
   minimoAprox: boolean;
 }
 
-export function apartadoPorForma(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: string): ApartadoTarjeta {
+/** `hasta`: el día del próximo sueldo; cuenta lo que vence antes (y lo vencido). */
+export function apartadoPorForma(tarjeta: Tarjeta, movimientos: Movimiento[], hoy: string, hasta: string): ApartadoTarjeta {
   const con = (formaPago: 'total' | 'minimo') =>
-    proximosPagos([{ ...tarjeta, formaPago }], [], movimientos, hoy).filter((p) => p.dias <= DIAS_A_APARTAR);
+    proximosPagos([{ ...tarjeta, formaPago }], [], movimientos, hoy).filter((p) => p.fecha < hasta);
   const minimos = con('minimo');
   return {
     totalCentavos: con('total').reduce((t, p) => t + p.montoCentavos, 0),
@@ -30,32 +28,6 @@ export function apartadoPorForma(tarjeta: Tarjeta, movimientos: Movimiento[], ho
 
 /** Meta cuando todavía no hay gastos para calcular una. */
 export const META_INICIAL = 30000;
-
-export interface Libre {
-  disponible: number;
-  /** Pagos de tarjetas y préstamos de los próximos días. */
-  porApartar: number;
-  /** Lo que está en el fondo de emergencia. */
-  fondo: number;
-  /** Lo que se muestra arriba en Inicio y en el widget. */
-  cifra: number;
-  /** true si hay algo apartado (la cifra es «libre para gastar», no «disponible»). */
-  conLibre: boolean;
-}
-
-export function calcularLibre(
-  datos: { movimientos: Movimiento[]; tarjetas: Tarjeta[]; prestamos: Prestamo[] },
-  hoy: string,
-  fondoCentavos = 0,
-  /** Corrección de «¿Cuánto dinero tienes hoy?» (ajustes.saldo). */
-  ajusteSaldoCentavos = 0,
-): Libre {
-  const disponible = calcularDisponible(datos.movimientos) + ajusteSaldoCentavos;
-  const porApartar = totalPorPagar(proximosPagos(datos.tarjetas, datos.prestamos, datos.movimientos, hoy), DIAS_A_APARTAR);
-  const fondo = Math.max(0, fondoCentavos);
-  const conLibre = porApartar > 0 || fondo > 0;
-  return { disponible, porApartar, fondo, cifra: conLibre ? disponible - porApartar - fondo : disponible, conLibre };
-}
 
 /**
  * Meta sugerida: lo que gastas en un mes (promedio de los últimos 3 meses

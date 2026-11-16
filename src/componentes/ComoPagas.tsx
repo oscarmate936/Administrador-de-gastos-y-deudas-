@@ -1,6 +1,7 @@
 import { db, type Movimiento, type Prestamo, type Tarjeta } from '../db';
 import { formatearDinero } from '../lib/dinero';
-import { DIAS_A_APARTAR, apartadoPorForma } from '../lib/fondo';
+import { fechaCorta } from '../lib/fechas';
+import { apartadoPorForma } from '../lib/fondo';
 import { Hoja } from './Hoja';
 
 interface Props {
@@ -8,6 +9,8 @@ interface Props {
   prestamos: Prestamo[];
   movimientos: Movimiento[];
   hoy: string;
+  /** Día del próximo sueldo: se aparta lo que vence antes. */
+  hasta: string;
   /** Lo que se aparta ahora en total (tarjetas y préstamos). */
   porApartar: number;
   alCerrar: () => void;
@@ -25,7 +28,8 @@ export function textoComoPagas(tarjetas: Tarjeta[]): string {
  * Elegir, tarjeta por tarjeta, si se paga el total del estado de cuenta o solo
  * el mínimo. Eso es lo que la app aparta de tu dinero para los próximos pagos.
  */
-export function ComoPagas({ tarjetas, prestamos, movimientos, hoy, porApartar, alCerrar }: Props) {
+export function ComoPagas({ tarjetas, prestamos, movimientos, hoy, hasta, porApartar, alCerrar }: Props) {
+  const antesDe = `antes de tu sueldo del ${fechaCorta(hasta)}`;
   const cambiar = (ids: string[], formaPago: 'total' | 'minimo') =>
     void db.transaction('rw', db.tarjetas, async () => {
       for (const id of ids) await db.tarjetas.update(id, { formaPago });
@@ -35,8 +39,8 @@ export function ComoPagas({ tarjetas, prestamos, movimientos, hoy, porApartar, a
     <Hoja titulo="¿Cuánto pagas de cada tarjeta?" alCerrar={alCerrar}>
       <div className="formulario">
         <p className="texto-tenue">
-          De tu dinero, la app aparta lo que vas a pagar en los próximos {DIAS_A_APARTAR} días. Si no te alcanza para pagar todo,
-          elige «El mínimo»: lo demás sigue como deuda de la tarjeta y genera intereses.
+          De tu sueldo, la app aparta lo que vas a pagar {antesDe}. Si no te alcanza para pagar todo, elige «El mínimo»: lo
+          demás sigue como deuda de la tarjeta y genera intereses.
         </p>
         {tarjetas.length > 1 && (
           <button type="button" className="boton" onClick={() => cambiar(tarjetas.map((t) => t.id), todasMinimo ? 'total' : 'minimo')}>
@@ -45,7 +49,7 @@ export function ComoPagas({ tarjetas, prestamos, movimientos, hoy, porApartar, a
         )}
         <ul className="lista grupo-borde como-pagas">
           {tarjetas.map((t) => {
-            const a = apartadoPorForma(t, movimientos, hoy);
+            const a = apartadoPorForma(t, movimientos, hoy, hasta);
             const nada = a.totalCentavos === 0 && a.minimoCentavos === 0;
             return (
               <li key={t.id}>
@@ -58,7 +62,7 @@ export function ComoPagas({ tarjetas, prestamos, movimientos, hoy, porApartar, a
                     El mínimo{nada ? '' : ` · ${formatearDinero(a.minimoCentavos)}${a.minimoAprox ? ' aprox.' : ''}`}
                   </button>
                 </div>
-                {nada && <span className="fila-detalle">No tiene pagos en los próximos {DIAS_A_APARTAR} días.</span>}
+                {nada && <span className="fila-detalle">No tiene pagos {antesDe}.</span>}
               </li>
             );
           })}
@@ -66,7 +70,7 @@ export function ComoPagas({ tarjetas, prestamos, movimientos, hoy, porApartar, a
         {prestamos.length > 0 && (
           <p className="ayuda sin-margen">De los préstamos se aparta la cuota completa: es lo mínimo que se paga cada mes.</p>
         )}
-        <p className="aviso">Apartas {formatearDinero(porApartar)} para los pagos de los próximos {DIAS_A_APARTAR} días.</p>
+        <p className="aviso">Apartas {formatearDinero(porApartar)} para tus deudas {antesDe}.</p>
         <div className="acciones">
           <button type="button" className="boton primario" onClick={alCerrar}>
             Listo

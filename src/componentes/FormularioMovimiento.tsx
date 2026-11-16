@@ -295,7 +295,7 @@ export function FormularioMovimiento(props: Props) {
             maxLength={80}
             list={tipo === 'gasto' ? 'notas-anteriores' : undefined}
             autoComplete="off"
-            placeholder={tipo === 'gasto' ? 'Ej. almuerzo, Super Selectos' : 'Ej. quincena'}
+            placeholder={tipo === 'gasto' ? 'Ej. almuerzo, Super Selectos' : 'Ej. sueldo de noviembre'}
             onFocus={() => setTecladoAbierto(false)}
             onChange={(e) => cambiarNota(e.target.value)}
           />

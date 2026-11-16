@@ -2,7 +2,7 @@
 
 export const GLOSARIO = {
   'libre para gastar':
-    'Lo que tienes menos lo que ya está apartado: los pagos de tarjetas y préstamos de los próximos 15 días y tu fondo de emergencia.',
+    'Lo que tienes menos lo que ya está apartado: los pagos de tarjetas y préstamos que vencen antes de tu próximo sueldo, lo que queda de tu bono de comida y tu fondo de emergencia.',
   'fondo de emergencia':
     'Dinero que apartas para imprevistos (una enfermedad, una reparación) para no tener que usar la tarjeta. Sigue en tu cuenta, pero no cuenta como libre para gastar.',
   'pago de contado':

@@ -42,6 +42,8 @@ interface Props {
   avisos: React.ReactNode;
   /** Fila «Mi dinero de hoy», dentro de Tus datos. */
   saldo: React.ReactNode;
+  /** Fila «Tu sueldo» (cada cuánto te pagan y bono de comida). */
+  sueldo: React.ReactNode;
   /** Fila para exportar, dentro de Tus datos. */
   exportar: React.ReactNode;
   /** Sección de movimientos que se repiten. */
@@ -59,7 +61,7 @@ const TEMAS: Array<{ id: Tema; nombre: string }> = [
 
 const fechaHora = new Intl.DateTimeFormat('es-SV', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 
-export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, saldo, exportar, recurrentes }: Props) {
+export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, saldo, sueldo, exportar, recurrentes }: Props) {
   const [categoria, setCategoria] = useState<Categoria | 'nueva' | null>(null);
   const [hoja, setHoja] = useState<Hojas>(null);
   const [aviso, setAviso] = useState<Aviso | null>(null);
@@ -170,6 +172,7 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, saldo, 
             }
             alTocar={() => setHoja('copias')}
           />
+          {sueldo}
           {saldo}
           {exportar}
         </ul>

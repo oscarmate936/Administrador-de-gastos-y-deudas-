@@ -6,6 +6,8 @@ import { FormularioMovimiento } from './componentes/FormularioMovimiento';
 import { FormularioPago } from './componentes/FormularioPago';
 import { FormularioPrestamo } from './componentes/FormularioPrestamo';
 import { FormularioSaldo } from './componentes/FormularioSaldo';
+import { FormularioSueldo } from './componentes/FormularioSueldo';
+import { planDelSueldo } from './lib/sueldo';
 import { FormularioTarjeta } from './componentes/FormularioTarjeta';
 import { Bloqueo } from './componentes/Bloqueo';
 import { FormularioRecordatorios } from './componentes/FormularioRecordatorios';
@@ -289,6 +291,7 @@ export function App() {
   );
   const [verRecordatorios, setVerRecordatorios] = useState(false);
   const [verSaldo, setVerSaldo] = useState(false);
+  const [verSueldo, setVerSueldo] = useState(false);
   const [recurrenteAbierto, setRecurrenteAbierto] = useState<Recurrente | null>(null);
 
   async function exportarCsv(d: Datos) {
@@ -335,11 +338,12 @@ export function App() {
   // El widget de Android muestra la misma cifra que Inicio (oculta si hay bloqueo).
   const conBloqueo = ajustes?.bloqueo.activo;
   const enFondo = ajustes?.fondo.apartadoCentavos ?? 0;
+  const sueldoAjustes = ajustes?.sueldo;
   useEffect(() => {
-    if (!datos || conBloqueo === undefined) return;
-    const t = setTimeout(() => void actualizarWidget({ ...resumenWidget(datos, dia, new Date(), enFondo, ajusteSaldo), oculto: conBloqueo }), 1000);
+    if (!datos || conBloqueo === undefined || !sueldoAjustes) return;
+    const t = setTimeout(() => void actualizarWidget({ ...resumenWidget(datos, dia, new Date(), { sueldo: sueldoAjustes!, fondoCentavos: enFondo, ajusteSaldoCentavos: ajusteSaldo }), oculto: conBloqueo }), 1000);
     return () => clearTimeout(t);
-  }, [datos, conBloqueo, enFondo, ajusteSaldo, dia]);
+  }, [datos, conBloqueo, enFondo, ajusteSaldo, dia, sueldoAjustes]);
 
   // Metas del camino a «libre de deudas»: se celebran una sola vez.
   const [celebracion, setCelebracion] = useState<{ titulo: string; texto: string } | null>(null);
@@ -564,6 +568,14 @@ export function App() {
                 alTocar={() => setVerRecordatorios(true)}
               />
             }
+            sueldo={
+              <Opcion
+                icono={<Insignia color="var(--positivo)" simbolo="ingreso" cuadrada />}
+                titulo="Tu sueldo"
+                detalle={`${ajustes!.sueldo.frecuencia === 'quincenal' ? 'Cada quincena' : 'Cada mes'}${ajustes!.sueldo.dia ? `, el día ${ajustes!.sueldo.dia}` : ''}${ajustes!.sueldo.comidaCentavos > 0 ? ` · bono de comida ${formatearDinero(ajustes!.sueldo.comidaCentavos)}` : ''}`}
+                alTocar={() => setVerSueldo(true)}
+              />
+            }
             saldo={
               <Opcion
                 icono={<Insignia color="var(--positivo)" simbolo="dinero" cuadrada />}
@@ -635,7 +647,25 @@ export function App() {
                 limite = avisoLimite(c, antes, antes + m.montoCentavos) ?? '';
               }
               const que = m.tipo === 'ingreso' ? 'Ingreso' : 'Gasto';
-              const texto = anterior ? 'Cambios guardados.' : `${que} de ${formatearDinero(m.montoCentavos)} guardado.`;
+              let texto = anterior ? 'Cambios guardados.' : `${que} de ${formatearDinero(m.montoCentavos)} guardado.`;
+              // Al registrar el sueldo, en qué se va: deudas del periodo, comida y lo que queda.
+              if (!anterior && m.tipo === 'ingreso' && m.esPago && ajustes) {
+                const plan = planDelSueldo({ ...d, movimientos: [...d.movimientos.filter((x) => x.id !== m.id), m] }, hoy(), {
+                  sueldo: ajustes.sueldo,
+                  fondoCentavos: ajustes.fondo.apartadoCentavos,
+                  ajusteSaldoCentavos: ajustes.saldo.ajusteCentavos,
+                });
+                const partes = [
+                  plan.deudas.faltaCentavos > 0 && `${formatearDinero(plan.deudas.faltaCentavos)} para deudas`,
+                  plan.comida && plan.comida.quedaCentavos > 0 && `${formatearDinero(plan.comida.quedaCentavos)} para comida`,
+                ].filter(Boolean);
+                const queda = `${formatearDinero(Math.max(0, plan.libreCentavos))} para lo demás`;
+                const final =
+                  plan.libreCentavos < 0
+                    ? `te faltan ${formatearDinero(-plan.libreCentavos)} para cubrirlo todo`
+                    : `te quedan ${queda}`;
+                texto = `Sueldo de ${formatearDinero(m.montoCentavos)} guardado. ${partes.length ? `Aparté ${partes.join(' y ')}: ${final}.` : `${final.charAt(0).toUpperCase()}${final.slice(1)}.`}`;
+              }
               avisarCambio(limite ? `${texto} ${limite}` : texto, async () => {
                 if (anterior) await db.movimientos.put(anterior);
                 else await db.movimientos.delete(m.id);
@@ -788,6 +818,9 @@ export function App() {
           alCerrar={() => setVerSaldo(false)}
           alGuardar={(texto) => setAviso({ texto, tipo: 'info' })}
         />
+      )}
+      {verSueldo && datos && (
+        <FormularioSueldo sueldo={ajustes.sueldo} categorias={datos.categorias} alCerrar={() => setVerSueldo(false)} />
       )}
       {verRecordatorios && datos && (
         <FormularioRecordatorios ajustes={ajustes} datos={datos} alCerrar={() => setVerRecordatorios(false)} />

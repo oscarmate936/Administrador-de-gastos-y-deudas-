@@ -201,7 +201,8 @@ describe('preguntas', () => {
   });
 
   it('disponible, préstamo, intereses y mínimo', () => {
-    expect(titulo('¿cuánto tengo disponible?')).toBe('Tienes $833.50 disponibles');
+    // $833.50 en total, menos la cuota de $125 del 28 nov (antes del próximo sueldo, el 1 dic).
+    expect(titulo('¿cuánto tengo disponible?')).toBe('Te quedan $708.50 para tus demás gastos');
     expect(lineas('¿cuánto me falta del préstamo?')).toEqual(['Préstamo personal: debes $3,500.00; te faltan 3 años, terminas en oct 2029.']);
     expect(titulo('¿cuánto pagué de intereses este mes?')).toBe('Pagaste $41.87 en intereses y comisiones este mes');
     expect(lineas('¿cuál es el mínimo de la visa?')).toEqual(['Visa Clásica: $8.20 antes del 1 dic.']);

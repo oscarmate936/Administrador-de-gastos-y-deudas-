@@ -5,7 +5,6 @@ import {
   calcularDisponible,
   gastosPorCategoria,
   ordenarRecientes,
-  resumenDesdeUltimoPago,
   totalesDelMes,
 } from './resumen';
 
@@ -33,32 +32,6 @@ describe('calcularDisponible', () => {
   });
   it('sin movimientos es cero', () => {
     expect(calcularDisponible([])).toBe(0);
-  });
-});
-
-describe('resumenDesdeUltimoPago', () => {
-  it('cuenta desde el pago más reciente, incluido el mismo día', () => {
-    const r = resumenDesdeUltimoPago(todos, '2026-11-13')!;
-    expect(r.pago.id).toBe(pagoNov.id);
-    expect(r.gastadoCentavos).toBe(2500 + 7500 + 1000);
-    expect(r.otrosIngresosCentavos).toBe(2000);
-    expect(r.diasTranscurridos).toBe(8);
-    expect(r.promedioDiarioCentavos).toBe(Math.round(11000 / 9));
-  });
-
-  it('un ingreso que no es pago no reinicia el periodo', () => {
-    const r = resumenDesdeUltimoPago(todos, '2026-11-13')!;
-    expect(r.pago.id).not.toBe(regalo.id);
-  });
-
-  it('ignora pagos con fecha futura', () => {
-    const r = resumenDesdeUltimoPago(todos, '2026-11-01')!;
-    expect(r.pago.id).toBe(pagoOct.id);
-    expect(r.gastadoCentavos).toBe(12000);
-  });
-
-  it('devuelve null si no hay ningún pago', () => {
-    expect(resumenDesdeUltimoPago([gastoNov, regalo], '2026-11-13')).toBeNull();
   });
 });
 
@@ -109,13 +82,6 @@ describe('tarjetas y pagos de deudas', () => {
 
   it('la compra con tarjeta no baja el disponible; pagar la tarjeta o el préstamo sí', () => {
     expect(calcularDisponible(movs)).toBe(100000 - 5000 - 20000 - 15000);
-  });
-
-  it('el resumen desde el pago cuenta salidas reales y separa los pagos de deudas', () => {
-    const r = resumenDesdeUltimoPago(movs, '2026-11-10')!;
-    expect(r.gastadoCentavos).toBe(5000 + 20000 + 15000);
-    expect(r.pagosDeudasCentavos).toBe(35000);
-    expect(r.gastos.map((g) => g.id)).toEqual([efectivo.id]);
   });
 
   it('los totales del mes separan salidas y compras con tarjeta', () => {

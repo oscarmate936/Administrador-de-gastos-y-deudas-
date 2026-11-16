@@ -138,8 +138,8 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
           </div>
           <span className="ayuda sin-margen">
             {t.formaPago === 'minimo'
-              ? 'La app aparta solo el mínimo de lo libre para gastar y deja de avisarte cuando lo cubres.'
-              : 'La app aparta el pago de contado de lo libre para gastar y te avisa hasta que lo pagues.'}
+              ? 'La app aparta solo el mínimo de tu sueldo y deja de avisarte cuando lo cubres.'
+              : 'La app aparta el pago de contado de tu sueldo y te avisa hasta que lo pagues.'}
           </span>
         </div>
         <p className="ayuda sin-margen">

@@ -114,6 +114,17 @@ export interface AjustesSaldo {
   fecha?: string;
 }
 
+/** Tu sueldo: cada cuánto llega y el bono de comida que se aparta de él. */
+export interface AjustesSueldo {
+  frecuencia: 'mensual' | 'quincenal';
+  /** Día del mes en que te pagan; sin él, el del último sueldo registrado. */
+  dia?: number;
+  /** Bono de comida al mes; 0 si no hay. */
+  comidaCentavos: number;
+  /** Categorías cuyos gastos salen del bono de comida. */
+  categoriasComida: string[];
+}
+
 export interface AjustesMetas {
   /** Porcentajes del camino a «libre de deudas» ya celebrados. */
   hitos: number[];
@@ -132,6 +143,7 @@ export interface Ajustes {
   metas: AjustesMetas;
   fondo: AjustesFondo;
   saldo: AjustesSaldo;
+  sueldo: AjustesSueldo;
 }
 
 export const AJUSTES_INICIALES: Ajustes = {
@@ -156,6 +168,7 @@ export const AJUSTES_INICIALES: Ajustes = {
   metas: { hitos: [], prestamos: [] },
   fondo: { apartadoCentavos: 0 },
   saldo: { ajusteCentavos: 0 },
+  sueldo: { frecuencia: 'mensual', comidaCentavos: 0, categoriasComida: ['comida', 'super'] },
 };
 
 export type ClaveAjuste = keyof Ajustes;

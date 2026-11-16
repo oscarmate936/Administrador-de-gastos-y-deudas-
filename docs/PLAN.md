@@ -41,6 +41,7 @@ una versión instalable que se actualiza encima de la anterior sin borrar datos.
 | — | Segunda revisión con casos al azar: saldo de la tarjeta con intereses estimados y cuatro detalles | Hecho (2.3.1) |
 | — | Revisión final: respaldos cifrados grandes, «pagué a la tarjeta» en el asistente, copias borradas con el PIN olvidado y diez detalles | Hecho (2.3.2) |
 | — | Tarjeta de Inicio sin cifras en negativo, con el desglose de la cifra, y «¿Cuánto pagas de cada tarjeta?» (total o mínimo) a un toque | Hecho (2.3.3) |
+| — | Tu sueldo: pago mensual o quincenal, bono de comida aparte y la tarjeta de Inicio con una sola cifra («Te quedan») | Hecho (2.4.0) |
 | — | Registrar compras desde los SMS del banco | Pendiente: hacen falta ejemplos de los mensajes |
 
 La fase 3 puede adelantarse en cuanto lleguen los PDF; no depende de las demás.

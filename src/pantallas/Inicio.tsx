@@ -10,12 +10,13 @@ import { IconoAnterior, IconoFlecha, IconoSiguiente } from '../componentes/Icono
 import { Insignia, InsigniaCategoria, Simbolo } from '../componentes/Simbolo';
 import { pagosDelMes, type PagoDelMes } from '../lib/pagosDelMes';
 import { guardarAjuste, ordenInicio, type Ajustes, type AjustesFondo, type SeccionInicio } from '../lib/ajustes';
-import { DIAS_A_APARTAR, calcularLibre, moverFondo, sugerirMeta } from '../lib/fondo';
+import { moverFondo, sugerirMeta } from '../lib/fondo';
+import { planDelSueldo, type PlanSueldo } from '../lib/sueldo';
 import { cierreDelMes, mesParaResumen, type CierreMes } from '../lib/cierreMes';
 import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
-import { diasEntre, fechaCorta, hoy, mesDe, moverMes as moverMesInicio, nombreMes, textoFaltan } from '../lib/fechas';
+import { diasEntre, fechaCorta, hoy, mesDe, moverMes as moverMesInicio, nombreMes } from '../lib/fechas';
 import { esPagoDeDeuda, ordenarRecientes } from '../lib/resumen';
-import { calcularRitmo, type Ritmo } from '../lib/ritmo';
+import { FormularioSueldo } from '../componentes/FormularioSueldo';
 import { estadoLimites } from '../lib/limites';
 import { omitirRecurrente, pendientes, registrarRecurrente } from '../lib/recurrentes';
 
@@ -59,6 +60,7 @@ export function Inicio(props: Props) {
   const fechaHoy = hoy();
   const [editando, setEditando] = useState(false);
   const [verComoPagas, setVerComoPagas] = useState(false);
+  const [verSueldo, setVerSueldo] = useState(false);
 
   if (movimientos.length === 0 && tarjetas.length === 0 && prestamos.length === 0) {
     return (
@@ -80,7 +82,10 @@ export function Inicio(props: Props) {
   }
 
   const recientes = ordenarRecientes(movimientos).slice(0, 5);
-  const { disponible, porApartar, fondo, cifra, conLibre } = calcularLibre(datos, fechaHoy, ajustes.fondo.apartadoCentavos, ajustes.saldo.ajusteCentavos);
+  const opcionesSueldo = { sueldo: ajustes.sueldo, fondoCentavos: ajustes.fondo.apartadoCentavos, ajusteSaldoCentavos: ajustes.saldo.ajusteCentavos };
+  const plan = planDelSueldo(datos, fechaHoy, opcionesSueldo);
+  const disponible = plan.disponibleCentavos;
+  const cifra = plan.libreCentavos;
   const mes = mesDe(fechaHoy);
   const limites = estadoLimites(movimientos, datos.categorias, mes).filter((l) => l.porcentaje >= 80);
   const porConfirmar = pendientes(datos.recurrentes, fechaHoy);
@@ -92,7 +97,6 @@ export function Inicio(props: Props) {
   const pasoVisible = mostrarPasos ? pasos.find((p) => !p.hecho)?.id : undefined;
   const pedirRespaldo = (diasSinRespaldo === null || diasSinRespaldo >= DIAS_ENTRE_RESPALDOS) && pasoVisible !== 'respaldo';
 
-  const ritmo = calcularRitmo(movimientos, fechaHoy, cifra);
   // Con más salidas que ingresos anotados falta un dato: cuánto dinero hay de verdad.
   const sinSaldo = disponible < 0;
   const hayIngresos = movimientos.some((m) => m.tipo === 'ingreso');
@@ -121,8 +125,7 @@ export function Inicio(props: Props) {
       <Asistente
         key="asistente"
         datos={datos}
-        fondoCentavos={ajustes.fondo.apartadoCentavos}
-        ajusteSaldoCentavos={ajustes.saldo.ajusteCentavos}
+        opciones={opcionesSueldo}
         alAbrirFormulario={alAbrirFormulario}
         alAbrir={(d) => (d === 'movimientos' ? alVerTodos() : alAbrirDeuda(d))}
       />
@@ -219,7 +222,7 @@ export function Inicio(props: Props) {
       </section>
     ),
     fondo: (
-      <TarjetaFondo key="fondo" fondo={ajustes.fondo} sugerida={sugerirMeta(movimientos, fechaHoy)} cifra={cifra} />
+      <TarjetaFondo key="fondo" fondo={ajustes.fondo} sugerida={sugerirMeta(movimientos, fechaHoy)} cifra={Math.max(0, cifra)} />
     ),
     mes: (
       <section className="grupo" key="mes">
@@ -264,104 +267,27 @@ export function Inicio(props: Props) {
 
   const orden = ordenInicio(ajustes.inicio).filter((s) => !ajustes.inicio.ocultas.includes(s));
 
-  // Debajo de los pagos: si de las tarjetas se cuenta el total o el mínimo, y cómo cambiarlo.
-  const cambiarPagos = tarjetas.length > 0 && (
-    <div className="desglose-cambiar">
-      <dt className="solo-lectores">Tarjetas</dt>
-      <dd>
-        <button type="button" className="enlace-heroe" onClick={() => setVerComoPagas(true)}>
-          {textoComoPagas(tarjetas)} · <strong>Cambiar</strong>
-        </button>
-      </dd>
-    </div>
-  );
+
 
   return (
     <>
-      {sinSaldo ? (
-        // Más salidas que ingresos anotados: nadie tiene dinero en negativo, así que
-        // en vez de una cifra roja se pide el dato que falta.
-        <section className="tarjeta-principal">
-          <p className="etiqueta">Falta un dato</p>
-          <p className="titulo-heroe">¿Cuánto dinero tienes hoy?</p>
-          <p className="nota-principal">
-            {hayIngresos
-              ? `Has anotado ${formatearDinero(-disponible)} más en gastos y pagos que en ingresos.`
-              : `Has anotado ${formatearDinero(-disponible)} en gastos y pagos, pero ningún ingreso.`}{' '}
-            Dime cuánto tienes y te digo cuánto puedes gastar.
-          </p>
-          <div className="acciones-heroe">
-            <button type="button" className="boton boton-heroe solido" onClick={props.alCorregirSaldo}>
-              Decir cuánto tengo hoy
-            </button>
-            {!ritmo && (
-              <button type="button" className="boton boton-heroe" onClick={alAgregarIngreso}>
-                Registrar mi sueldo
-              </button>
-            )}
-          </div>
-          {porApartar > 0 && (
-            <dl className="desglose-heroe">
-              <div>
-                <dt>Pagos de los próximos {DIAS_A_APARTAR} días</dt>
-                <dd>{formatearDinero(porApartar)}</dd>
-              </div>
-              {cambiarPagos}
-            </dl>
-          )}
-        </section>
-      ) : (
-        <section className={cifra < 0 ? 'tarjeta-principal negativo' : 'tarjeta-principal'}>
-          <p className="etiqueta">
-            {cifra < 0 ? 'Te faltan' : conLibre ? 'Libre para gastar' : 'Disponible'}
-            {conLibre && cifra >= 0 && <Ayuda termino="libre para gastar" clara />}
-          </p>
-          <p className="monto-grande">{formatearDinero(Math.abs(cifra))}</p>
-          {cifra < 0 && (
-            <p className="nota-principal">
-              para cubrir tus pagos de los próximos {DIAS_A_APARTAR} días{fondo > 0 ? ' sin tocar tu fondo de emergencia' : ''}.
-              {tarjetas.some((t) => t.formaPago !== 'minimo') && ' Si de una tarjeta solo pagas el mínimo, toca «Cambiar».'}
-            </p>
-          )}
-          {conLibre ? (
-            <dl className="desglose-heroe">
-              <div>
-                <dt>Tienes</dt>
-                <dd>{formatearDinero(disponible)}</dd>
-              </div>
-              {porApartar > 0 && (
-                <div>
-                  <dt>Pagos de los próximos {DIAS_A_APARTAR} días</dt>
-                  <dd>−{formatearDinero(porApartar)}</dd>
-                </div>
-              )}
-              {porApartar > 0 && cambiarPagos}
-              {fondo > 0 && (
-                <div>
-                  <dt>Fondo de emergencia</dt>
-                  <dd>−{formatearDinero(fondo)}</dd>
-                </div>
-              )}
-            </dl>
-          ) : (
-            <p className="nota-principal">
-              {ajustes.saldo.ajusteCentavos !== 0
-                ? `Lo que dijiste tener${ajustes.saldo.fecha ? ` el ${fechaCorta(ajustes.saldo.fecha)}` : ''}, con lo que has anotado desde entonces.`
-                : 'Lo que has recibido menos lo que ha salido.'}
-            </p>
-          )}
-          {ritmo && <HeroeRitmo ritmo={ritmo} hoy={fechaHoy} />}
-          {!ritmo && (
-            <div className="acciones-heroe">
-              <button type="button" className="boton boton-heroe" onClick={alAgregarIngreso}>
-                Registrar mi sueldo
-              </button>
-              <button type="button" className="boton boton-heroe" onClick={props.alCorregirSaldo}>
-                Decir cuánto tengo hoy
-              </button>
-            </div>
-          )}
-        </section>
+      <Heroe
+        plan={plan}
+        sinSaldo={sinSaldo}
+        hayIngresos={hayIngresos}
+        alCorregirSaldo={props.alCorregirSaldo}
+        alAgregarIngreso={alAgregarIngreso}
+      />
+
+      {!sinSaldo && (
+        <TuSueldo
+          plan={plan}
+          hayTarjetas={tarjetas.length > 0}
+          textoTarjetas={textoComoPagas(tarjetas)}
+          alAgregarIngreso={alAgregarIngreso}
+          alAjustar={() => setVerSueldo(true)}
+          alCambiarTarjetas={() => setVerComoPagas(true)}
+        />
       )}
 
       {cierre && <ResumenCierre cierre={cierre} alVerAnalisis={alVerAnalisis} />}
@@ -374,77 +300,19 @@ export function Inicio(props: Props) {
         <Simbolo nombre="lapiz" tamano={18} /> Editar Inicio
       </button>
       {editando && <EditarInicio ajustes={ajustes} alCerrar={() => setEditando(false)} />}
+      {verSueldo && <FormularioSueldo sueldo={ajustes.sueldo} categorias={datos.categorias} alCerrar={() => setVerSueldo(false)} />}
       {verComoPagas && (
         <ComoPagas
           tarjetas={tarjetas}
           prestamos={prestamos}
           movimientos={movimientos}
           hoy={fechaHoy}
-          porApartar={porApartar}
+          hasta={plan.periodo.hasta}
+          porApartar={plan.deudas.faltaCentavos}
           alCerrar={() => setVerComoPagas(false)}
         />
       )}
     </>
-  );
-}
-
-// ---------- Ritmo en el héroe ----------
-
-function HeroeRitmo({ ritmo: r, hoy: fechaHoy }: { ritmo: Ritmo; hoy: string }) {
-  const estimado = r.intervalo.supuesto ? ' (estimado)' : '';
-  let alcance: string;
-  if (r.porDiaCentavos === null) alcance = 'No queda libre';
-  else if (!r.alcanzaHasta || r.alcanzaHasta >= r.proximoPago) alcance = 'Tu próximo sueldo';
-  else alcance = fechaCorta(r.alcanzaHasta);
-
-  return (
-    <>
-      <dl className="cifras-heroe">
-        <div>
-          <dt>Puedes gastar por día</dt>
-          <dd>{r.porDiaCentavos === null ? formatearDinero(0) : formatearDinero(r.porDiaCentavos)}</dd>
-        </div>
-        <div>
-          <dt>A este ritmo te alcanza hasta</dt>
-          <dd className={r.alcanzaHasta && r.alcanzaHasta < r.proximoPago ? 'heroe-alerta' : ''}>{alcance}</dd>
-        </div>
-      </dl>
-      <GraficaRitmo ritmo={r} />
-      <p className="pie-heroe">
-        <span>
-          {r.pagoAtrasado
-            ? 'Tu sueldo suele llegar antes de hoy'
-            : `Próximo sueldo ${fechaCorta(r.proximoPago)}${estimado} · ${textoFaltan(diasEntre(fechaHoy, r.proximoPago))}`}
-        </span>
-      </p>
-    </>
-  );
-}
-
-/** Línea de lo gastado desde el pago contra el ritmo parejo hasta el próximo pago. */
-function GraficaRitmo({ ritmo: r }: { ritmo: Ritmo }) {
-  const ANCHO = 300;
-  const ALTO = 56;
-  const real = r.acumulado[r.acumulado.length - 1] ?? 0;
-  const tope = Math.max(r.totalPeriodoCentavos, real, 1) * 1.08;
-  const x = (d: number) => (Math.min(d, r.diasPeriodo) / r.diasPeriodo) * ANCHO;
-  const y = (c: number) => ALTO - 4 - (c / tope) * (ALTO - 8);
-  const puntos = r.acumulado.map((c, d) => `${x(d).toFixed(1)},${y(c).toFixed(1)}`);
-  const hoyX = x(r.acumulado.length - 1);
-  const area = `0,${ALTO} ${puntos.join(' ')} ${hoyX.toFixed(1)},${ALTO}`;
-  return (
-    <svg
-      className="grafica-ritmo"
-      viewBox={`0 0 ${ANCHO} ${ALTO}`}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label={`Ritmo de gasto: llevas ${formatearDinero(real)} desde tu sueldo; a ritmo parejo serían ${formatearDinero(r.idealHoyCentavos)}.`}
-    >
-      <line className="ideal" x1="0" y1={y(0)} x2={ANCHO} y2={y(r.totalPeriodoCentavos)} />
-      <polygon className="area" points={area} />
-      <polyline className="real" points={puntos.join(' ')} />
-      <circle className="hoy" cx={hoyX} cy={y(real)} r="3.5" />
-    </svg>
   );
 }
 
@@ -606,7 +474,7 @@ function EditarInicio({ ajustes, alCerrar }: { ajustes: Ajustes; alCerrar: () =>
   return (
     <Hoja titulo="Editar Inicio" alCerrar={alCerrar}>
       <div className="formulario">
-        <p className="texto-tenue">Elige qué ver y en qué orden. Lo libre para gastar siempre va arriba.</p>
+        <p className="texto-tenue">Elige qué ver y en qué orden. Lo que te queda para gastar y tu sueldo siempre van arriba.</p>
         <ul className="lista grupo-borde editar-inicio">
           {orden.map((s, i) => (
             <li key={s}>
@@ -713,7 +581,7 @@ function TarjetaFondo({ fondo, sugerida, cifra }: { fondo: AjustesFondo; sugerid
         </div>
         <p className="ayuda sin-margen">
           {porcentaje >= 100
-            ? '¡Meta cumplida! Ese dinero ya no cuenta como libre para gastar.'
+            ? '¡Meta cumplida! Ese dinero ya no cuenta en lo que te queda para gastar.'
             : `Te faltan ${formatearDinero(meta - fondo.apartadoCentavos)} para tu meta.`}
         </p>
         <div className="acciones">
@@ -794,8 +662,8 @@ function MoverFondo({ accion, fondo, cifra, alCerrar }: { accion: 'apartar' | 'u
       >
         <p className="texto-tenue">
           {apartar
-            ? 'El dinero sigue en tu cuenta, pero deja de contar como libre para gastar.'
-            : 'El dinero vuelve a lo libre para gastar. Después registra el gasto como siempre.'}
+            ? 'El dinero sigue en tu cuenta, pero deja de contar en lo que te queda para gastar.'
+            : 'El dinero vuelve a lo que te queda para gastar. Después registra el gasto como siempre.'}
         </p>
         <label className="campo">
           <span>Monto</span>
@@ -812,7 +680,7 @@ function MoverFondo({ accion, fondo, cifra, alCerrar }: { accion: 'apartar' | 'u
           <p className={quedaLibre < 0 ? 'aviso alerta' : 'aviso'}>
             {quedaLibre < 0
               ? `Te quedarían ${formatearDinero(quedaLibre)} libres: apartarías dinero que ya es de tus pagos.`
-              : `Libre para gastar: ${formatearDinero(quedaLibre)}.`}
+              : `Te quedarían ${formatearDinero(quedaLibre)} para gastar.`}
           </p>
         )}
         {error && (
@@ -892,5 +760,207 @@ function ResumenCierre({ cierre: c, alVerAnalisis }: { cierre: CierreMes; alVerA
         </button>
       </div>
     </section>
+  );
+}
+
+// ---------- Tarjeta de arriba ----------
+
+/** Una sola cifra: lo que te queda para tus demás gastos hasta el próximo sueldo. */
+function Heroe({
+  plan,
+  sinSaldo,
+  hayIngresos,
+  alCorregirSaldo,
+  alAgregarIngreso,
+}: {
+  plan: PlanSueldo;
+  sinSaldo: boolean;
+  hayIngresos: boolean;
+  alCorregirSaldo: () => void;
+  alAgregarIngreso: () => void;
+}) {
+  const proximo = `tu sueldo del ${fechaCorta(plan.periodo.hasta)}`;
+  if (sinSaldo) {
+    // Más salidas que ingresos anotados: en vez de una cifra en negativo, se pide el dato que falta.
+    return (
+      <section className="tarjeta-principal">
+        <p className="etiqueta">Falta un dato</p>
+        <p className="titulo-heroe">¿Cuánto dinero tienes hoy?</p>
+        <p className="nota-principal">
+          {hayIngresos ? 'Has anotado más gastos que ingresos.' : 'Has anotado gastos, pero ningún ingreso.'} Dime cuánto tienes y te
+          digo cuánto puedes gastar.
+        </p>
+        <div className="acciones-heroe">
+          <button type="button" className="boton boton-heroe solido" onClick={alCorregirSaldo}>
+            Decir cuánto tengo hoy
+          </button>
+          <button type="button" className="boton boton-heroe" onClick={alAgregarIngreso}>
+            Registrar mi sueldo
+          </button>
+        </div>
+      </section>
+    );
+  }
+  const falta = plan.libreCentavos < 0;
+  return (
+    <section className={falta ? 'tarjeta-principal negativo' : 'tarjeta-principal'}>
+      <p className="etiqueta">{falta ? 'Te faltan' : 'Te quedan'}</p>
+      <p className="monto-grande">{formatearDinero(Math.abs(plan.libreCentavos))}</p>
+      <p className="nota-principal">
+        {falta ? `para tus deudas y tu comida antes de ${proximo}.` : `para tus demás gastos hasta ${proximo}.`}
+      </p>
+      {!falta && plan.porDiaCentavos !== null && (
+        <p className="pie-heroe">Unos {formatearDinero(plan.porDiaCentavos)} por día durante {plan.diasRestantes === 1 ? '1 día' : `${plan.diasRestantes} días`}.</p>
+      )}
+    </section>
+  );
+}
+
+// ---------- Tu sueldo ----------
+
+/** En qué se va el sueldo: deudas, comida y lo demás, cada uno con lo que llevas y lo que queda. */
+function TuSueldo({
+  plan,
+  hayTarjetas,
+  textoTarjetas,
+  alAgregarIngreso,
+  alAjustar,
+  alCambiarTarjetas,
+}: {
+  plan: PlanSueldo;
+  hayTarjetas: boolean;
+  textoTarjetas: string;
+  alAgregarIngreso: () => void;
+  alAjustar: () => void;
+  alCambiarTarjetas: () => void;
+}) {
+  const { periodo, deudas, comida } = plan;
+  const totalDeudas = deudas.pagadoCentavos + deudas.faltaCentavos;
+  const libre = Math.max(0, plan.libreCentavos);
+  // Lo que traías de antes del sueldo, para que las cuentas cuadren.
+  const deAntes =
+    Math.abs(plan.teniasCentavos) < 100
+      ? ''
+      : plan.teniasCentavos > 0
+        ? ` Además tenías ${formatearDinero(plan.teniasCentavos)} de antes.`
+        : ` Antes de este sueldo te faltaban ${formatearDinero(-plan.teniasCentavos)}.`;
+  return (
+    <section className="grupo" aria-label="Tu sueldo">
+      <div className="cabecera-grupo">
+        <h2>Tu sueldo</h2>
+        <button type="button" className="enlace" onClick={alAjustar}>
+          Ajustar
+        </button>
+      </div>
+      <div className="tarjeta sueldo">
+        {periodo.sueldo ? (
+          <p className="sueldo-recibido">
+            Recibiste <strong>{formatearDinero(periodo.sueldo.montoCentavos)}</strong> el {fechaCorta(periodo.sueldo.fecha)}
+            {plan.ingresosCentavos > periodo.sueldo.montoCentavos &&
+              ` y ${formatearDinero(plan.ingresosCentavos - periodo.sueldo.montoCentavos)} de otros ingresos`}
+            .{deAntes}
+          </p>
+        ) : (
+          <div className="sueldo-falta">
+            <p>Aún no registras tu sueldo de este periodo.{deAntes}</p>
+            <button type="button" className="boton chico primario" onClick={alAgregarIngreso}>
+              Registrar mi sueldo
+            </button>
+          </div>
+        )}
+
+        <Apartado
+          titulo="Deudas"
+          monto={totalDeudas}
+          usado={deudas.pagadoCentavos}
+          detalle={
+            totalDeudas === 0
+              ? 'Nada que pagar antes de tu próximo sueldo.'
+              : deudas.faltaCentavos === 0
+                ? 'Ya pagaste todo lo de este periodo.'
+                : `Pagaste ${formatearDinero(deudas.pagadoCentavos)} · faltan ${formatearDinero(deudas.faltaCentavos)}`
+          }
+        >
+          {hayTarjetas && (
+            <button type="button" className="enlace enlace-chico" onClick={alCambiarTarjetas}>
+              {textoTarjetas} · Cambiar
+            </button>
+          )}
+        </Apartado>
+
+        {comida ? (
+          <Apartado
+            titulo="Comida"
+            monto={comida.presupuestoCentavos}
+            usado={comida.gastadoCentavos}
+            detalle={
+              (comida.gastadoCentavos > comida.presupuestoCentavos
+                ? `Gastaste ${formatearDinero(comida.gastadoCentavos)} · te pasaste ${formatearDinero(comida.gastadoCentavos - comida.presupuestoCentavos)}`
+                : `Gastaste ${formatearDinero(comida.gastadoCentavos)} · quedan ${formatearDinero(comida.quedaCentavos)}`) +
+              (comida.conTarjetaCentavos > 0 ? `. ${formatearDinero(comida.conTarjetaCentavos)} fueron con tarjeta: ese dinero queda apartado para pagarla.` : '')
+            }
+          />
+        ) : (
+          <button type="button" className="fila apartado-agregar" onClick={alAjustar}>
+            <span className="fila-texto">
+              <span className="fila-titulo">¿Te dan bono de comida?</span>
+              <span className="fila-detalle envolver">Agrégalo y la app lo aparta de tu sueldo y lleva la cuenta de lo que gastas en comida.</span>
+            </span>
+            <span className="opcion-flecha" aria-hidden="true">
+              <IconoFlecha />
+            </span>
+          </button>
+        )}
+
+        <Apartado
+          titulo="Lo demás"
+          monto={plan.otrosCentavos + libre}
+          usado={plan.otrosCentavos}
+          detalle={
+            plan.libreCentavos < 0
+              ? `Gastaste ${formatearDinero(plan.otrosCentavos)} · te faltan ${formatearDinero(-plan.libreCentavos)} para cubrir deudas y comida`
+              : `Gastaste ${formatearDinero(plan.otrosCentavos)} · te quedan ${formatearDinero(libre)}`
+          }
+        />
+
+        {plan.fondoCentavos > 0 && (
+          <p className="ayuda sin-margen">Además, {formatearDinero(plan.fondoCentavos)} están apartados en tu fondo de emergencia.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** Un apartado del sueldo con su barra: cuánto llevas de cuánto. */
+function Apartado({
+  titulo,
+  monto,
+  usado,
+  detalle,
+  children,
+}: {
+  titulo: string;
+  monto: number;
+  /** Lo que ya se usó; sin él no hay barra. */
+  usado?: number;
+  detalle: string;
+  children?: ReactNode;
+}) {
+  const pasado = usado !== undefined && usado > monto;
+  const porcentaje = usado === undefined || monto <= 0 ? 0 : Math.min(100, Math.round((usado / monto) * 100));
+  return (
+    <div className="apartado">
+      <div className="apartado-cabecera">
+        <span className="fila-titulo">{titulo}</span>
+        <span className="apartado-monto">{formatearDinero(monto)}</span>
+      </div>
+      {usado !== undefined && monto > 0 && (
+        <div className="barra" role="progressbar" aria-label={titulo} aria-valuemin={0} aria-valuemax={100} aria-valuenow={porcentaje}>
+          <div className={pasado ? 'barra-relleno peligro' : 'barra-relleno'} style={{ width: `${Math.max(2, porcentaje)}%` }} />
+        </div>
+      )}
+      <span className={pasado ? 'fila-detalle envolver texto-peligro' : 'fila-detalle envolver'}>{detalle}</span>
+      {children}
+    </div>
   );
 }

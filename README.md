@@ -14,7 +14,7 @@ no hay servidor ni cuentas.
 
 ## Cómo está organizada
 
-- **Inicio:** lo libre para gastar, el asistente, lo que requiere atención
+- **Inicio:** lo que te queda para gastar, tu sueldo (deudas, comida y lo demás), el asistente, lo que requiere atención
   (pagos que vencen, gastos por confirmar, límites, respaldo), el resumen del
   mes y los últimos movimientos. El engranaje abre **Ajustes**.
 - **Movimientos:** la lista por día, con búsqueda y filtros.
@@ -27,9 +27,10 @@ no hay servidor ni cuentas.
 ## Qué hace
 
 **Día a día**
-- Pagos recibidos sin día fijo, otros ingresos y gastos por categoría.
-- Disponible, lo que queda libre después de apartar los pagos de los próximos
-  15 días, y resumen desde el último pago.
+- Sueldo mensual o quincenal (con su día de pago), otros ingresos y gastos por categoría.
+- «Tu sueldo»: de cada sueldo se apartan las deudas que vencen antes del siguiente
+  (el total o el mínimo de cada tarjeta) y el bono de comida; se ve cuánto llevas de
+  cada apartado y lo que queda para lo demás.
 - Gastos que se repiten cada mes, propuestos en Inicio para confirmar.
 - Límites de gasto por categoría con avisos al 80% y al 100%.
 - Leer tickets y capturas de la app del banco con la cámara (en el dispositivo,
@@ -44,8 +45,8 @@ no hay servidor ni cuentas.
   la app recuerda la categoría y la tarjeta de cada comercio.
 - Deshacer al guardar, editar o borrar; deslizar un movimiento para editarlo o borrarlo.
 - Atajos al mantener presionado el ícono (gasto, ticket, pago) y widget de Android
-  con lo libre para gastar.
-- Inicio: cuánto puedes gastar por día, hasta cuándo te alcanza, gráfica de ritmo,
+  con lo que te queda para gastar.
+- Inicio: cuánto puedes gastar por día hasta tu próximo sueldo,
   «Próximos pagos» (una fila por deuda: el mínimo de cada tarjeta, con el pago de contado
   como dato, y la cuota de cada préstamo; al tocarla se abre el pago con el monto puesto),
   primeros pasos y secciones que se pueden ocultar u ordenar.

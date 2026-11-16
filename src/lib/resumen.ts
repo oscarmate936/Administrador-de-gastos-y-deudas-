@@ -1,5 +1,5 @@
 import type { Movimiento } from '../db';
-import { diasEntre, mesDe } from './fechas';
+import { mesDe } from './fechas';
 
 /** Orden para mostrar: lo más reciente primero. */
 export function ordenarRecientes(movimientos: Movimiento[]): Movimiento[] {
@@ -31,54 +31,6 @@ export function calcularDisponible(movimientos: Movimiento[]): number {
     else if (esSalida(m)) total -= m.montoCentavos;
   }
   return total;
-}
-
-export interface ResumenPeriodo {
-  /** El último pago recibido (hoy o antes). */
-  pago: Movimiento;
-  /** Todo lo que salió del disponible desde ese pago, incluido el mismo día. */
-  gastadoCentavos: number;
-  /** De eso, cuánto fue en pagos de tarjetas y préstamos. */
-  pagosDeudasCentavos: number;
-  /** Otros ingresos recibidos después de ese pago. */
-  otrosIngresosCentavos: number;
-  diasTranscurridos: number;
-  /** Salida promedio por día desde el pago. */
-  promedioDiarioCentavos: number;
-  /** Gastos en efectivo o débito del periodo (sin compras con tarjeta). */
-  gastos: Movimiento[];
-}
-
-/**
- * Resumen "desde tu último pago". Como no hay día de pago fijo, el periodo
- * empieza cuando la persona registra un ingreso marcado como pago.
- */
-export function resumenDesdeUltimoPago(
-  movimientos: Movimiento[],
-  fechaHoy: string,
-): ResumenPeriodo | null {
-  const pago = ordenarRecientes(movimientos).find(
-    (m) => m.tipo === 'ingreso' && m.esPago && m.fecha <= fechaHoy,
-  );
-  if (!pago) return null;
-
-  const enPeriodo = movimientos.filter((m) => m.fecha >= pago.fecha && m.fecha <= fechaHoy);
-  const gastos = enPeriodo.filter((m) => m.tipo === 'gasto' && !esGastoConTarjeta(m));
-  const pagosDeudasCentavos = sumar(enPeriodo.filter(esPagoDeDeuda));
-  const otrosIngresos = enPeriodo.filter((m) => m.tipo === 'ingreso' && m.id !== pago.id);
-
-  const gastadoCentavos = sumar(gastos) + pagosDeudasCentavos;
-  const diasTranscurridos = diasEntre(pago.fecha, fechaHoy);
-  return {
-    pago,
-    gastadoCentavos,
-    pagosDeudasCentavos,
-    otrosIngresosCentavos: sumar(otrosIngresos),
-    diasTranscurridos,
-    // El día del pago cuenta como día 1.
-    promedioDiarioCentavos: Math.round(gastadoCentavos / (diasTranscurridos + 1)),
-    gastos,
-  };
 }
 
 export interface TotalCategoria {
