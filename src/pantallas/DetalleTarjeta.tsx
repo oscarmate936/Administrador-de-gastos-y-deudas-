@@ -2,7 +2,7 @@ import type { Datos } from '../datos';
 import { db, type Movimiento, type Tarjeta } from '../db';
 import { FilaMovimiento } from '../componentes/FilaMovimiento';
 import { IconoAnterior } from '../componentes/Iconos';
-import { Plastico } from './Deudas';
+import { Plastico, conLimite } from './Deudas';
 import { Ayuda } from '../componentes/Ayuda';
 import { estadoTarjeta, sumarMeses } from '../lib/deudas';
 import { formatearDinero } from '../lib/dinero';
@@ -45,7 +45,7 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
           <span style={{ width: `${t.limiteCentavos > 0 ? Math.min(100, Math.max(0, (e.saldoCentavos / t.limiteCentavos) * 100)) : 0}%` }} />
         </span>
         <span className="plastico-pie">
-          Disponible {formatearDinero(e.creditoDisponibleCentavos)} de {formatearDinero(t.limiteCentavos)}
+          {conLimite(t) ? `Disponible ${formatearDinero(e.creditoDisponibleCentavos)} de ${formatearDinero(t.limiteCentavos)}` : 'Sin límite de crédito registrado'}
         </span>
         {e.planesCentavos > 0 && (
           <span className="plastico-pie">
@@ -68,7 +68,7 @@ export function DetalleTarjeta({ tarjeta: t, datos, alVolver, alEditarTarjeta, a
             {e.minimoEsEstimado ? ' (aprox.)' : ''} cuanto antes para evitar más cargos por mora.
           </p>
         )}
-        {!e.vencido && e.diasParaLimite < 0 && e.interesEstimadoCentavos > 0 && (
+        {!e.vencido && e.diasParaLimite < 0 && e.pendienteCentavos > 0 && e.interesEstimadoCentavos > 0 && (
           <p className="aviso alerta">
             Cubriste el mínimo, así que no hay mora. Lo que quedó sin pagar genera intereses: la app ya suma unos{' '}
             {formatearDinero(e.interesEstimadoCentavos)} a tu deuda. La cifra exacta llega con el próximo estado de cuenta.

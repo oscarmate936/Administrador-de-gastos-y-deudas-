@@ -118,6 +118,8 @@ export function FormularioMovimiento(props: Props) {
       const leidos: string[] = [];
       if (montoLeido.valor) {
         setMonto(centavosATexto(montoLeido.valor));
+        // El teclado vuelve a empezar: el primer número que se toque reemplaza el monto leído.
+        setLecturas((n) => n + 1);
         leidos.push('monto');
       }
       if (fechaLeida.valor) {
@@ -143,6 +145,7 @@ export function FormularioMovimiento(props: Props) {
     }
   }
   const [error, setError] = useState('');
+  const [lecturas, setLecturas] = useState(0);
   // Fijos mientras el formulario está abierto: guardar dos veces seguidas no crea duplicados.
   const [idNuevo] = useState(nuevoId);
   const [idRecurrente] = useState(nuevoId);
@@ -214,6 +217,7 @@ export function FormularioMovimiento(props: Props) {
   }
 
   const titulo = `${movimiento ? 'Editar' : 'Nuevo'} ${tipo === 'gasto' ? 'gasto' : 'ingreso'}`;
+  const tarjetaElegida = tipo === 'gasto' && tarjetaId !== undefined ? tarjetas.find((t) => t.id === tarjetaId) : undefined;
 
   return (
     <Hoja titulo={titulo} alCerrar={alCerrar}>
@@ -266,6 +270,7 @@ export function FormularioMovimiento(props: Props) {
         )}
 
         <TecladoMonto
+          key={lecturas}
           valor={monto}
           alCambiar={(v) => {
             setMonto(v);
@@ -393,6 +398,12 @@ export function FormularioMovimiento(props: Props) {
           <span>Fecha</span>
           <input type="date" value={fecha} max="2099-12-31" onChange={(e) => setFecha(e.target.value)} />
         </label>
+        {tarjetaElegida && esFechaValida(fecha) && fecha <= tarjetaElegida.fechaSaldo && (
+          <p className="aviso alerta">
+            La deuda de {tarjetaElegida.nombre} que tiene la app es la del {fechaCorta(tarjetaElegida.fechaSaldo)}: una compra de ese
+            día o de antes ya está incluida, así que no la aumenta. Queda en tus movimientos como historial.
+          </p>
+        )}
 
         {!movimiento && (
           <label className="interruptor">

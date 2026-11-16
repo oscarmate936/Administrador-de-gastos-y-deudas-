@@ -7,7 +7,7 @@ import { Simbolo } from '../componentes/Simbolo';
 import { formatearDinero } from '../lib/dinero';
 import { fechaRelativa, hoy, mesDe, moverMes, nombreMes } from '../lib/fechas';
 import { coincide, FILTROS, pasaFiltro, type Filtro } from '../lib/filtros';
-import { agruparPorDia, ordenarRecientes, totalesDelMes } from '../lib/resumen';
+import { agruparPorDia, esSalida, ordenarRecientes, totalesDelMes } from '../lib/resumen';
 
 interface Props {
   datos: Datos;
@@ -114,10 +114,10 @@ export function Movimientos({ datos, alEditar, alBorrar }: Props) {
   );
 }
 
-/** Lo que salió en el día (sin contar compras con tarjeta, que no salen de tu dinero). */
+/** Lo que salió en el día (sin contar compras con tarjeta ni devoluciones, que no salen de tu dinero). */
 function totalDia(lista: Movimiento[]) {
   const entra = lista.filter((m) => m.tipo === 'ingreso').reduce((t, m) => t + m.montoCentavos, 0);
-  const sale = lista.filter((m) => m.tipo !== 'ingreso' && !(m.tipo === 'gasto' && m.tarjetaId)).reduce((t, m) => t + m.montoCentavos, 0);
+  const sale = lista.filter(esSalida).reduce((t, m) => t + m.montoCentavos, 0);
   const neto = entra - sale;
   if (neto === 0) return '';
   return neto > 0 ? `+${formatearDinero(neto)}` : `−${formatearDinero(-neto)}`;

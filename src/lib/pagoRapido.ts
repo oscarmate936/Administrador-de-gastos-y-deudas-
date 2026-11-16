@@ -37,8 +37,12 @@ export function esClavePago(v: unknown): v is ClavePago {
   );
 }
 
-/** Id fijo para el pago de ese recordatorio: tocar «Ya pagué» dos veces no lo duplica. */
-export const idPagoRapido = (c: ClavePago) => `aviso-${c.tipo}-${c.id}-${c.fecha}`;
+/**
+ * Id fijo para el pago de ese recordatorio: tocar «Ya pagué» dos veces no lo
+ * duplica. El mínimo lleva su propio id, para poder pagar después el resto del
+ * mismo estado de cuenta con «Pagué el total».
+ */
+export const idPagoRapido = (c: ClavePago) => `aviso-${c.tipo}-${c.id}-${c.fecha}${c.tipo === 'tarjeta' && c.modo === 'minimo' ? '-minimo' : ''}`;
 
 export function pagoRapido(
   datos: { tarjetas: Tarjeta[]; prestamos: Prestamo[]; movimientos: Movimiento[] },

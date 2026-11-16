@@ -25,7 +25,8 @@ const textoDia = (fecha: string) => {
   const h = hoy();
   if (fecha === h) return 'hoy';
   if (fecha === sumarDias(h, -1)) return `ayer (${fechaCorta(fecha)})`;
-  return fechaCorta(fecha);
+  // De otro año se dice cuál, para que una fecha mal entendida se note.
+  return fecha.slice(0, 4) === h.slice(0, 4) ? fechaCorta(fecha) : `${fechaCorta(fecha)} de ${fecha.slice(0, 4)}`;
 };
 
 /**
@@ -146,6 +147,8 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir, fondoCentavos = 0
   }
 
   const esRegistro = resultado && ['gasto', 'ingreso', 'pagoTarjeta', 'pagoPrestamo'].includes(resultado.tipo);
+  // Con fecha futura no se guarda directo: el formulario la revisa.
+  const fechaFutura = !!resultado && 'fecha' in resultado && resultado.fecha > hoy();
 
   return (
     <section className="asistente" aria-label="Asistente">
@@ -218,15 +221,44 @@ export function Asistente({ datos, alAbrirFormulario, alAbrir, fondoCentavos = 0
           <span className="texto-tenue">Entendí:</span>
           <strong>{resumen(resultado)}</strong>
           {'nota' in resultado && resultado.nota && <span className="texto-tenue">Nota: {resultado.nota}</span>}
+          {fechaFutura && <span className="texto-alerta">Esa fecha todavía no llega: revísala antes de guardar.</span>}
           <div className="acciones">
             <button type="button" className="boton" onClick={() => revisar(resultado)}>
               {movimientoDe(resultado) ? 'Revisar' : 'Completar'}
             </button>
-            {movimientoDe(resultado) && (
+            {movimientoDe(resultado) && !fechaFutura && (
               <button type="button" className="boton primario" onClick={() => void guardar(resultado)}>
                 Guardar
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {resultado?.tipo === 'cual' && (
+        <div className="asistente-respuesta" role="status">
+          <strong>{resultado.deuda === 'tarjeta' ? '¿A cuál tarjeta?' : '¿A cuál préstamo?'}</strong>
+          <div className="chips">
+            {resultado.ids.map((id) => {
+              const r = resultado;
+              const nombre = r.deuda === 'tarjeta' ? nombreTarjeta(id) : nombrePrestamo(id);
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className="chip"
+                  onClick={() =>
+                    setResultado(
+                      r.deuda === 'tarjeta'
+                        ? { tipo: 'pagoTarjeta', tarjetaId: id, montoCentavos: r.montoCentavos, fecha: r.fecha }
+                        : { tipo: 'pagoPrestamo', prestamoId: id, montoCentavos: r.montoCentavos, extra: r.extra, fecha: r.fecha },
+                    )
+                  }
+                >
+                  {nombre}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

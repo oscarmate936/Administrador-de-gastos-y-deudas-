@@ -70,6 +70,15 @@ describe('«Ya pagué» desde un recordatorio', () => {
     const d = { tarjetas: [conMinimo], prestamos: [], movimientos: [] };
     const r = pagoRapido(d, { tipo: 'tarjeta', id: 't1', fecha: '2026-11-15', modo: 'minimo' }, '2026-11-14');
     expect(r.ok && r.movimiento.montoCentavos).toBe(2500);
+    // Después se puede pagar el resto con «Pagué el total»: no choca con el pago del mínimo.
+    if (r.ok) {
+      const conPago = { ...d, movimientos: [r.movimiento] };
+      const resto = pagoRapido(conPago, { tipo: 'tarjeta', id: 't1', fecha: '2026-11-15', modo: 'total' }, '2026-11-15');
+      expect(resto.ok && resto.movimiento.montoCentavos).toBe(7500);
+      expect(resto.ok && resto.movimiento.id).not.toBe(r.movimiento.id);
+      // Tocar otra vez «Pagué el mínimo» no lo repite.
+      expect(pagoRapido(conPago, { tipo: 'tarjeta', id: 't1', fecha: '2026-11-15', modo: 'minimo' }, '2026-11-15').ok).toBe(false);
+    }
     // Sin mínimo conocido, pide escribir el monto.
     expect(pagoRapido(datos(), { tipo: 'tarjeta', id: 't1', fecha: '2026-11-15', modo: 'minimo' }, '2026-11-14')).toMatchObject({ ok: false, abrirPago: true });
   });

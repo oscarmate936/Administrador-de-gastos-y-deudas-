@@ -60,6 +60,11 @@ describe('piezas', () => {
     expect(extraerFecha('EL 20 DE DICIEMBRE', HOY)?.valor).toBe('2025-12-20');
     expect(extraerFecha('EL 20', HOY)?.valor).toBe('2026-10-20');
     expect(extraerFecha('05/11', HOY)?.valor).toBe('2026-11-05');
+    // Una fecha que aún no llega es la del año pasado; lo que no es fecha se deja.
+    expect(extraerFecha('EL 20/12', HOY)?.valor).toBe('2025-12-20');
+    expect(extraerFecha('20/12/2026', HOY)?.valor).toBe('2026-12-20');
+    expect(extraerFecha('15/13', HOY)).toBeNull();
+    expect(extraerFecha('0/5', HOY)).toBeNull();
     expect(extraerFecha('GASTE 5', HOY)).toBeNull();
     // "el 5" seguido de un monto no es una fecha
     expect(extraerFecha('PAGUE EL 5.50', HOY)).toBeNull();
@@ -118,6 +123,36 @@ describe('registrar', () => {
   it('pago a una tarjeta', () => {
     expect(leer('pagué 100 a la Mastercard')).toEqual({ tipo: 'pagoTarjeta', tarjetaId: 'master', montoCentavos: 10000, fecha: HOY });
     expect(leer('abono de 50 a la tarjeta de Banco Agrícola el lunes')).toEqual({ tipo: 'pagoTarjeta', tarjetaId: 'visa', montoCentavos: 5000, fecha: '2026-11-09' });
+  });
+
+  it('«a la tarjeta» sin nombre: con una sola es esa; con varias, pregunta', () => {
+    const una = { ...datos, tarjetas: [visa] };
+    expect(interpretar('Pagué 100 a la tarjeta', una, HOY)).toEqual({ tipo: 'pagoTarjeta', tarjetaId: 'visa', montoCentavos: 10000, fecha: HOY });
+    expect(interpretar('aboné 30 a mi tarjeta', una, HOY)).toEqual({ tipo: 'pagoTarjeta', tarjetaId: 'visa', montoCentavos: 3000, fecha: HOY });
+    expect(leer('Pagué 100 a la tarjeta')).toEqual({ tipo: 'cual', deuda: 'tarjeta', ids: ['visa', 'master'], montoCentavos: 10000, extra: false, fecha: HOY });
+    expect(interpretar('Pagué 100 a la tarjeta', { ...datos, tarjetas: [] }, HOY)).toMatchObject({ tipo: 'respuesta', titulo: 'No tienes tarjetas registradas' });
+    // Con «con la tarjeta» sigue siendo una compra.
+    expect(interpretar('pagué 20 con la tarjeta en comida', una, HOY)).toMatchObject({ tipo: 'gasto', tarjetaId: 'visa', categoriaId: 'comida' });
+    expect(interpretar('pagué 10 de luz', una, HOY)).toMatchObject({ tipo: 'gasto', categoriaId: 'servicios' });
+  });
+
+  it('dos tarjetas con el mismo nombre: pregunta entre esas', () => {
+    const otraVisa: Tarjeta = { ...visa, id: 'visa2', nombre: 'Visa Oro', banco: 'BAC', ultimos4: undefined };
+    const d = { ...datos, tarjetas: [visa, master, otraVisa] };
+    expect(interpretar('pagué 80 a la visa', d, HOY)).toMatchObject({ tipo: 'cual', deuda: 'tarjeta', ids: ['visa', 'visa2'], montoCentavos: 8000 });
+  });
+
+  it('«el préstamo» sin nombre, con varios o ninguno', () => {
+    const otro: Prestamo = { ...prestamo, id: 'p2', nombre: 'Préstamo de la moto', acreedor: 'BAC' };
+    expect(interpretar('pagué 66 del préstamo', { ...datos, prestamos: [prestamo, otro] }, HOY)).toEqual({
+      tipo: 'cual', deuda: 'prestamo', ids: ['p1', 'p2'], montoCentavos: 6600, extra: false, fecha: HOY,
+    });
+    expect(interpretar('pagué 66 del préstamo', { ...datos, prestamos: [] }, HOY)).toMatchObject({ tipo: 'respuesta', titulo: 'No tienes préstamos registrados' });
+  });
+
+  it('la fecha no se cuela en la nota', () => {
+    expect(leer('me pagaron 450 el 5 de noviembre')).toEqual({ tipo: 'ingreso', montoCentavos: 45000, esPago: true, fecha: '2026-11-05', nota: '' });
+    expect(leer('gasté 8 en pupusas el 10/11')).toMatchObject({ tipo: 'gasto', montoCentavos: 800, fecha: '2026-11-10', nota: 'pupusas' });
   });
 
   it('cuota y abono extra del préstamo', () => {

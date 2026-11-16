@@ -126,7 +126,7 @@ export function PlanDeudas({ datos, ajustes, alVolver, alAbrir }: Props) {
               {EXTRAS.map((extra) => {
                 const otro = simularPlan(deudas, pago! + extra, metodo);
                 const meses = otro.meses !== null ? plan.meses! - otro.meses : 0;
-                const ahorro = plan.interesesCentavos - otro.interesesCentavos;
+                const ahorro = Math.max(0, plan.interesesCentavos - otro.interesesCentavos);
                 return (
                   <li key={extra}>
                     <button type="button" className="fila" onClick={() => cambiarPago(centavosATexto(pago! + extra))}>

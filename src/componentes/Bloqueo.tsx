@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { db } from '../db';
 import type { AjustesBloqueo } from '../lib/ajustes';
+import { borrarCopias } from '../lib/copias';
 import { verificarPin } from '../lib/cripto';
+import { guardarClave } from '../lib/respaldoAuto';
 import { verificarHuella } from '../lib/nativo';
 import { IconoHuella } from './Iconos';
 import { TecladoPin } from './TecladoPin';
@@ -82,6 +84,10 @@ export function Bloqueo({ ajustes, alDesbloquear }: Props) {
       window.confirm('Esto borra TODOS tus datos de este dispositivo: movimientos, tarjetas, préstamos y ajustes. ¿Continuar?') &&
       window.confirm('Última confirmación: no se puede deshacer. Después podrás restaurar un respaldo si tienes uno. ¿Borrar todo?');
     if (!ok) return;
+    // También las copias diarias guardadas en el celular y la contraseña del
+    // respaldo automático: si quedaran, se podrían restaurar sin saber el PIN.
+    await borrarCopias().catch(() => undefined);
+    await guardarClave(undefined).catch(() => undefined);
     await db.delete();
     window.location.reload();
   }
@@ -99,7 +105,10 @@ export function Bloqueo({ ajustes, alDesbloquear }: Props) {
             Por seguridad, el PIN no se puede recuperar. Si tienes la huella activada, úsala para entrar y cambiar el PIN en
             Ajustes.
           </p>
-          <p>Si no, la única salida es borrar los datos de este dispositivo y restaurar tu último respaldo.</p>
+          <p>
+            Si no, la única salida es borrar los datos de este dispositivo (también las copias automáticas) y restaurar tu último
+            respaldo.
+          </p>
           <button type="button" className="boton peligro" onClick={borrarTodo}>
             Borrar todo y empezar de nuevo
           </button>

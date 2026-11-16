@@ -57,6 +57,14 @@ async function borrarCopia(id: string) {
   await Filesystem.deleteFile({ path: `${CARPETA}/${id}`, ...opciones });
 }
 
+/**
+ * Borra todas las copias automáticas. Se usa al borrar los datos por un PIN
+ * olvidado: si quedaran, cualquiera podría restaurarlas sin saber el PIN.
+ */
+export async function borrarCopias(): Promise<void> {
+  for (const c of await listarCopias()) await borrarCopia(c.id).catch(() => undefined);
+}
+
 /** Hace una copia si la última tiene más de un día. Devuelve true si la hizo. */
 export async function copiarSiToca(ahora = new Date()): Promise<boolean> {
   const { respaldo } = await leerAjustes();

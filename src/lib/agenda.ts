@@ -58,7 +58,7 @@ export function agenda(datos: FuenteAgenda, desde: string, hasta: string, hoy: s
         clave: `pago-${t.id}-${conMonto.fecha}`,
         fecha: conMonto.fecha,
         tipo: 'pago',
-        titulo: `Pagar ${t.nombre}`,
+        titulo: conMonto.esMinimo ? `Pago mínimo ${t.nombre}` : `Pagar ${t.nombre}`,
         montoCentavos: conMonto.montoCentavos,
         estimado: conMonto.estimado,
         color: t.color,

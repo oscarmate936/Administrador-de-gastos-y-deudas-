@@ -16,6 +16,8 @@ export type Intencion =
   | { tipo: 'ingreso'; montoCentavos?: number; esPago: boolean; fecha: string; nota: string }
   | { tipo: 'pagoTarjeta'; tarjetaId: string; montoCentavos?: number; fecha: string }
   | { tipo: 'pagoPrestamo'; prestamoId: string; montoCentavos?: number; extra: boolean; fecha: string }
+  /** Un pago a «la tarjeta» o «el préstamo» sin decir cuál, habiendo varios: hay que elegir entre `ids`. */
+  | { tipo: 'cual'; deuda: 'tarjeta' | 'prestamo'; ids: string[]; montoCentavos?: number; extra: boolean; fecha: string }
   | { tipo: 'respuesta'; titulo: string; lineas: string[]; destino?: Detalle | 'movimientos' }
   | { tipo: 'noEntendi' };
 
@@ -38,8 +40,8 @@ function palabrasDe(nombre: string): string[] {
     .filter((p) => p.length >= 3 && !PALABRAS_COMUNES.has(p));
 }
 
-/** La deuda nombrada en la frase, si hay una sola que coincida mejor que las demás. */
-function buscarDeuda<T extends Tarjeta | Prestamo>(t: string, deudas: T[]): { deuda: T; indice: number } | null {
+/** Las deudas que mejor coinciden con la frase (varias si empatan; ninguna si no se nombra ninguna). */
+function deudasNombradas<T extends Tarjeta | Prestamo>(t: string, deudas: T[]): Array<{ deuda: T; indice: number }> {
   const puntos = deudas.map((d) => {
     const extra = 'banco' in d ? [d.banco, d.ultimos4 ?? ''] : [d.acreedor];
     const palabras = [...palabrasDe(d.nombre), ...extra.flatMap((x) => palabrasDe(x))];
@@ -55,9 +57,21 @@ function buscarDeuda<T extends Tarjeta | Prestamo>(t: string, deudas: T[]): { de
     return { deuda: d, n, indice };
   });
   const mejor = Math.max(0, ...puntos.map((p) => p.n));
-  const ganadores = puntos.filter((p) => p.n === mejor && mejor > 0);
-  return ganadores.length === 1 ? { deuda: ganadores[0].deuda, indice: ganadores[0].indice } : null;
+  return puntos.filter((p) => p.n === mejor && mejor > 0).map((p) => ({ deuda: p.deuda, indice: p.indice }));
 }
+
+/** La deuda nombrada en la frase, si hay una sola que coincida mejor que las demás. */
+function buscarDeuda<T extends Tarjeta | Prestamo>(t: string, deudas: T[]): { deuda: T; indice: number } | null {
+  const ganadores = deudasNombradas(t, deudas);
+  return ganadores.length === 1 ? ganadores[0] : null;
+}
+
+/** Respuesta cuando se quiere pagar una deuda y no hay ninguna registrada. */
+const sinDeudas = (que: 'tarjetas' | 'préstamos'): Intencion => ({
+  tipo: 'respuesta',
+  titulo: que === 'tarjetas' ? 'No tienes tarjetas registradas' : 'No tienes préstamos registrados',
+  lineas: [que === 'tarjetas' ? 'Agrégalas en Deudas para registrar sus pagos.' : 'Agrégalos en Deudas para registrar sus pagos.'],
+});
 
 function buscarCategoria(t: string, datos: Datos): string | undefined {
   const propia = datos.categorias.find((c) => {
@@ -69,12 +83,18 @@ function buscarCategoria(t: string, datos: Datos): string | undefined {
   return regla && datos.mapaCategorias.has(regla) ? regla : undefined;
 }
 
+const MESES_NOTA = 'enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre';
+
 /** Palabras donde termina la nota: forma de pago, fecha o monto. */
 const FIN_NOTA = '(?=\\s+(?:con|el|ayer|hoy|anteayer|antier|hace|por|en efectivo|del?)\\b|[.,!?]|$)';
 
 /** "gasté 12 en almuerzo con la visa" -> "almuerzo"; "compré pupusas por 4.50" -> "pupusas". */
 function notaDe(original: string): string {
-  const sinMontos = original.replace(/\$?\s?\d[\d.,]*\s*(d[oó]lares?|usd)?/gi, ' ').replace(/\s+/g, ' ');
+  // Las fechas («el 30 de noviembre», «12/11») no son parte de la nota.
+  const sinFechas = original
+    .replace(new RegExp(`\\b(?:el\\s+)?\\d{1,2}\\s+de\\s+(?:${MESES_NOTA})(?:\\s+(?:de\\s+)?\\d{4})?\\b`, 'gi'), ' ')
+    .replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g, ' ');
+  const sinMontos = sinFechas.replace(/\$?\s?\d[\d.,]*\s*(d[oó]lares?|usd)?/gi, ' ').replace(/\s+/g, ' ');
   const limpiar = (texto: string) => texto.trim().replace(/\s+/g, ' ').slice(0, 60);
   const tras = new RegExp(`\\b(?:en|de|para)\\s+(?:(?:unos|unas|una|un|los|las|el|la|mis|mi)\\s+)?([a-záéíóúñü][\\wáéíóúñü\\s]{1,40}?)${FIN_NOTA}`, 'i').exec(sinMontos);
   if (tras) return limpiar(tras[1]);
@@ -113,7 +133,14 @@ export function interpretar(original: string, datos: Datos, hoy: string, fondoCe
   // Pago de un préstamo
   if (verboPago && (prestamo || /\b(PRESTAMO|CUOTA)\b/.test(t)) && !/\bCON\b/.test(t.slice(0, prestamo?.indice ?? 0))) {
     const p = prestamo?.deuda ?? (datos.prestamos.length === 1 ? datos.prestamos[0] : undefined);
-    if (p) return { tipo: 'pagoPrestamo', prestamoId: p.id, montoCentavos, extra: /\b(EXTRA|ADELANTO|ABONO A CAPITAL)\b/.test(t), fecha: dia };
+    const extra = /\b(EXTRA|ADELANTO|ABONO A CAPITAL)\b/.test(t);
+    if (p) return { tipo: 'pagoPrestamo', prestamoId: p.id, montoCentavos, extra, fecha: dia };
+    // «Pagué el préstamo» sin decir cuál: se pregunta en vez de guardarlo como un gasto.
+    if (/\bPRESTAMO\b/.test(t) && !tarjeta) {
+      if (datos.prestamos.length === 0) return sinDeudas('préstamos');
+      const nombrados = deudasNombradas(t, datos.prestamos).map((x) => x.deuda.id);
+      return { tipo: 'cual', deuda: 'prestamo', ids: nombrados.length > 1 ? nombrados : datos.prestamos.map((x) => x.id), montoCentavos, extra, fecha: dia };
+    }
   }
 
   // Pago a una tarjeta: "pagué 100 a la visa" (con "con la visa" es una compra con tarjeta)
@@ -122,6 +149,20 @@ export function interpretar(original: string, datos: Datos, hoy: string, fondoCe
     if (!/\bCON (LA |MI |EL )?(TARJETA )?$/.test(antes)) {
       const conCategoria = buscarCategoria(sinFecha, datos);
       if (!conCategoria) return { tipo: 'pagoTarjeta', tarjetaId: tarjeta.deuda.id, montoCentavos, fecha: dia };
+    }
+  }
+
+  // «Pagué 100 a la tarjeta» sin decir cuál (o con un nombre que tienen varias):
+  // con una sola tarjeta es esa; con varias se pregunta. «Con la tarjeta» es una compra.
+  if (verboPago && !tarjeta) {
+    const empatadas = deudasNombradas(t, datos.tarjetas);
+    const antes = empatadas.length > 0 ? t.slice(0, Math.min(...empatadas.map((x) => x.indice))) : '';
+    const generica = /\bTARJETAS?\b/.test(t) && !/\bCON (LA |MI |EL |UNA )?TARJETA\b/.test(t);
+    const nombrada = empatadas.length > 1 && !/\bCON (LA |MI |EL )?(TARJETA )?$/.test(antes);
+    if ((generica || nombrada) && !buscarCategoria(sinFecha, datos)) {
+      if (datos.tarjetas.length === 0) return sinDeudas('tarjetas');
+      if (datos.tarjetas.length === 1) return { tipo: 'pagoTarjeta', tarjetaId: datos.tarjetas[0].id, montoCentavos, fecha: dia };
+      return { tipo: 'cual', deuda: 'tarjeta', ids: (nombrada ? empatadas.map((x) => x.deuda) : datos.tarjetas).map((x) => x.id), montoCentavos, extra: false, fecha: dia };
     }
   }
 
@@ -221,7 +262,9 @@ function responder(t: string, datos: Datos, hoy: string, fondoCentavos: number, 
           ...(e.planesCentavos > 0
             ? [`Saldo de la tarjeta: ${formatearDinero(Math.max(0, e.saldoCentavos))}.`, `Compras a plazos y extrafinanciamiento: ${formatearDinero(e.planesCentavos)}.`]
             : []),
-          `Crédito disponible: ${formatearDinero(e.creditoDisponibleCentavos)}.`,
+          ...(tarjeta.limiteCentavos > 0 || tarjeta.ultimoEstado?.disponibleCentavos !== undefined
+            ? [`Crédito disponible: ${formatearDinero(e.creditoDisponibleCentavos)}.`]
+            : []),
         ],
         destino: { tipo: 'tarjeta', id: tarjeta.id },
       };

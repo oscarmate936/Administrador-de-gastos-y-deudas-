@@ -39,6 +39,7 @@ una versión instalable que se actualiza encima de la anterior sin borrar datos.
 | — | «Próximos pagos» con el mínimo de cada deuda | Hecho (2.2) |
 | — | Tarjetas que se pagan con el mínimo, cuota que sube, «sueldo», «¿Cuánto dinero tienes hoy?» e Inicio más corto | Hecho (2.3) |
 | — | Segunda revisión con casos al azar: saldo de la tarjeta con intereses estimados y cuatro detalles | Hecho (2.3.1) |
+| — | Revisión final: respaldos cifrados grandes, «pagué a la tarjeta» en el asistente, copias borradas con el PIN olvidado y diez detalles | Hecho (2.3.2) |
 | — | Registrar compras desde los SMS del banco | Pendiente: hacen falta ejemplos de los mensajes |
 
 La fase 3 puede adelantarse en cuanto lleguen los PDF; no depende de las demás.

@@ -158,8 +158,8 @@ export function Deudas({ datos, alAbrir, alNuevaTarjeta, alNuevoPrestamo, alImpo
                     <span style={{ width: `${uso(t, e.saldoCentavos)}%` }} />
                   </span>
                   <span className="plastico-pie">
-                    {t.limiteCentavos > 0 ? `Usas el ${Math.round(uso(t, e.saldoCentavos))}% · ` : ''}disponible{' '}
-                    {formatearDinero(e.creditoDisponibleCentavos)}
+                    {t.limiteCentavos > 0 ? `Usas el ${Math.round(uso(t, e.saldoCentavos))}% · ` : ''}
+                    {conLimite(t) ? `disponible ${formatearDinero(e.creditoDisponibleCentavos)}` : 'sin límite registrado'}
                     {e.planesCentavos > 0 && ` · ${formatearDinero(e.planesCentavos)} en plazos`}
                   </span>
                 </Plastico>
@@ -199,6 +199,9 @@ const porPagar = (t: Tarjeta, e: ReturnType<typeof estadoTarjeta>) => {
   if (e.diasParaLimite < 0 && !e.vencido) return 0;
   return t.formaPago === 'minimo' ? e.minimoPendienteCentavos : e.pendienteCentavos;
 };
+
+/** Se sabe el crédito disponible: hay límite o lo dio el banco en el estado de cuenta. */
+export const conLimite = (t: Tarjeta) => t.limiteCentavos > 0 || t.ultimoEstado?.disponibleCentavos !== undefined;
 
 const uso = (t: Tarjeta, saldo: number) => (t.limiteCentavos > 0 ? Math.min(100, Math.max(0, (saldo / t.limiteCentavos) * 100)) : 0);
 

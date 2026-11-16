@@ -3,7 +3,13 @@
 const ITERACIONES_PIN = 150_000;
 const ITERACIONES_RESPALDO = 250_000;
 
-const aBase64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+/** Por trozos: pasar un respaldo grande entero a `String.fromCharCode` desborda la pila. */
+function aBase64(bytes: Uint8Array): string {
+  const TROZO = 0x8000;
+  let binario = '';
+  for (let i = 0; i < bytes.length; i += TROZO) binario += String.fromCharCode(...bytes.subarray(i, i + TROZO));
+  return btoa(binario);
+}
 const deBase64 = (texto: string) => Uint8Array.from(atob(texto), (c) => c.charCodeAt(0));
 const aleatorio = (n: number) => crypto.getRandomValues(new Uint8Array(n));
 const texto = new TextEncoder();

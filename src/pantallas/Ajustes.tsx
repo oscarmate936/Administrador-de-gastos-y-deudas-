@@ -424,11 +424,16 @@ function RespaldoAutomatico({
     if (clave !== repetir) return setError('Las contraseñas no coinciden.');
     setTrabajando(true);
     setError('');
-    await permisoDocumentos();
     const archivo = nuevoNombreArchivo();
-    await guardarClave(clave);
-    setGuardada(clave);
-    await guardarAjuste('respaldoAuto', { activo: true, archivo, ultimo: undefined, error: undefined });
+    try {
+      await permisoDocumentos();
+      await guardarClave(clave);
+      setGuardada(clave);
+      await guardarAjuste('respaldoAuto', { activo: true, archivo, ultimo: undefined, error: undefined });
+    } catch {
+      setTrabajando(false);
+      return setError('No se pudo activar. Inténtalo de nuevo.');
+    }
     try {
       await guardarRespaldoAuto(clave, archivo);
       alTerminar(`Respaldo automático activado. El primero ya está en Documentos › ${CARPETA}.`);

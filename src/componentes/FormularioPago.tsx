@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { db, nuevoId, type Movimiento, type Prestamo, type Tarjeta } from '../db';
 import { ahorroDelAbono, capitalDeCuota, capitalDelPago, estadoPrestamo, repartirPago, estadoTarjeta, interesMensual, textoDuracion } from '../lib/deudas';
 import { centavosATexto, formatearDinero, textoACentavos } from '../lib/dinero';
@@ -29,8 +29,17 @@ export function FormularioPago(props: Props) {
   // Al editar, los cálculos parten de cómo estaba la deuda sin este pago.
   const otros = movimiento ? movimientos.filter((m) => m.id !== movimiento.id) : movimientos;
   const eTarjeta = tarjeta ? estadoTarjeta(tarjeta, otros, fechaHoy) : null;
-  const ePrestamo = prestamo ? estadoPrestamo(prestamo, otros, fechaHoy) : null;
-  const saldoPrestamo = ePrestamo?.saldoCentavos ?? 0;
+  // Al editar una cuota, su reparto se calcula con el préstamo como estaba justo
+  // antes de ese pago (sin los pagos posteriores).
+  const previos =
+    movimiento && prestamo
+      ? otros.filter(
+          (m) => m.prestamoId !== prestamo.id || m.fecha < movimiento.fecha || (m.fecha === movimiento.fecha && m.creadoEn < movimiento.creadoEn),
+        )
+      : otros;
+  const ePrestamo = prestamo ? estadoPrestamo(prestamo, previos, fechaHoy) : null;
+  // Lo más que puede ir a capital: lo que se debe sin contar este pago.
+  const saldoPrestamo = prestamo ? estadoPrestamo(prestamo, otros, fechaHoy).saldoCentavos : 0;
 
   const [esExtra, setEsExtra] = useState(movimiento?.esExtra ?? extraInicial ?? false);
   const [monto, setMonto] = useState(() => {
@@ -46,7 +55,13 @@ export function FormularioPago(props: Props) {
   const [capital, setCapital] = useState(
     movimiento?.capitalCentavos !== undefined ? centavosATexto(movimiento.capitalCentavos) : '',
   );
+  // Al editar se muestra el capital guardado; si cambia el monto o el tipo de
+  // pago sin haber escrito otro capital, se vuelve a calcular.
   const [capitalEditado, setCapitalEditado] = useState(movimiento !== undefined);
+  const capitalEscrito = useRef(false);
+  const recalcularCapital = () => {
+    if (!capitalEscrito.current) setCapitalEditado(false);
+  };
   const [fecha, setFecha] = useState(movimiento?.fecha ?? fechaInicial ?? fechaHoy);
   const [nota, setNota] = useState(movimiento?.nota ?? '');
   const [error, setError] = useState('');
@@ -61,7 +76,7 @@ export function FormularioPago(props: Props) {
       ? capitalDeCuota(prestamo, ePrestamo, montoCentavos, fechaPago)
       : null;
   const capitalCalculado =
-    prestamo && montoCentavos ? (desglose ?? capitalDelPago(prestamo, ePrestamo!, montoCentavos, esExtra, fechaPago)) : 0;
+    prestamo && montoCentavos ? Math.min(saldoPrestamo, desglose ?? capitalDelPago(prestamo, ePrestamo!, montoCentavos, esExtra, fechaPago)) : 0;
   const capitalCentavos = capitalEditado ? textoACentavos(capital) : capitalCalculado;
   const ahorro =
     prestamo && esExtra && montoCentavos
@@ -152,6 +167,12 @@ export function FormularioPago(props: Props) {
   const cambiarMonto = (texto: string) => {
     setMonto(texto);
     setError('');
+    recalcularCapital();
+  };
+  const cambiarTipo = (extra: boolean) => {
+    setEsExtra(extra);
+    setError('');
+    recalcularCapital();
   };
 
   return (
@@ -159,10 +180,10 @@ export function FormularioPago(props: Props) {
       <form onSubmit={guardar} className="formulario" noValidate>
         {prestamo && (
           <div className="segmentos" role="group" aria-label="Tipo de pago">
-            <button type="button" aria-pressed={!esExtra} onClick={() => setEsExtra(false)}>
+            <button type="button" aria-pressed={!esExtra} onClick={() => cambiarTipo(false)}>
               Cuota del mes
             </button>
-            <button type="button" aria-pressed={esExtra} onClick={() => setEsExtra(true)}>
+            <button type="button" aria-pressed={esExtra} onClick={() => cambiarTipo(true)}>
               Abono extra
             </button>
           </div>
@@ -231,6 +252,7 @@ export function FormularioPago(props: Props) {
               inputMode="decimal"
               value={capitalEditado ? capital : centavosATexto(capitalCalculado)}
               onChange={(e) => {
+                capitalEscrito.current = true;
                 setCapital(e.target.value);
                 setCapitalEditado(true);
                 setError('');
@@ -260,6 +282,12 @@ export function FormularioPago(props: Props) {
           <span>Fecha</span>
           <input type="date" value={fecha} max={fechaHoy} onChange={(e) => setFecha(e.target.value)} />
         </label>
+        {tarjeta && esFechaValida(fecha) && fecha <= tarjeta.fechaSaldo && (
+          <p className="aviso alerta">
+            La deuda de {tarjeta.nombre} que tiene la app es la del {fechaCorta(tarjeta.fechaSaldo)}: un pago de ese día o de antes
+            ya está descontado, así que no la baja. Sí se resta de tu disponible.
+          </p>
+        )}
 
         <label className="campo">
           <span>Nota (opcional)</span>

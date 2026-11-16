@@ -29,6 +29,14 @@ describe('respaldo cifrado', () => {
     expect(await descifrar(sobre, 'clave segura')).toBe('{"hola":"mundo ñ"}');
   });
 
+  it('cifra un respaldo grande (más de un megabyte)', async () => {
+    // Antes fallaba al pasar de unos 125 KB: años de movimientos no cabían.
+    const grande = JSON.stringify(Array.from({ length: 12000 }, (_, i) => ({ id: `mov-${i}`, nota: 'Súper Selectos ñ', montoCentavos: i })));
+    expect(grande.length).toBeGreaterThan(700_000);
+    const sobre = await cifrar(grande, 'clave segura');
+    expect(await descifrar(sobre, 'clave segura')).toBe(grande);
+  });
+
   it('rechaza una contraseña incorrecta', async () => {
     const sobre = await cifrar('secreto', 'una');
     await expect(descifrar(sobre, 'otra')).rejects.toThrow('La contraseña no es correcta');

@@ -49,9 +49,17 @@ export function extraerFecha(t: string, hoy: string): Fragmento<string> | null {
   }
   m = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?\b/.exec(t);
   if (m) {
-    const h = aDate(hoy);
-    const anio = m[3] ? (m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])) : h.getFullYear();
-    return { valor: fechaConDia(anio, Number(m[2]) - 1, Number(m[1])), resto: quitar(m) };
+    const d = Number(m[1]);
+    const mes = Number(m[2]);
+    // «15/13» o «0/5» no son fechas: se dejan en la frase.
+    if (d >= 1 && d <= 31 && mes >= 1 && mes <= 12) {
+      const h = aDate(hoy);
+      let anio = m[3] ? (m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])) : h.getFullYear();
+      let f = fechaConDia(anio, mes - 1, d);
+      // Sin año, una fecha que aún no llega es la del año pasado (como «5 de diciembre»).
+      if (!m[3] && f > hoy) f = fechaConDia(--anio, mes - 1, d);
+      return { valor: f, resto: quitar(m) };
+    }
   }
   m = /\bEL\s+(?:DIA\s+)?(\d{1,2})\b(?!\s*(?:DOLAR|\$|USD|\.|,\d))/.exec(t);
   if (m && Number(m[1]) >= 1 && Number(m[1]) <= 31) {
