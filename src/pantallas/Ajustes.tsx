@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { db, type Categoria } from '../db';
 import { FormularioBloqueo } from '../componentes/FormularioBloqueo';
 import { FormularioCategoria } from '../componentes/FormularioCategoria';
+import { ImportarDeudas } from '../componentes/ImportarDeudas';
+import { esArchivoDeudas } from '../lib/archivoDeudas';
 import { Hoja } from '../componentes/Hoja';
 import { IconoFlecha } from '../componentes/Iconos';
 import { Opcion } from '../componentes/Opcion';
@@ -66,6 +68,8 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, saldo, 
   const [hoja, setHoja] = useState<Hojas>(null);
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [pendiente, setPendiente] = useState<Sobre | null>(null);
+  // Archivo de deudas elegido en «Restaurar o importar un archivo».
+  const [deudas, setDeudas] = useState<string | null>(null);
   const entradaArchivo = useRef<HTMLInputElement>(null);
 
   /** Valida, pide confirmación y reemplaza los datos. */
@@ -87,6 +91,10 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, saldo, 
 
   async function abrirTexto(texto: string, origen: string) {
     setAviso(null);
+    if (esArchivoDeudas(texto)) {
+      setDeudas(texto);
+      return;
+    }
     try {
       const sobre = sobreDeRespaldo(texto);
       if (sobre) {
@@ -155,8 +163,8 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, saldo, 
           )}
           <Opcion
             icono={<Insignia color="var(--info)" simbolo="bajar" cuadrada />}
-            titulo="Restaurar desde un archivo"
-            detalle="Reemplaza los datos de este dispositivo"
+            titulo="Restaurar o importar un archivo"
+            detalle="Un respaldo reemplaza tus datos; un archivo de deudas solo las agrega"
             alTocar={() => {
               marcarSalidaPropia();
               entradaArchivo.current?.click();
@@ -187,6 +195,16 @@ export function Ajustes({ categorias, totalMovimientos, ajustes, avisos, saldo, 
             if (archivo) void archivo.text().then((t) => abrirTexto(t, 'El respaldo'));
           }}
         />
+        {deudas && (
+          <ImportarDeudas
+            texto={deudas}
+            alCerrar={() => setDeudas(null)}
+            alTerminar={(texto) => {
+              setDeudas(null);
+              setAviso({ tipo: 'ok', texto });
+            }}
+          />
+        )}
         {pendiente && (
           <ClaveRespaldo
             sobre={pendiente}

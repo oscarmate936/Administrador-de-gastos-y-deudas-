@@ -31,6 +31,8 @@ no hay servidor ni cuentas.
 - «Tu sueldo»: de cada sueldo se apartan las deudas que vencen antes del siguiente
   (el total, lo recomendado o el mínimo de cada tarjeta; lo recomendado cubre los intereses y las cuotas a plazos) y el bono de comida; se ve cuánto llevas de
   cada apartado y lo que queda para lo demás.
+- Archivo de deudas: carga de una vez todas las tarjetas, préstamos y cómo te pagan; agrega lo
+  que falta y pone al día lo que ya está, sin borrar movimientos ni pagos.
 - Gastos que se repiten cada mes, propuestos en Inicio para confirmar.
 - Límites de gasto por categoría con avisos al 80% y al 100%.
 - Leer tickets y capturas de la app del banco con la cámara (en el dispositivo,

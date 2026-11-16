@@ -7,6 +7,7 @@ import { FormularioPago } from './componentes/FormularioPago';
 import { FormularioPrestamo } from './componentes/FormularioPrestamo';
 import { FormularioSaldo } from './componentes/FormularioSaldo';
 import { FormularioSueldo } from './componentes/FormularioSueldo';
+import { ImportarDeudas } from './componentes/ImportarDeudas';
 import { planDelSueldo } from './lib/sueldo';
 import { FormularioTarjeta } from './componentes/FormularioTarjeta';
 import { Bloqueo } from './componentes/Bloqueo';
@@ -103,6 +104,8 @@ export function App() {
   }, [aviso]);
   const [leyendo, setLeyendo] = useState(false);
   const entradaPdf = useRef<HTMLInputElement>(null);
+  const entradaDeudas = useRef<HTMLInputElement>(null);
+  const [archivoDeudas, setArchivoDeudas] = useState<string | null>(null);
   const tarjetaParaImportar = useRef<string | undefined>(undefined);
 
   const movimientos = useLiveQuery(() => db.movimientos.toArray(), []);
@@ -784,6 +787,11 @@ export function App() {
             setAgregando(false);
             importarEstado();
           }}
+          alImportarDeudas={() => {
+            setAgregando(false);
+            marcarSalidaPropia();
+            entradaDeudas.current?.click();
+          }}
         />
       )}
       {formulario && datos && hoja(formulario, datos)}
@@ -826,6 +834,28 @@ export function App() {
         <FormularioRecordatorios ajustes={ajustes} datos={datos} alCerrar={() => setVerRecordatorios(false)} />
       )}
 
+      <input
+        ref={entradaDeudas}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={(e) => {
+          const archivo = e.target.files?.[0];
+          e.target.value = '';
+          if (archivo) void archivo.text().then(setArchivoDeudas);
+        }}
+      />
+      {archivoDeudas !== null && (
+        <ImportarDeudas
+          texto={archivoDeudas}
+          alCerrar={() => setArchivoDeudas(null)}
+          alTerminar={(texto) => {
+            setArchivoDeudas(null);
+            setAviso({ texto, tipo: 'info' });
+            irA('deudas');
+          }}
+        />
+      )}
       <input
         ref={entradaPdf}
         type="file"

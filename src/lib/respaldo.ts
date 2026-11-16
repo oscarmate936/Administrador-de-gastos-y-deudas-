@@ -78,7 +78,7 @@ const esCentavos = (v: unknown): v is number => typeof v === 'number' && Number.
 
 const esDiaDelMes = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 31;
 
-function leerTarjeta(v: unknown, i: number): Tarjeta {
+export function leerTarjeta(v: unknown, i: number): Tarjeta {
   const error = (campo: string) => new Error(`Tarjeta ${i + 1}: "${campo}" no es válido.`);
   if (!esObjeto(v)) throw new Error(`Tarjeta ${i + 1}: formato no válido.`);
   if (!esTextoNoVacio(v.id)) throw error('id');
@@ -139,7 +139,7 @@ function leerUltimoEstado(v: unknown): UltimoEstado | undefined {
   };
 }
 
-function leerPrestamo(v: unknown, i: number): Prestamo {
+export function leerPrestamo(v: unknown, i: number): Prestamo {
   const error = (campo: string) => new Error(`Préstamo ${i + 1}: "${campo}" no es válido.`);
   if (!esObjeto(v)) throw new Error(`Préstamo ${i + 1}: formato no válido.`);
   if (!esTextoNoVacio(v.id)) throw error('id');
