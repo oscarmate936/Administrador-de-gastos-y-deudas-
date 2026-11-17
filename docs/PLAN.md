@@ -45,6 +45,7 @@ una versión instalable que se actualiza encima de la anterior sin borrar datos.
 | — | Sueldo sin día fijo («del 18 al 22») y pago «Recomendado» por tarjeta (cubre intereses y cuotas a plazos) | Hecho (2.5.0) |
 | — | Archivo de deudas: cargar todas las tarjetas, préstamos y el sueldo de una vez, sin borrar nada | Hecho (2.6.0) |
 | — | Revisión con tus deudas reales: mínimo y recomendado con extrafinanciamiento y plazos, espera del sueldo, archivo de deudas sin deshacer pagos, Próximos pagos hasta el sueldo | Hecho (2.6.1) |
+| — | Revisión final: cuatro meses simulados con deudas reales; por día hasta el último día posible del sueldo y textos | Hecho (2.6.2) |
 | — | Registrar compras desde los SMS del banco | Pendiente: hacen falta ejemplos de los mensajes |
 
 La fase 3 puede adelantarse en cuanto lleguen los PDF; no depende de las demás.

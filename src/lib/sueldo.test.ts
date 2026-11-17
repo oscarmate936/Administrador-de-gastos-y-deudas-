@@ -57,6 +57,13 @@ describe('sueldo sin día fijo (del 18 al 22)', () => {
     expect(planDelSueldo({ movimientos: [octubre], tarjetas: [], prestamos: [] }, '2026-11-20', { sueldo: rango }).diasRestantes).toBe(2);
   });
 
+  it('lo que queda por día se reparte hasta el último día en que puede llegar el sueldo', () => {
+    // El 17 de noviembre: el sueldo puede llegar hasta el 22, no se reparte en un solo día.
+    const p = planDelSueldo({ movimientos: [octubre], tarjetas: [], prestamos: [] }, '2026-11-17', { sueldo: rango });
+    expect(p.diasRestantes).toBe(5);
+    expect(p.porDiaCentavos).toBe(Math.floor(76500 / 5));
+  });
+
   it('espera el sueldo aunque no se haya registrado el anterior, también el último día', () => {
     expect(periodoDelSueldo([], '2026-11-19', rango)).toMatchObject({ desde: '2026-10-18', hasta: '2026-11-18', hastaMax: '2026-11-22', esperando: true });
     expect(periodoDelSueldo([], '2026-11-22', rango)).toMatchObject({ esperando: true });

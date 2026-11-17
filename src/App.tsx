@@ -8,7 +8,8 @@ import { FormularioPrestamo } from './componentes/FormularioPrestamo';
 import { FormularioSaldo } from './componentes/FormularioSaldo';
 import { FormularioSueldo } from './componentes/FormularioSueldo';
 import { ImportarDeudas } from './componentes/ImportarDeudas';
-import { planDelSueldo } from './lib/sueldo';
+import { diasDePago, planDelSueldo } from './lib/sueldo';
+import type { AjustesSueldo } from './lib/ajustes';
 import { FormularioTarjeta } from './componentes/FormularioTarjeta';
 import { Bloqueo } from './componentes/Bloqueo';
 import { FormularioRecordatorios } from './componentes/FormularioRecordatorios';
@@ -78,6 +79,16 @@ const DERECHA: Array<{ id: Pestana; Icono: () => React.JSX.Element }> = [
   { id: 'deudas', Icono: IconoDeudas },
   { id: 'analisis', Icono: IconoAnalisis },
 ];
+
+/** «Cada mes, el día 30», «Cada mes, del 18 al 22» o «Cada quincena, los días 15 y 30». */
+function textoFrecuencia(s: AjustesSueldo): string {
+  if (s.dia === undefined) return s.frecuencia === 'quincenal' ? 'Cada quincena' : 'Cada mes';
+  if (s.frecuencia === 'quincenal') {
+    const [a, b] = diasDePago(s);
+    return `Cada quincena, los días ${a} y ${b >= 30 ? 'último' : b}`;
+  }
+  return s.diaHasta ? `Cada mes, del ${s.dia} al ${s.diaHasta}` : `Cada mes, el día ${s.dia}`;
+}
 
 const fmtHoy = new Intl.DateTimeFormat('es-SV', { weekday: 'long', day: 'numeric', month: 'long' });
 const fechaDeHoy = () => {
@@ -575,7 +586,7 @@ export function App() {
               <Opcion
                 icono={<Insignia color="var(--positivo)" simbolo="ingreso" cuadrada />}
                 titulo="Tu sueldo"
-                detalle={`${ajustes!.sueldo.frecuencia === 'quincenal' ? 'Cada quincena' : 'Cada mes'}${ajustes!.sueldo.dia ? (ajustes!.sueldo.diaHasta ? `, del ${ajustes!.sueldo.dia} al ${ajustes!.sueldo.diaHasta}` : `, el día ${ajustes!.sueldo.dia}`) : ''}${ajustes!.sueldo.comidaCentavos > 0 ? ` · bono de comida ${formatearDinero(ajustes!.sueldo.comidaCentavos)}` : ''}`}
+                detalle={`${textoFrecuencia(ajustes!.sueldo)}${ajustes!.sueldo.comidaCentavos > 0 ? ` · bono de comida ${formatearDinero(ajustes!.sueldo.comidaCentavos)}` : ''}`}
                 alTocar={() => setVerSueldo(true)}
               />
             }

@@ -172,8 +172,8 @@ export function planDelSueldo(
   const salidas = suma(enPeriodo.filter((m) => esPagoDeDeuda(m) || (m.tipo === 'gasto' && m.tarjetaId === undefined)));
   const fondo = Math.max(0, opciones.fondoCentavos ?? 0);
   const libre = disponible - faltaCentavos - (comida?.apartadoCentavos ?? 0) - fondo;
-  // Esperando un sueldo sin día fijo: lo que queda se reparte hasta el último día en que puede llegar.
-  const diasRestantes = Math.max(1, diasEntre(hoy, periodo.esperando && periodo.hastaMax ? periodo.hastaMax : periodo.hasta));
+  // Sin día fijo, lo que queda se reparte hasta el último día en que puede llegar el sueldo (por si llega tarde).
+  const diasRestantes = Math.max(1, diasEntre(hoy, periodo.hastaMax ?? periodo.hasta));
   return {
     periodo,
     ingresosCentavos: ingresos,

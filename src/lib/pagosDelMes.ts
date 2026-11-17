@@ -61,7 +61,7 @@ export function pagosDelMes(
     }
     const base = { tipo: 'tarjeta' as const, id: t.id, nombre: t.nombre, fecha: e.fechaLimite, vencido: e.vencido };
     // Quien paga lo recomendado ve ese monto (más que el mínimo, para que la deuda baje).
-    if (t.formaPago === 'recomendado' && e.recomendadoPendienteCentavos > e.minimoPendienteCentavos) {
+    if (t.formaPago === 'recomendado' && e.recomendadoPendienteCentavos > 0) {
       lista.push({
         ...base,
         montoCentavos: e.recomendadoPendienteCentavos,
